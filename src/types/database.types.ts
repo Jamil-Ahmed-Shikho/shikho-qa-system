@@ -18,6 +18,8 @@ export type EmploymentStage =
   | 'not_certified'
   | 'discontinued'
 
+export type AccountStatus = 'profile_only' | 'active'
+
 export interface UserProfile {
   id: string
   auth_id: string | null
@@ -38,6 +40,8 @@ export interface UserProfile {
   created_at: string
   crm_agent_id: number | null
   must_change_password: boolean
+  /** profile_only = no Supabase Auth login yet (imported for matching only); active = can sign in (schema_020). */
+  account_status: AccountStatus
   // What the CRM says this person reports to (schema_010). Agent -> their
   // Team Leader, team_lead -> their Manager. System-written.
   crm_reporting_to_id: number | null

@@ -18,6 +18,7 @@ interface Summary {
   created: number
   failed: number
   emailsFailed: number
+  accountStatus: 'profile_only' | 'active'
   results: RowResult[]
 }
 
@@ -25,6 +26,10 @@ export function BulkImportPanel({ onClose }: { onClose: () => void }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
+  // Default profile_only: the system is still local/in development —
+  // importing the real roster shouldn't create live logins or send
+  // "your account is ready" emails ahead of go-live.
+  const [profileOnly, setProfileOnly] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -37,6 +42,7 @@ export function BulkImportPanel({ onClose }: { onClose: () => void }) {
     try {
       const body = new FormData()
       body.append('file', file)
+      body.append('accountStatus', profileOnly ? 'profile_only' : 'active')
       const res = await fetch('/api/admin/users/bulk', { method: 'POST', body })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data) {
@@ -73,8 +79,25 @@ export function BulkImportPanel({ onClose }: { onClose: () => void }) {
           {' '}— the Instructions sheet explains every column.
         </li>
         <li>Fill in one person per row (max 100 per upload). Supervisors are referenced by email.</li>
-        <li>Upload it below. Each valid row gets an account and an emailed temporary password; invalid rows are skipped and listed.</li>
+        <li>Choose an import mode below, then upload. Invalid rows are skipped and listed; the rest still import.</li>
       </ol>
+
+      <label style={{
+        display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '13px', marginBottom: '14px',
+        background: 'var(--surface-0)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', cursor: 'pointer',
+      }}>
+        <input type="checkbox" checked={profileOnly} onChange={(e) => setProfileOnly(e.target.checked)} style={{ marginTop: '2px' }} />
+        <span>
+          <b>Profile only</b> — create the profile (name, email, team, CRM matching fields) with no login and no email.
+          Recommended while the system isn&apos;t ready for real staff to sign in yet. Use <b>Activate &amp; invite</b> on the
+          Users screen later to create the login and send the welcome email, person by person or in bulk.
+          {!profileOnly && (
+            <span style={{ display: 'block', marginTop: '6px', color: 'var(--alert)', fontWeight: 600 }}>
+              Unchecked: every row gets a real login immediately and is emailed a temporary password now.
+            </span>
+          )}
+        </span>
+      </label>
 
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
         <input
@@ -93,7 +116,7 @@ export function BulkImportPanel({ onClose }: { onClose: () => void }) {
             ...(!file || uploading ? { background: 'var(--surface-1)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}),
           }}
         >
-          {uploading ? 'Importing… this can take a minute' : 'Upload & create accounts'}
+          {uploading ? 'Importing… this can take a minute' : profileOnly ? 'Upload & create profiles' : 'Upload & create accounts'}
         </button>
       </div>
 
@@ -110,10 +133,21 @@ export function BulkImportPanel({ onClose }: { onClose: () => void }) {
         <div style={{ marginTop: '16px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
             <Stat label="Rows" value={summary.total} />
-            <Stat label="Created" value={summary.created} color="var(--status-green)" />
+            <Stat label={summary.accountStatus === 'profile_only' ? 'Profiles created' : 'Accounts created'} value={summary.created} color="var(--status-green)" />
             <Stat label="Failed" value={summary.failed} color={summary.failed ? 'var(--alert)' : undefined} />
             {summary.emailsFailed > 0 && <Stat label="Emails not sent" value={summary.emailsFailed} color="var(--highlight)" />}
           </div>
+
+          {summary.accountStatus === 'profile_only' && summary.created > 0 && (
+            <div style={{
+              background: 'var(--surface-0)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              padding: '10px 14px', fontSize: '13px', marginBottom: '12px',
+            }}>
+              {summary.created} profile-only user{summary.created === 1 ? '' : 's'} created — no login, no email sent.
+              Matching (CRM/revenue) works for them immediately. Use <b>Activate &amp; invite</b> on the Users screen
+              when they should be able to sign in.
+            </div>
+          )}
 
           {summary.emailsFailed > 0 && (
             <div style={{

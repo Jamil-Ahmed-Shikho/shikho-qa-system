@@ -7,6 +7,7 @@ import { isRecordingFilename, recordingConfigured } from '@/lib/crm/recording'
 import { RecordingPlayer } from '@/components/audits/RecordingPlayer'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { ReleaseDraftButton } from '@/components/audits/ReleaseDraftButton'
+import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
 import { Scorecard } from '@/components/audits/Scorecard'
 import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
 
@@ -183,6 +184,14 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         <div style={{ marginTop: '24px' }}>
           <ReleaseDraftButton auditId={audit.id} leadId={audit.crm_lead_id ?? ''} />
         </div>
+      )}
+
+      {audit.status !== 'draft' && (
+        <ScheduleCoaching
+          auditId={audit.id}
+          canSchedule={!!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)}
+          criticalFail={audit.critical_fail}
+        />
       )}
     </div>
   )

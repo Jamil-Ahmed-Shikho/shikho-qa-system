@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { writeAuditLogs } from './audit-log'
 import { sendPasswordResetEmail, sendWelcomeEmail } from './mailer'
 import {
+  activateAccount,
   createAccount,
   requireUserAdmin,
   resetAccountPassword,
@@ -43,8 +44,12 @@ export async function createUserAction(
   const parsed = validateUserInput(input)
   if (!parsed.ok) return parsed
 
+  // The Add-user form always creates a real login (accountStatus defaults
+  // to 'active' in createAccount) — only bulk import currently offers
+  // profile_only. tempPassword is therefore never null on this path.
   const created = await createAccount(g.actor, parsed.value, tags)
   if (!created.ok) return created
+  if (!created.tempPassword) return { ok: false, error: 'Unexpected: no password was generated.' }
 
   await writeAuditLogs([{
     actor_id: g.actor.profile.id,
@@ -141,4 +146,81 @@ export async function resetUserPasswordAction(
 
   revalidatePath('/admin/users')
   return { ok: true, emailSent, tempPassword: emailSent ? null : result.tempPassword }
+}
+
+// ── Activate (profile_only -> active) ───────────────────────
+
+export async function activateUserAction(
+  id: string
+): Promise<{ ok: true; emailSent: boolean; tempPassword: string | null } | Fail> {
+  const g = await guard()
+  if ('error' in g) return { ok: false, error: g.error }
+
+  const result = await activateAccount(g.actor, id)
+  if (!result.ok) return result
+
+  await writeAuditLogs([{
+    actor_id: g.actor.profile.id,
+    action: 'user.activated',
+    table_name: 'users',
+    record_id: id,
+  }])
+
+  let emailSent = true
+  try {
+    await sendWelcomeEmail(result.name, result.email, result.tempPassword)
+  } catch (err) {
+    emailSent = false
+    console.error('Welcome email failed:', err)
+  }
+
+  revalidatePath('/admin/users')
+  return { ok: true, emailSent, tempPassword: emailSent ? null : result.tempPassword }
+}
+
+export interface ActivateRowResult {
+  id: string
+  name: string
+  email: string
+  status: 'activated' | 'failed'
+  reason?: string
+  emailSent?: boolean
+}
+
+// Bulk activation — same per-row { ok/failed } reporting shape as bulk
+// import, run sequentially (a handful of selected rows at a time from the
+// Users screen, not hundreds — no need for bulk-import's concurrency batching).
+export async function activateUsersAction(
+  ids: string[]
+): Promise<{ ok: true; results: ActivateRowResult[] } | Fail> {
+  const g = await guard()
+  if ('error' in g) return { ok: false, error: g.error }
+
+  const results: ActivateRowResult[] = []
+  for (const id of ids) {
+    const result = await activateAccount(g.actor, id)
+    if (!result.ok) {
+      results.push({ id, name: '', email: '', status: 'failed', reason: result.error })
+      continue
+    }
+
+    await writeAuditLogs([{
+      actor_id: g.actor.profile.id,
+      action: 'user.activated',
+      table_name: 'users',
+      record_id: id,
+    }])
+
+    let emailSent = true
+    try {
+      await sendWelcomeEmail(result.name, result.email, result.tempPassword)
+    } catch (err) {
+      emailSent = false
+      console.error('Welcome email failed for', result.email, err)
+    }
+    results.push({ id, name: result.name, email: result.email, status: 'activated', emailSent })
+  }
+
+  revalidatePath('/admin/users')
+  return { ok: true, results }
 }

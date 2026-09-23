@@ -13,7 +13,7 @@
 import ExcelJS from 'exceljs'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { TEAM_NAMES } from '@/types/database.types'
-import type { AuthUser, UserRole } from '@/types/database.types'
+import type { AccountStatus, AuthUser, UserRole } from '@/types/database.types'
 import { writeAuditLogs } from './audit-log'
 import { cellText } from './excel-cells'
 import { EMPLOYMENT_STAGES, SITE_NAMES, TAG_FIELDS, USER_ROLES, type TagField } from './constants'
@@ -97,7 +97,7 @@ export async function generateUserImportTemplate(): Promise<Buffer> {
   help.getColumn(2).width = 90
   const rows: [string, string][] = [
     ['How to use', `Fill in the "Users" sheet (one person per row, max ${MAX_IMPORT_ROWS} rows per upload) and upload it. Do not rename or remove the column headers.`],
-    ['What happens', 'Each valid row gets a login account and an emailed temporary password. They must choose their own password at first sign-in. Invalid rows are skipped and reported — the rest still import.'],
+    ['What happens', 'Each valid row becomes a user profile. Depending on the option chosen on the upload screen, this either (a) also creates a login and emails a temporary password immediately, or (b) creates a profile only — no login, no email — until an admin later activates that person from the Users screen. Invalid rows are skipped and reported — the rest still import.'],
     ['', ''],
     ['Name', 'Required.'],
     ['Email', 'Required. Must be unique. This is also the login and — for agents — the CRM login used to match their calls.'],
@@ -137,6 +137,7 @@ export interface BulkImportSummary {
   created: number
   failed: number
   emailsFailed: number
+  accountStatus: AccountStatus
   results: BulkRowResult[]
 }
 
@@ -150,7 +151,13 @@ interface ParsedRow {
 
 export async function bulkCreateUsers(
   actor: AuthUser,
-  fileBuffer: Buffer
+  fileBuffer: Buffer,
+  // profile_only by default: the system is still local/in development, so
+  // importing the real roster shouldn't hand out live logins and "your
+  // account is ready" emails ahead of go-live (§2 addendum, schema_020).
+  // Pass 'active' explicitly for the old create-logins-immediately
+  // behaviour (e.g. importing a handful of test/admin accounts).
+  accountStatus: AccountStatus = 'profile_only'
 ): Promise<{ ok: true; summary: BulkImportSummary } | { ok: false; error: string }> {
   const workbook = new ExcelJS.Workbook()
   try {
@@ -331,18 +338,22 @@ export async function bulkCreateUsers(
             }
             base.warnings.push(...resolved.warnings.filter((w) => !w.startsWith('Team Leader')))
           }
-          const created = await createAccount(actor, item.value, tags)
+          const created = await createAccount(actor, item.value, tags, accountStatus)
           if (!created.ok) {
             results.set(item.row, { ...base, status: 'failed', reason: created.error })
             return
           }
           createdIdByEmail.set(item.value.email, { id: created.id, role: item.value.role })
-          try {
-            await sendWelcomeEmail(item.value.name, item.value.email, created.tempPassword)
-          } catch (err) {
-            emailsFailed++
-            console.error('Welcome email failed for', item.value.email, err)
-            base.warnings.push('Welcome email could not be sent — use Reset password on the Users screen to issue a new one.')
+          // profile_only: no login was created, so there is nothing to
+          // email — created.tempPassword is null on this path.
+          if (created.tempPassword) {
+            try {
+              await sendWelcomeEmail(item.value.name, item.value.email, created.tempPassword)
+            } catch (err) {
+              emailsFailed++
+              console.error('Welcome email failed for', item.value.email, err)
+              base.warnings.push('Welcome email could not be sent — use Reset password on the Users screen to issue a new one.')
+            }
           }
           results.set(item.row, { ...base, status: 'created' })
         })
@@ -392,6 +403,7 @@ export async function bulkCreateUsers(
       created: ordered.filter((r) => r.status === 'created').length,
       failed: ordered.filter((r) => r.status === 'failed').length,
       emailsFailed,
+      accountStatus,
       results: ordered,
     },
   }

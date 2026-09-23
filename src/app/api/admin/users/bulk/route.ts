@@ -17,6 +17,12 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const file = formData.get('file')
+  const accountStatusRaw = formData.get('accountStatus')
+  // Default (and only trusted values): profile_only unless the caller
+  // explicitly asked for 'active'. Anything else falls back to the safe
+  // default rather than erroring — this is a checkbox on the upload form,
+  // not user-typed input.
+  const accountStatus = accountStatusRaw === 'active' ? 'active' : 'profile_only'
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file uploaded.' }, { status: 400 })
@@ -28,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File is too large (2 MB max).' }, { status: 400 })
   }
 
-  const result = await bulkCreateUsers(user, Buffer.from(await file.arrayBuffer()))
+  const result = await bulkCreateUsers(user, Buffer.from(await file.arrayBuffer()), accountStatus)
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 422 })
 
   revalidatePath('/admin/users')

@@ -7,7 +7,7 @@
 
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseAdmin, getSupabaseServer } from '@/lib/supabase/server'
-import type { AuthUser, UserProfile, UserRole } from '@/types/database.types'
+import type { AccountStatus, AuthUser, UserProfile, UserRole } from '@/types/database.types'
 import { canManageRole, TAG_FIELDS, type TagField } from './constants'
 import { generateTempPassword } from './password'
 import { validateTeamLeaderRequired, type NormalizedUserInput } from './validation'
@@ -91,8 +91,9 @@ function friendlyDbError(message: string, code?: string): string {
 export async function createAccount(
   actor: AuthUser,
   v: NormalizedUserInput,
-  tags: TagIds
-): Promise<Result<{ id: string; tempPassword: string }>> {
+  tags: TagIds,
+  accountStatus: AccountStatus = 'active'
+): Promise<Result<{ id: string; tempPassword: string | null }>> {
   if (!canManageRole(actor.role, v.role)) {
     return { ok: false, error: `Only a Super Admin can create ${v.role} accounts.` }
   }
@@ -110,6 +111,37 @@ export async function createAccount(
   if (v.emp_id) {
     const { data: empDup } = await admin.from('users').select('id').eq('emp_id', v.emp_id).limit(1)
     if (empDup && empDup.length > 0) return { ok: false, error: 'That Employee ID is already used by another user.' }
+  }
+
+  // profile_only: a data-matching row only — no Supabase Auth login, no
+  // email, nothing to sign in with yet. §2 addendum (schema_020): the
+  // system isn't ready for real staff to use it, so importing the real
+  // roster shouldn't hand out "your account is ready" emails ahead of
+  // that. Everything else about the row (team, CRM matching fields,
+  // Team Leader requirement) is exactly as normal.
+  if (accountStatus === 'profile_only') {
+    const { data, error } = await admin
+      .from('users')
+      .insert({
+        auth_id: null,
+        name: v.name,
+        email: v.email,
+        emp_id: v.emp_id,
+        role: v.role,
+        team_name: v.team_name,
+        site_name: v.site_name,
+        joining_date: v.joining_date,
+        employment_stage: v.employment_stage,
+        ojt_start_date: v.ojt_start_date,
+        ...tags,
+        account_status: 'profile_only',
+        must_change_password: false,
+      })
+      .select('id')
+      .single()
+
+    if (error || !data) return { ok: false, error: friendlyDbError(error?.message ?? 'Insert failed.', error?.code) }
+    return { ok: true, id: data.id as string, tempPassword: null }
   }
 
   const tempPassword = generateTempPassword()
@@ -141,6 +173,7 @@ export async function createAccount(
       employment_stage: v.employment_stage,
       ojt_start_date: v.ojt_start_date,
       ...tags,
+      account_status: 'active',
       must_change_password: true,
     })
     .select('id')
@@ -153,6 +186,53 @@ export async function createAccount(
   }
 
   return { ok: true, id: data.id as string, tempPassword }
+}
+
+// ── Activate (profile_only -> active) ───────────────────────
+// Creates the Supabase Auth login a profile_only row never got at import
+// time, and flips account_status. Everything else about the row (CRM
+// matching fields, team, tags) is untouched — this only ever ADDS a login.
+export async function activateAccount(
+  actor: AuthUser,
+  id: string
+): Promise<Result<{ name: string; email: string; tempPassword: string }>> {
+  const admin = getSupabaseAdmin()
+  const { data: target } = await admin
+    .from('users')
+    .select('name, email, role, account_status')
+    .eq('id', id)
+    .single()
+  if (!target) return { ok: false, error: 'User not found.' }
+  if (target.account_status !== 'profile_only') return { ok: false, error: 'This account is already active.' }
+  if (!canManageRole(actor.role, target.role as UserRole)) {
+    return { ok: false, error: 'Only a Super Admin can activate privileged accounts.' }
+  }
+
+  const tempPassword = generateTempPassword()
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email: target.email,
+    password: tempPassword,
+    email_confirm: true,
+  })
+  if (authError || !authData.user) {
+    const msg = authError?.message ?? ''
+    if (msg.includes('already') && msg.includes('registered')) {
+      return { ok: false, error: 'An account for this email already exists in the login system.' }
+    }
+    console.error('auth.admin.createUser failed:', msg)
+    return { ok: false, error: 'Could not create the login account.' }
+  }
+
+  const { error } = await admin
+    .from('users')
+    .update({ auth_id: authData.user.id, account_status: 'active', must_change_password: true })
+    .eq('id', id)
+  if (error) {
+    await admin.auth.admin.deleteUser(authData.user.id)
+    return { ok: false, error: friendlyDbError(error.message, error.code) }
+  }
+
+  return { ok: true, name: target.name, email: target.email, tempPassword }
 }
 
 // ── Update ───────────────────────────────────────────────────

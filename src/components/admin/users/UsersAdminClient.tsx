@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { TEAM_NAMES } from '@/types/database.types'
 import type { UserProfile, UserRole } from '@/types/database.types'
 import { canManageRole, EMPLOYMENT_STAGES, SITE_NAMES, USER_ROLES } from '@/lib/users/constants'
-import { setUserActiveAction } from '@/lib/users/actions'
+import { activateUserAction, activateUsersAction, setUserActiveAction } from '@/lib/users/actions'
 import { orgSyncByUser } from '@/lib/crm/org-compare'
 import { BulkImportPanel } from './BulkImportPanel'
 import { UserFormModal, type Notice } from './UserFormModal'
@@ -31,9 +31,12 @@ export function UsersAdminClient({
   const [site, setSite] = useState('')
   const [stage, setStage] = useState('')
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [accountFilter, setAccountFilter] = useState<'all' | 'profile_only' | 'active'>('all')
   const [modal, setModal] = useState<{ mode: 'create' | 'edit'; user: UserProfile | null } | null>(null)
   const [showBulk, setShowBulk] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [activating, setActivating] = useState(false)
 
   const nameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
   const [onlyMissingTL, setOnlyMissingTL] = useState(false)
@@ -55,11 +58,68 @@ export function UsersAdminClient({
       if (stage && u.employment_stage !== stage) return false
       if (activeFilter === 'active' && !u.is_active) return false
       if (activeFilter === 'inactive' && u.is_active) return false
+      if (accountFilter !== 'all' && u.account_status !== accountFilter) return false
       if (onlyMissingTL && !hasNoTeamLeader(u)) return false
       if (onlyOutOfSync && orgInfo.get(u.id)?.status !== 'mismatch') return false
       return true
     })
-  }, [users, search, role, team, site, stage, activeFilter, onlyMissingTL, onlyOutOfSync, orgInfo])
+  }, [users, search, role, team, site, stage, activeFilter, accountFilter, onlyMissingTL, onlyOutOfSync, orgInfo])
+
+  const selectableIds = useMemo(() => filtered.filter((u) => u.account_status === 'profile_only').map((u) => u.id), [filtered])
+  const allSelectableChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
+
+  function toggleSelected(id: string) {
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelected((s) => {
+      if (allSelectableChecked) {
+        const next = new Set(s)
+        selectableIds.forEach((id) => next.delete(id))
+        return next
+      }
+      return new Set([...s, ...selectableIds])
+    })
+  }
+
+  function activateOne(u: UserProfile) {
+    if (!confirm(`Activate ${u.name}? This creates a real login and emails them a temporary password now.`)) return
+    startTransition(async () => {
+      const res = await activateUserAction(u.id)
+      if (!res.ok) return setNotice({ type: 'err', text: res.error })
+      setNotice(res.emailSent
+        ? { type: 'ok', text: `${u.name} activated — welcome email sent to ${u.email}.` }
+        : { type: 'warn', text: `${u.name} was activated, but the welcome email could not be sent. Give them this temporary password yourself (shown once):`, secret: res.tempPassword ?? undefined })
+      router.refresh()
+    })
+  }
+
+  function activateSelected() {
+    const ids = [...selected].filter((id) => selectableIds.includes(id))
+    if (ids.length === 0) return
+    if (!confirm(`Activate ${ids.length} user${ids.length === 1 ? '' : 's'}? This creates real logins and emails each a temporary password now.`)) return
+    setActivating(true)
+    startTransition(async () => {
+      const res = await activateUsersAction(ids)
+      setActivating(false)
+      if (!res.ok) return setNotice({ type: 'err', text: res.error })
+      const ok = res.results.filter((r) => r.status === 'activated').length
+      const failed = res.results.filter((r) => r.status === 'failed').length
+      const emailFailed = res.results.filter((r) => r.status === 'activated' && r.emailSent === false).length
+      setNotice({
+        type: failed > 0 ? 'warn' : 'ok',
+        text: `${ok} activated${emailFailed > 0 ? ` (${emailFailed} welcome email(s) could not be sent — use Reset password once email is working)` : ''}${failed > 0 ? `, ${failed} failed` : ''}.`,
+      })
+      setSelected(new Set())
+      router.refresh()
+    })
+  }
 
   function toggleActive(u: UserProfile) {
     const next = !u.is_active
@@ -164,7 +224,28 @@ export function UsersAdminClient({
           <option value="inactive">Deactivated</option>
           <option value="all">All accounts</option>
         </select>
+        <select style={inputStyle} value={accountFilter} onChange={(e) => setAccountFilter(e.target.value as typeof accountFilter)}>
+          <option value="all">Profile + login, any</option>
+          <option value="profile_only">Profile only (no login)</option>
+          <option value="active">Has a login</option>
+        </select>
       </div>
+
+      {selected.size > 0 && (
+        <div style={{
+          background: 'var(--highlight-light)', border: '1px solid var(--highlight)', borderRadius: 'var(--radius-sm)',
+          padding: '10px 14px', fontSize: '13px', marginBottom: '12px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
+        }}>
+          <span><b>{selected.size}</b> selected</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button style={ghostBtn} onClick={() => setSelected(new Set())} disabled={activating}>Clear</button>
+            <button style={primaryBtn} onClick={activateSelected} disabled={activating}>
+              {activating ? 'Activating…' : 'Activate & send invite'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <span>Showing {filtered.length} of {users.length}</span>
@@ -183,6 +264,11 @@ export function UsersAdminClient({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '860px' }}>
           <thead>
             <tr style={{ background: 'var(--surface-1)', textAlign: 'left' }}>
+              <th style={{ padding: '10px 12px', width: '32px' }}>
+                {selectableIds.length > 0 && (
+                  <input type="checkbox" checked={allSelectableChecked} onChange={toggleSelectAll} title="Select all profile-only rows shown" />
+                )}
+              </th>
               {['Name', 'Role', 'Team / Site', 'Stage', 'Team Leader', 'Status', ''].map((h) => (
                 <th key={h} style={{ padding: '10px 12px', fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>{h}</th>
               ))}
@@ -190,15 +276,21 @@ export function UsersAdminClient({
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <tr><td colSpan={8} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 No users match these filters.
               </td></tr>
             )}
             {filtered.map((u) => {
               const manageable = canManageRole(currentRole, u.role)
               const isSelf = u.id === currentUserId
+              const profileOnly = u.account_status === 'profile_only'
               return (
                 <tr key={u.id} style={{ borderTop: '1px solid var(--border)', opacity: u.is_active ? 1 : 0.6 }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    {profileOnly && (
+                      <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleSelected(u.id)} />
+                    )}
+                  </td>
                   <td style={{ padding: '10px 12px' }}>
                     <div style={{ fontWeight: 600 }}>{u.name}{isSelf && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> (you)</span>}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{u.email}{u.emp_id ? ` · ${u.emp_id}` : ''}</div>
@@ -219,6 +311,18 @@ export function UsersAdminClient({
                     }}>
                       {u.is_active ? 'Active' : 'Deactivated'}
                     </span>
+                    {profileOnly && (
+                      <div
+                        title="Profile only — no login exists yet. Matching (CRM/revenue) already works; use Activate & invite to let them sign in."
+                        style={{
+                          marginTop: '4px', display: 'inline-block', fontSize: '11px', fontWeight: 600, padding: '2px 8px',
+                          borderRadius: 'var(--radius-pill)', background: 'var(--surface-1)', color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-strong)',
+                        }}
+                      >
+                        Profile only
+                      </div>
+                    )}
                     {orgInfo.get(u.id)?.status === 'mismatch' && (
                       <div
                         title={`CRM: ${orgInfo.get(u.id)!.label} is ${orgInfo.get(u.id)!.crmName ?? 'someone else'} · ours: ${orgInfo.get(u.id)!.weHaveNone ? 'none set' : orgInfo.get(u.id)!.ourName}`}
@@ -241,6 +345,16 @@ export function UsersAdminClient({
                     >
                       Edit
                     </button>
+                    {profileOnly && (
+                      <button
+                        style={{ ...primaryBtn, marginRight: '6px', ...(!manageable || pending ? disabledStyle : {}) }}
+                        disabled={!manageable || pending}
+                        title={manageable ? undefined : 'Only a Super Admin can activate this account'}
+                        onClick={() => activateOne(u)}
+                      >
+                        Activate & invite
+                      </button>
+                    )}
                     <button
                       style={{ ...(u.is_active ? dangerBtn : ghostBtn), ...(!manageable || isSelf || pending ? disabledStyle : {}) }}
                       disabled={!manageable || isSelf || pending}
