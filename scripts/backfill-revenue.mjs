@@ -36,49 +36,59 @@
 //                      to 10 for a dry run (cheap smoke tests) and 500
 //                      for --live (the real, CRM-accepted max). Override
 //                      explicitly either way.
+//   --before-id=N        Start from events with id below N instead of the
+//                      resume point (default: a live run resumes from the
+//                      lowest event id already stored, plus an overlap;
+//                      empty table = newest).
+//   --resume            Make a DRY run start from that same resume point.
 //   --delay-ms=N        Override the default delay between CRM requests
 //                      (default 800ms — see the "request delay" open
 //                      question in CLAUDE.md §8; adjust here, not by
 //                      editing this file, once a real number is confirmed).
 //
 // What it does
-//   Pages the CRM's /events list DESCENDING (newest -> oldest; the
-//   already-proven direction — see the header note on pagination
-//   direction below for why the backfill uses this too, not ascending),
+//   Pages the CRM's /events list newest -> oldest by an event-ID cursor (see the
+//   pagination note below),
 //   for both type:shikho_purchase_completed and type:installment_enrollment
 //   (confirmed in scope — each installment event attributes independently
 //   to whoever owned the lead at that moment; never merged to one
 //   "original" salesperson — CLAUDE.md §8), stopping once a full page's
-//   oldest event falls before the 12-month cutoff. Every event is mapped
+//   NEWEST event is a week before the 12-month cutoff. Every event is mapped
 //   straight from the LIST response — no per-event detail fetch, ever
 //   (confirmed: list and detail are byte-identical for custom_field).
 //
-// Pagination direction — why DESCENDING, not ascending as first sketched
-//   The original sketch (CLAUDE.md, before "12 months only" was added)
-//   had the backfill page ASCENDING specifically so a checkpoint (a page
-//   number) would stay valid across a long, possibly unattended,
-//   multi-day run: new sales append at the END under ascending order, so
-//   already-fetched low page numbers never shift.
-//   That reasoning assumed an unbounded backfill (walk everything, however
-//   long it takes). Once scope narrowed to "last 12 months only" (this
-//   round), ascending stopped making sense: there is still no confirmed
-//   date-range query operator, so ascending order has no way to START at
-//   the 12-months-ago boundary — it would have to page from the CRM's
-//   entire event history from day one, burning potentially tens of
-//   thousands of requests just to reach the window that matters, which is
-//   exactly the cost this design was meant to avoid.
-//   Descending naturally solves this: start at today, stop the moment a
-//   page is entirely older than the cutoff. It also reuses the ONE
-//   direction actually proven live (the daily sync's), rather than an
-//   untested one. Its own downside — a new sale during the run shifts
-//   page *positions* for a page-number-based resume — matters far less
-//   here than in the original long-running design: this run is a single
-//   supervised sitting of minutes, not days, every write is an idempotent
-//   upsert keyed on crm_event_id (so replaying a page is always safe),
-//   and a full restart is cheap (a few hundred requests, not thousands).
-//   So revenue_sync_state.cursor_page is kept as a courtesy resume point
-//   for a crash mid-run, not a correctness requirement — if in doubt,
-//   just rerun from page 1; nothing double-counts.
+// Pagination — an event-ID CURSOR, not page numbers
+//   Newest -> oldest, always requesting page=1 and moving an id cursor:
+//   orderBy=id&sortedBy=desc with search=...;id:N and conditions=...;id:<
+//   (only events with id < N); each step's cursor is the lowest id on the
+//   previous page. The cursor is exact — no day-granularity boundary.
+//   Why not page numbers: on the first live run, pages 1-7 (500 rows each)
+//   were fine but page 8 timed out on every attempt (30s x 4); ordering by
+//   id did NOT fix that (page 8 by id also timed out at 45s) — it is the
+//   OFFSET that is slow. Why id rather than a created_at cursor (both
+//   measured, read-only): at the stored boundary 3.2s (id) vs 3.8s (date);
+//   about six months back 0.8s (id) vs 7.9s (date) — the date cursor slows
+//   as it goes deeper, the id cursor does not, which matters over a
+//   12-month traversal.
+//   IDs do not track creation time perfectly (~1.1% of events are
+//   back-dated relative to id order, worst case measured 5.5 days), so:
+//   the STOP rule waits for a page whose NEWEST event is STOP_MARGIN_DAYS
+//   before the cutoff, and RESUME starts ID_RESUME_OVERLAP above the lowest
+//   stored id so back-dated events just above it are re-fetched (upserts
+//   make the overlap harmless). This affects only TRAVERSAL: which week an
+//   event belongs to is decided by its created_at, stored as-is.
+//   Resume point = the lowest crm_event_id already in
+//   agent_revenue_transactions (the table is the source of truth), or
+//   --before-id=N. revenue_sync_state.watermark records the oldest
+//   created_at reached, for inspection. The cursor must strictly decrease;
+//   if it doesn't, the script stops with an error instead of looping.
+//
+// Timestamps: the CRM's created_at/updated_at are zoneless Dhaka local
+//   time; crmTimestamp() (lib/revenue-mapping.mjs) pins them to +06:00.
+//   Run supabase/fix_001_crm_timestamps_dhaka.sql ONCE before resuming, to
+//   correct the rows the first run stored as if they were UTC.
+//
+// Requires schema_023 (last_seen_at / missing_from_crm_since) applied first.
 //
 // Agent matching — same algorithm as the app, deliberately reimplemented
 //   here rather than imported. src/lib/audits/agent-matching.ts and
@@ -91,7 +101,7 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
-import { mapEventToRow, pageIsBeforeCutoff, monthsAgo, leadOwnerIdOf } from './lib/revenue-mapping.mjs'
+import { mapEventToRow, monthsAgo, leadOwnerIdOf, crmTimestamp, pageIsBeforeCutoff } from './lib/revenue-mapping.mjs'
 
 // ── config ───────────────────────────────────────────────────
 const args = new Map(
@@ -111,6 +121,17 @@ const REQUEST_DELAY_MS = args.has('delay-ms') ? Number(args.get('delay-ms')) : 8
 const PAGE_LIMIT = args.has('page-limit') ? Number(args.get('page-limit')) : LIVE ? 500 : 10
 const BACKFILL_MONTHS = 12
 const EVENT_TYPES = 'shikho_purchase_completed,installment_enrollment'
+// Event ids do NOT track creation time exactly: measured on 3,500 loaded rows,
+// ~1.1% of events were created earlier than an event with a LOWER id (mostly
+// 6-24h, worst 5.5 days). Two consequences, both handled with these margins:
+//  - STOP only once a page's NEWEST created_at is this far before the cutoff
+//    (a lower id can carry a later date by up to ~5.5 days).
+//  - RESUME from stored min id + ID_RESUME_OVERLAP, so back-dated events whose
+//    id sits just above what date-ordered paging already loaded are re-fetched
+//    (ids run ~45k/day across all event types; 400k ~ 9 days). Overlap is
+//    harmless — every write is an upsert on crm_event_id.
+const STOP_MARGIN_DAYS = 7
+const ID_RESUME_OVERLAP = 400000
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -134,27 +155,49 @@ function buildLogRefId(now = Date.now()) {
   return `shikho-qa-backfillscript-${now}`
 }
 
-async function crmFetch(path) {
-  const res = await fetch(`${CRM_API_BASE}/api/v1${path}`, {
-    headers: {
-      Authorization: `Bearer ${CRM_BEARER_TOKEN}`,
-      Accept: 'application/json',
-      'X-Log-Ref-Id': buildLogRefId(),
-    },
-    signal: AbortSignal.timeout(20000),
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`CRM API ${res.status} on ${path}: ${body.slice(0, 300)}`)
+// Retries only transient failures (timeout / network / 5xx) with a growing
+// pause, so one slow response doesn't end a supervised run. 4xx (e.g. an
+// expired token) fails immediately — retrying those only adds CRM load.
+async function crmFetch(path, attempt = 1) {
+  try {
+    const res = await fetch(`${CRM_API_BASE}/api/v1${path}`, {
+      headers: {
+        Authorization: `Bearer ${CRM_BEARER_TOKEN}`,
+        Accept: 'application/json',
+        'X-Log-Ref-Id': buildLogRefId(),
+      },
+      signal: AbortSignal.timeout(30000),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      const err = new Error(`CRM API ${res.status} on ${path}: ${body.slice(0, 300)}`)
+      err.transient = res.status >= 500
+      throw err
+    }
+    return await res.json()
+  } catch (err) {
+    const transient = err.transient === undefined ? true : err.transient // timeouts/network errors carry no flag
+    if (transient && attempt < 4) {
+      const wait = attempt * 5000
+      console.warn(`  CRM request failed (${err.message}) — retry ${attempt}/3 in ${wait / 1000}s`)
+      await sleep(wait)
+      return crmFetch(path, attempt + 1)
+    }
+    throw err
   }
-  return res.json()
 }
 
-async function getEventsPage(page) {
+// Always page=1: progress comes from an ID cursor, never an increasing page
+// number (offset paging times out at depth, whatever the sort key — measured).
+// beforeId = only events with id < beforeId, newest id first; null = start
+// from the newest event.
+async function getEventsBeforeId(beforeId) {
+  const filter = beforeId ? `;id:${beforeId}` : ''
+  const cond = beforeId ? ';id:<' : ''
   const q =
-    `?search=type:${EVENT_TYPES}` +
-    `&conditions=type:in&join=and&page=${page}&limit=${PAGE_LIMIT}` +
-    `&orderBy=created_at&sortedBy=desc`
+    `?search=type:${EVENT_TYPES}${filter}` +
+    `&conditions=type:in${cond}&join=and&page=1&limit=${PAGE_LIMIT}` +
+    `&orderBy=id&sortedBy=desc`
   const body = await crmFetch(`/events${q}`)
   return body.data ?? []
 }
@@ -239,25 +282,42 @@ async function main() {
   console.log('page cap this invocation:', PAGE_CAP === Infinity ? '(none — runs to completion)' : PAGE_CAP)
   console.log('request delay:', REQUEST_DELAY_MS, 'ms')
 
-  const state = await loadSyncState()
-  let page = LIVE && state?.cursor_page ? state.cursor_page : 1
-  if (page > 1) console.log(`resuming from page ${page} (revenue_sync_state.cursor_page)`)
+  // Where to start. --before-id=N wins; otherwise a live run (or a dry run
+  // with --resume) picks up from the lowest event id already stored, plus
+  // ID_RESUME_OVERLAP — the table itself is the source of truth for "how far
+  // did we get", so this stays correct even if revenue_sync_state was left
+  // mid-write. (The overlap re-fetches back-dated events; see the constants.)
+  let cursor = null
+  if (args.has('before-id')) {
+    cursor = Number(args.get('before-id'))
+  } else if (LIVE || args.has('resume')) {
+    const { data: lowest, error } = await supabase
+      .from('agent_revenue_transactions')
+      .select('crm_event_id')
+      .order('crm_event_id', { ascending: true })
+      .limit(1)
+    if (error) throw new Error(`Reading the resume point failed: ${error.message}`)
+    if (lowest?.length) cursor = Number(lowest[0].crm_event_id) + ID_RESUME_OVERLAP
+  }
+  console.log(cursor ? `resuming: events with id < ${cursor} (overlap with already-stored rows is intentional)` : 'starting from the newest event')
 
   const cutoff = monthsAgo(BACKFILL_MONTHS)
-  console.log('12-month cutoff:', cutoff.toISOString().slice(0, 10))
+  console.log('12-month cutoff:', cutoff.toISOString().slice(0, 10), `(stops once a page's newest event is ${STOP_MARGIN_DAYS}+ days before it)`)
 
   let totalEvents = 0,
     totalWritten = 0,
     totalMatched = 0,
     totalSkipped = 0,
-    pagesThisRun = 0
+    pagesThisRun = 0,
+    page = 0
 
   try {
     while (pagesThisRun < PAGE_CAP) {
-      const events = await getEventsPage(page)
+      const events = await getEventsBeforeId(cursor)
       pagesThisRun++
+      page = pagesThisRun
       if (events.length === 0) {
-        console.log(`page ${page}: empty — reached the end of the CRM's event history`)
+        console.log(`request ${page}: empty — reached the end of the CRM's event history`)
         break
       }
 
@@ -279,31 +339,40 @@ async function main() {
       }
       totalWritten += rows.length
 
-      const oldestOnPage = events[events.length - 1].created_at
+      const dates = events.map((e) => String(e.created_at)).sort()
+      const oldestOnPage = dates[0]
+      const newestOnPage = dates[dates.length - 1]
+      const nextCursor = Math.min(...events.map((e) => Number(e.id)))
       console.log(
-        `page ${page}: ${events.length} events, oldest ${oldestOnPage.slice(0, 10)}` +
+        `page ${page}: ${events.length} events, created ${oldestOnPage.slice(0, 10)}..${newestOnPage.slice(0, 10)}` +
           ` — ${rows.length} ${LIVE ? 'written' : 'would be written'}, ${totalMatched} matched so far`
       )
 
       await upsertSyncState({
-        cursor_page: page,
+        watermark: new Date(crmTimestamp(oldestOnPage)).toISOString(),
         events_synced: totalWritten,
         last_run_at: new Date().toISOString(),
         last_run_status: 'partial',
-        last_run_note: `page ${page}, ${totalWritten} written so far`,
+        last_run_note: `request ${page}, next cursor id < ${nextCursor}, ${totalWritten} written this run`,
       })
 
-      if (pageIsBeforeCutoff(oldestOnPage, cutoff)) {
-        console.log(`page ${page}'s oldest event is before the ${BACKFILL_MONTHS}-month cutoff — stopping`)
+      // Stop rule for id order: a lower id can carry a LATER date (back-dated
+      // events, up to ~5.5 days measured), so only stop once even the
+      // newest event on the page is well before the cutoff.
+      if (pageIsBeforeCutoff(crmTimestamp(newestOnPage), new Date(cutoff.getTime() - STOP_MARGIN_DAYS * 86400000))) {
+        console.log(`request ${page}: newest event is ${STOP_MARGIN_DAYS}+ days before the ${BACKFILL_MONTHS}-month cutoff — stopping`)
         break
       }
 
-      page++
+      // The cursor must strictly decrease, or we'd refetch the same page forever.
+      if (cursor && nextCursor >= cursor) {
+        throw new Error(`Cursor did not advance (id ${cursor} -> ${nextCursor}). Stopping instead of looping the CRM.`)
+      }
+      cursor = nextCursor
       await sleep(REQUEST_DELAY_MS)
     }
 
     await upsertSyncState({
-      cursor_page: page,
       events_synced: totalWritten,
       last_run_at: new Date().toISOString(),
       last_run_status: pagesThisRun >= PAGE_CAP ? 'partial' : 'ok',
@@ -311,7 +380,6 @@ async function main() {
     })
   } catch (err) {
     await upsertSyncState({
-      cursor_page: page,
       last_run_at: new Date().toISOString(),
       last_run_status: 'error',
       last_run_note: err.message,

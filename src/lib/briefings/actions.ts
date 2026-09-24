@@ -4,8 +4,15 @@
 // Return { ok, error } objects instead of throwing (§14 lesson) — every
 // service call here is wrapped, since requireScheduler() (and the
 // "audit not found" / "not submitted" checks) throw.
+//
+// The notification email is sent AFTER the response (next/server `after`):
+// the booking is already saved, and waiting on SMTP (seconds) made the
+// screen feel stuck. The trade-off is that the caller can no longer be told
+// "the email failed" — so a failure is written to audit_log
+// (`briefing.email_failed`) and server logs instead of vanishing.
 // ============================================================
 
+import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { writeAuditLogs } from '@/lib/users/audit-log'
@@ -45,6 +52,24 @@ async function attempt<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
   }
 }
 
+/** Send the email once the response has gone out; record a failure instead of losing it. */
+function sendAfterResponse(actorId: string, auditId: string, kind: string, send: () => Promise<void>) {
+  after(async () => {
+    try {
+      await send()
+    } catch (err) {
+      console.error(`Briefing ${kind} email failed:`, err)
+      await writeAuditLogs([{
+        actor_id: actorId,
+        action: 'briefing.email_failed',
+        table_name: 'briefings',
+        record_id: auditId,
+        after_data: { kind, error: err instanceof Error ? err.message : String(err) },
+      }])
+    }
+  })
+}
+
 export async function loadSchedulerDataAction(
   auditId: string
 ): Promise<{ ok: true; data: Awaited<ReturnType<typeof loadSchedulerData>> } | Fail> {
@@ -56,7 +81,7 @@ export async function loadSchedulerDataAction(
   }
 }
 
-export async function scheduleBriefingAction(auditId: string, scheduledAtIso: string): Promise<{ ok: true; emailSent: boolean } | Fail> {
+export async function scheduleBriefingAction(auditId: string, scheduledAtIso: string): Promise<{ ok: true } | Fail> {
   const g = await guard()
   if ('error' in g) return { ok: false, error: g.error }
 
@@ -71,19 +96,15 @@ export async function scheduleBriefingAction(auditId: string, scheduledAtIso: st
     after_data: { scheduled_at: scheduledAtIso },
   }])
 
-  let emailSent = true
-  try {
-    await sendBriefingScheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso)
-  } catch (err) {
-    emailSent = false
-    console.error('Briefing scheduled email failed:', err)
-  }
+  sendAfterResponse(g.actor.profile.id, auditId, 'scheduled', () =>
+    sendBriefingScheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso, result.conductorName)
+  )
 
   revalidatePath('/audits')
-  return { ok: true, emailSent }
+  return { ok: true }
 }
 
-export async function rescheduleBriefingAction(auditId: string, scheduledAtIso: string): Promise<{ ok: true; emailSent: boolean } | Fail> {
+export async function rescheduleBriefingAction(auditId: string, scheduledAtIso: string): Promise<{ ok: true } | Fail> {
   const g = await guard()
   if ('error' in g) return { ok: false, error: g.error }
 
@@ -98,19 +119,15 @@ export async function rescheduleBriefingAction(auditId: string, scheduledAtIso: 
     after_data: { scheduled_at: scheduledAtIso },
   }])
 
-  let emailSent = true
-  try {
-    await sendBriefingRescheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso)
-  } catch (err) {
-    emailSent = false
-    console.error('Briefing rescheduled email failed:', err)
-  }
+  sendAfterResponse(g.actor.profile.id, auditId, 'rescheduled', () =>
+    sendBriefingRescheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso, result.conductorName)
+  )
 
   revalidatePath('/audits')
-  return { ok: true, emailSent }
+  return { ok: true }
 }
 
-export async function cancelBriefingAction(auditId: string): Promise<{ ok: true; emailSent: boolean } | Fail> {
+export async function cancelBriefingAction(auditId: string): Promise<{ ok: true } | Fail> {
   const g = await guard()
   if ('error' in g) return { ok: false, error: g.error }
 
@@ -124,18 +141,14 @@ export async function cancelBriefingAction(auditId: string): Promise<{ ok: true;
     record_id: auditId,
   }])
 
-  let emailSent = true
   if (result.agentEmail) {
-    try {
-      await sendBriefingCancelledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail)
-    } catch (err) {
-      emailSent = false
-      console.error('Briefing cancelled email failed:', err)
-    }
+    sendAfterResponse(g.actor.profile.id, auditId, 'cancelled', () =>
+      sendBriefingCancelledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, result.conductorName)
+    )
   }
 
   revalidatePath('/audits')
-  return { ok: true, emailSent }
+  return { ok: true }
 }
 
 export async function markAttendanceAction(auditId: string, attended: boolean): Promise<{ ok: true } | Fail> {

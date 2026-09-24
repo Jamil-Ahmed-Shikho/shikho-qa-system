@@ -112,13 +112,15 @@ export async function sendPasswordResetEmail(name: string, email: string, tempPa
 // The agent gets a dedicated email, their Team Leader CC'd — never the
 // auditor, who sees their own schedule in-app instead (Part B).
 
-function briefingTimeBody(intro: string, scheduledAtIso: string): string {
+function briefingTimeBody(intro: string, conductorName: string, scheduledAtIso: string): string {
   const label = new Intl.DateTimeFormat('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Dhaka',
   }).format(new Date(scheduledAtIso))
   return `
     <p style="margin:0 0 16px">${intro}</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:#F4F5FA;border-radius:12px;padding:16px 20px;width:100%;margin-bottom:16px">
+      <tr><td style="font-size:12px;color:#5A5F76;padding-bottom:2px">With</td></tr>
+      <tr><td style="font-size:16px;font-weight:700;padding-bottom:12px">${escapeHtml(conductorName)}</td></tr>
       <tr><td style="font-size:12px;color:#5A5F76;padding-bottom:2px">When</td></tr>
       <tr><td style="font-size:16px;font-weight:700">${escapeHtml(label)} (Dhaka time)</td></tr>
     </table>`
@@ -141,31 +143,33 @@ async function sendBriefingMail(
   })
 }
 
-export async function sendBriefingScheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string) {
+// conductorName = the QA staff member who will run the session (the
+// briefing's own conducted_by), so the agent knows who to expect.
+export async function sendBriefingScheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string) {
   await sendBriefingMail(
-    'Your coaching session is scheduled',
+    `Your coaching session with ${conductorName} is scheduled`,
     'Coaching session scheduled',
-    briefingTimeBody(`Hi ${escapeHtml(agentName)}, a coaching session has been scheduled with you.`, scheduledAtIso),
+    briefingTimeBody(`Hi ${escapeHtml(agentName)}, you have a coaching session with <b>${escapeHtml(conductorName)}</b>.`, conductorName, scheduledAtIso),
     agentEmail,
     teamLeaderEmail
   )
 }
 
-export async function sendBriefingRescheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string) {
+export async function sendBriefingRescheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string) {
   await sendBriefingMail(
-    'Your coaching session was rescheduled',
+    `Your coaching session with ${conductorName} was rescheduled`,
     'Coaching session rescheduled',
-    briefingTimeBody(`Hi ${escapeHtml(agentName)}, your coaching session has a new time.`, scheduledAtIso),
+    briefingTimeBody(`Hi ${escapeHtml(agentName)}, your coaching session with <b>${escapeHtml(conductorName)}</b> has a new time.`, conductorName, scheduledAtIso),
     agentEmail,
     teamLeaderEmail
   )
 }
 
-export async function sendBriefingCancelledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null) {
+export async function sendBriefingCancelledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, conductorName: string) {
   await sendBriefingMail(
-    'Your coaching session was cancelled',
+    `Your coaching session with ${conductorName} was cancelled`,
     'Coaching session cancelled',
-    `<p style="margin:0">Hi ${escapeHtml(agentName)}, your scheduled coaching session has been cancelled. A new time may be booked later.</p>`,
+    `<p style="margin:0">Hi ${escapeHtml(agentName)}, your scheduled coaching session with <b>${escapeHtml(conductorName)}</b> has been cancelled. A new time may be booked later.</p>`,
     agentEmail,
     teamLeaderEmail
   )

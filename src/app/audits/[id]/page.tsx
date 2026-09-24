@@ -7,6 +7,7 @@ import { isRecordingFilename, recordingConfigured } from '@/lib/crm/recording'
 import { RecordingPlayer } from '@/components/audits/RecordingPlayer'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { ReleaseDraftButton } from '@/components/audits/ReleaseDraftButton'
+import { loadAgentCoachingHistory, type CoachingHistoryItem } from '@/lib/briefings/briefings.service'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
 import { Scorecard } from '@/components/audits/Scorecard'
 import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
@@ -44,6 +45,20 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
   // What the CRM calls recording_url is a bare filename, not a URL.
   const recording = audit.call_recording_url as string | null
+
+  // Coaching (§5): the agent's whole history is loaded with the page so the
+  // scheduler sees, before clicking anything, whether a session is already
+  // booked and when the last one was. null = it could not be loaded (shown
+  // as such — never as "no history", which would invite a double-booking).
+  const canSchedule = !!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)
+  let coachingHistory: CoachingHistoryItem[] | null = null
+  if (canSchedule && audit.status !== 'draft') {
+    try {
+      coachingHistory = await loadAgentCoachingHistory(audit.agent_id)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const isOwner = user?.profile.id === audit.auditor_id
   const canRelease = isOwner && audit.status === 'draft'
@@ -189,8 +204,9 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       {audit.status !== 'draft' && (
         <ScheduleCoaching
           auditId={audit.id}
-          canSchedule={!!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)}
+          canSchedule={canSchedule}
           criticalFail={audit.critical_fail}
+          initialHistory={coachingHistory}
         />
       )}
     </div>

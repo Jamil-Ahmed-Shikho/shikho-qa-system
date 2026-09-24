@@ -42,3 +42,17 @@ export interface CrmCallingHistory {
   hangup_by?: string
   lead: CrmCallLead
 }
+
+// A row from GET /events (§8 revenue sync). The list response carries the
+// full custom_field data — no per-event detail fetch is ever needed.
+export interface CrmEvent {
+  id: number
+  type: string
+  /** 'YYYY-MM-DD hh:mm:ss', zoneless — Dhaka local time (see crmTimestamp in scripts/lib/revenue-mapping.mjs). */
+  created_at: string
+  updated_at: string
+  lead_owner_id?: number | null
+  lead_owner?: { id: number; name?: string | null } | null
+  lead_prospect_id?: string | null
+  custom_field?: { label: string; value: unknown }[] | null
+}

@@ -6,6 +6,25 @@
 // testable with synthetic fixtures, never against the live CRM.
 // ============================================================
 
+/**
+ * The CRM sends created_at / updated_at as 'YYYY-MM-DD hh:mm:ss' with NO
+ * zone. Evidence they are Dhaka local time, not UTC: read as UTC the loaded
+ * events are almost absent 01:00-08:00 and peak at 18:00 (a dead zone
+ * across the Dhaka daytime); read as Dhaka time they follow a normal
+ * student-purchase day (quiet overnight, evening peak). Postgres would
+ * otherwise take a zoneless string as UTC — 6 hours late, pushing every
+ * event after 18:00 Dhaka onto the NEXT calendar day and corrupting the
+ * Friday/Saturday sales-week boundary. So a zoneless value is pinned to
+ * +06:00 here; a value that already carries a zone is left alone.
+ * Returns an ISO-8601 string with an explicit offset (or null if blank).
+ */
+export function crmTimestamp(raw) {
+  if (raw === null || raw === undefined || raw === '') return null
+  const s = String(raw).trim()
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) return s
+  return s.replace(' ', 'T') + '+06:00'
+}
+
 export function customField(event, label) {
   const f = (event.custom_field ?? []).find((x) => x.label === label)
   return f ? f.value : null
@@ -38,6 +57,7 @@ export function mapEventToRow(event, agentId, now = () => new Date().toISOString
   if (!event.created_at) return { skipped: 'no created_at' }
   if (!event.updated_at) return { skipped: 'no updated_at' }
 
+  const stamp = now()
   return {
     row: {
       crm_event_id: event.id,
@@ -46,9 +66,12 @@ export function mapEventToRow(event, agentId, now = () => new Date().toISOString
       revenue_amount: amount,
       course_name: customField(event, 'cf_course_name') || null,
       crm_lead_prospect_id: event.lead_prospect_id ? String(event.lead_prospect_id) : null,
-      purchase_created_at: event.created_at,
-      crm_updated_at: event.updated_at,
-      last_synced_at: now(),
+      purchase_created_at: crmTimestamp(event.created_at),
+      crm_updated_at: crmTimestamp(event.updated_at),
+      last_synced_at: stamp,
+      // schema_023: "the CRM still lists this event" — seen now, so not missing.
+      last_seen_at: stamp,
+      missing_from_crm_since: null,
     },
   }
 }

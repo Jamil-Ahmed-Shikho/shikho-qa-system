@@ -99,3 +99,17 @@ export function formatSlotDay(date: Date): string {
 export function formatSlotTime(date: Date): string {
   return timeLabelFmt.format(date)
 }
+
+/**
+ * How far a date is from today, in Dhaka calendar days, as words: "today",
+ * "tomorrow", "yesterday", "in 5 days", "12 days ago". Compares Dhaka
+ * calendar days (not 24-hour spans), so a session at 11 AM yesterday is
+ * "yesterday" even if it was only 20 hours ago.
+ */
+export function relativeDayLabel(date: Date, now: Date = new Date()): string {
+  const diff = Math.round((dhakaMidnight(date).getTime() - dhakaMidnight(now).getTime()) / DAY_MS)
+  if (diff === 0) return 'today'
+  if (diff === 1) return 'tomorrow'
+  if (diff === -1) return 'yesterday'
+  return diff > 0 ? `in ${diff} days` : `${-diff} days ago`
+}

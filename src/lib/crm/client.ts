@@ -14,7 +14,7 @@
 // ============================================================
 
 import { cache } from 'react'
-import type { CrmCallingHistory } from './types'
+import type { CrmCallingHistory, CrmEvent } from './types'
 
 class CrmApiError extends Error {
   constructor(
@@ -61,10 +61,10 @@ function baseUrl() {
   return base.replace(/\/$/, '').replace(/\/api\/v1$/, '')
 }
 
-async function crmFetch<T>(path: string, actorId: string | null): Promise<T> {
+async function crmFetch<T>(path: string, actorId: string | null, timeoutMs = 5000): Promise<T> {
   const res = await fetch(`${baseUrl()}/api/v1${path}`, {
     headers: crmHeaders(actorId),
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(timeoutMs),
   })
 
   if (!res.ok) {
@@ -95,6 +95,40 @@ export async function getCallsForLead(leadId: number, actorId: string | null): P
 export async function getCallById(callId: string | number, actorId: string | null): Promise<CrmCallingHistory | null> {
   const call = await crmFetch<CrmCallingHistory | null>(`/calling-histories/${callId}`, actorId)
   return call && typeof call === 'object' ? call : null
+}
+
+/**
+ * One page of purchase events created in the last `days` days, newest first
+ * (§8 daily revenue sync). `created_at:<days>` + `last_n_days` is the CRM's
+ * rolling-window filter (confirmed live: a 15-day request returned events
+ * back to the 15th day before today). Both event types, same multi-type
+ * `type:in` syntax as the backfill. A 500-row page takes ~4-8s, so this
+ * uses a longer timeout than the 5s default and retries transient failures
+ * (timeout / network / 5xx — never a 4xx such as an expired token).
+ * Page-number paging is fine here: a 15-day window is only a few pages.
+ */
+export async function getEventsWindow(
+  days: number,
+  page: number,
+  limit: number,
+  actorId: string | null,
+  sleepMs: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
+): Promise<CrmEvent[]> {
+  const query =
+    `?search=created_at:${days};type:shikho_purchase_completed,installment_enrollment` +
+    `&conditions=created_at:last_n_days;type:in` +
+    `&join=and&page=${page}&limit=${limit}&orderBy=created_at&sortedBy=desc`
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const body = await crmFetch<{ data?: CrmEvent[] }>(`/events${query}`, actorId, 30000)
+      return body.data ?? []
+    } catch (err) {
+      const status = err instanceof CrmApiError ? err.status : undefined
+      const transient = status === undefined || status >= 500
+      if (!transient || attempt >= 3) throw err
+      await sleepMs(attempt * 3000)
+    }
+  }
 }
 
 export interface CrmUser {

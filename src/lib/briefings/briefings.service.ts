@@ -43,6 +43,46 @@ export interface SlotOption {
   taken: boolean
 }
 
+export interface CoachingHistoryItem {
+  briefingId: string
+  auditId: string
+  scheduledAt: string
+  status: 'scheduled' | 'completed'
+  attended: boolean | null
+  priority: 'normal' | 'critical_same_day'
+  conductorName: string
+}
+
+/** Who to email, and who is conducting — everything the notification needs. */
+export interface NotifyInfo {
+  agentName: string
+  agentEmail: string
+  teamLeaderEmail: string | null
+  conductorName: string
+}
+
+/**
+ * An agent's whole coaching history (sessions with ANY auditor, cancelled
+ * ones excluded), newest first — via agent_coaching_history() (schema_024),
+ * because a QA Auditor can only read the briefings they conduct themselves.
+ * Throws on a failed read: an error must never look like "no history",
+ * which would invite a double-booking.
+ */
+export async function loadAgentCoachingHistory(agentId: string): Promise<CoachingHistoryItem[]> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('agent_coaching_history', { p_agent_id: agentId })
+  if (error) throw new Error(`Could not load the coaching history: ${error.message}`)
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    briefingId: r.briefing_id as string,
+    auditId: r.audit_id as string,
+    scheduledAt: r.scheduled_at as string,
+    status: r.status as CoachingHistoryItem['status'],
+    attended: (r.attended as boolean | null) ?? null,
+    priority: r.priority as CoachingHistoryItem['priority'],
+    conductorName: r.conductor_name as string,
+  }))
+}
+
 export interface DayOfSlots {
   dayLabel: string
   slots: SlotOption[]
@@ -79,6 +119,8 @@ export async function loadSchedulerData(auditId: string, days = 10) {
     .eq('conducted_by', actor.profile.id)
     .neq('status', 'cancelled')
 
+  const history = await loadAgentCoachingHistory(audit.agent_id as string)
+
   const takenIso = new Set((myBookings ?? []).map((b) => new Date(b.scheduled_at).toISOString()))
   // The audit's own current briefing (if rescheduling) shouldn't show as
   // "taken" against itself.
@@ -108,10 +150,15 @@ export async function loadSchedulerData(auditId: string, days = 10) {
         }
       : null,
     days: dayList,
+    history,
   }
 }
 
-async function loadAgentAndAuditor(auditId: string) {
+// Who to notify, and who is conducting. Read AFTER the write, so the
+// briefing row exists in all three cases (scheduled / rescheduled / cancelled);
+// the conductor is the briefing's own conducted_by — not necessarily the
+// person acting (a QA Manager can reschedule or cancel someone else's).
+async function loadNotifyInfo(auditId: string): Promise<NotifyInfo | null> {
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase
     .from('audits')
@@ -120,12 +167,24 @@ async function loadAgentAndAuditor(auditId: string) {
     .single()
   if (error || !data) return null
   const agent = data.agent as unknown as { id: string; name: string; email: string; team_leader_id: string | null }
-  if (!agent.team_leader_id) return { agent, teamLeaderEmail: null as string | null }
-  const { data: tl } = await supabase.from('users').select('email').eq('id', agent.team_leader_id).single()
-  return { agent, teamLeaderEmail: tl?.email ?? null }
+
+  const { data: briefing } = await supabase
+    .from('briefings')
+    .select('conductor:users!briefings_conducted_by_fkey(name)')
+    .eq('audit_id', auditId)
+    .single()
+  const conductorName = (briefing?.conductor as unknown as { name: string } | null)?.name
+  if (!conductorName) return null
+
+  let teamLeaderEmail: string | null = null
+  if (agent.team_leader_id) {
+    const { data: tl } = await supabase.from('users').select('email').eq('id', agent.team_leader_id).single()
+    teamLeaderEmail = tl?.email ?? null
+  }
+  return { agentName: agent.name, agentEmail: agent.email, teamLeaderEmail, conductorName }
 }
 
-export async function scheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<{ agentName: string; agentEmail: string; teamLeaderEmail: string | null }>> {
+export async function scheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<NotifyInfo>> {
   const actor = await requireScheduler()
   if (!isValidSlot(new Date(scheduledAt))) {
     return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).' }
@@ -139,12 +198,12 @@ export async function scheduleBriefing(auditId: string, scheduledAt: string): Pr
   })
   if (error) return { ok: false, error: friendlyError(error.message, error.code) }
 
-  const names = await loadAgentAndAuditor(auditId)
-  if (!names) return { ok: false, error: 'Scheduled, but could not load the agent to notify.' }
-  return { ok: true, agentName: names.agent.name, agentEmail: names.agent.email, teamLeaderEmail: names.teamLeaderEmail }
+  const info = await loadNotifyInfo(auditId)
+  if (!info) return { ok: false, error: 'Scheduled, but could not load who to notify.' }
+  return { ok: true, ...info }
 }
 
-export async function rescheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<{ agentName: string; agentEmail: string; teamLeaderEmail: string | null }>> {
+export async function rescheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<NotifyInfo>> {
   const actor = await requireScheduler()
   if (!isValidSlot(new Date(scheduledAt))) {
     return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).' }
@@ -164,12 +223,12 @@ export async function rescheduleBriefing(auditId: string, scheduledAt: string): 
     .eq('audit_id', auditId)
   if (error) return { ok: false, error: friendlyError(error.message, error.code) }
 
-  const names = await loadAgentAndAuditor(auditId)
-  if (!names) return { ok: false, error: 'Rescheduled, but could not load the agent to notify.' }
-  return { ok: true, agentName: names.agent.name, agentEmail: names.agent.email, teamLeaderEmail: names.teamLeaderEmail }
+  const info = await loadNotifyInfo(auditId)
+  if (!info) return { ok: false, error: 'Rescheduled, but could not load who to notify.' }
+  return { ok: true, ...info }
 }
 
-export async function cancelBriefing(auditId: string): Promise<Result<{ agentName: string; agentEmail: string; teamLeaderEmail: string | null }>> {
+export async function cancelBriefing(auditId: string): Promise<Result<NotifyInfo>> {
   const actor = await requireScheduler()
   const supabase = await getSupabaseServer()
   const { data: existing } = await supabase.from('briefings').select('status, conducted_by').eq('audit_id', auditId).single()
@@ -182,9 +241,9 @@ export async function cancelBriefing(auditId: string): Promise<Result<{ agentNam
   const { error } = await supabase.from('briefings').update({ status: 'cancelled' }).eq('audit_id', auditId)
   if (error) return { ok: false, error: friendlyError(error.message, error.code) }
 
-  const names = await loadAgentAndAuditor(auditId)
-  if (!names) return { ok: true, agentName: '', agentEmail: '', teamLeaderEmail: null }
-  return { ok: true, agentName: names.agent.name, agentEmail: names.agent.email, teamLeaderEmail: names.teamLeaderEmail }
+  const info = await loadNotifyInfo(auditId)
+  if (!info) return { ok: true, agentName: '', agentEmail: '', teamLeaderEmail: null, conductorName: '' }
+  return { ok: true, ...info }
 }
 
 export async function markAttendance(auditId: string, attended: boolean): Promise<Result> {
