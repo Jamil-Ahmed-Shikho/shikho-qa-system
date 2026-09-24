@@ -101,7 +101,7 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
-import { mapEventToRow, monthsAgo, leadOwnerIdOf, crmTimestamp, pageIsBeforeCutoff } from './lib/revenue-mapping.mjs'
+import { mapEventToRow, monthsAgo, leadOwnerIdOf, crmTimestamp, nextOldPageStreak } from './lib/revenue-mapping.mjs'
 
 // ── config ───────────────────────────────────────────────────
 const args = new Map(
@@ -131,6 +131,8 @@ const EVENT_TYPES = 'shikho_purchase_completed,installment_enrollment'
 //    (ids run ~45k/day across all event types; 400k ~ 9 days). Overlap is
 //    harmless — every write is an upsert on crm_event_id.
 const STOP_MARGIN_DAYS = 7
+// ...and only after this many CONSECUTIVE such pages (a bulk import of old-dated events can fill a page or two).
+const STOP_CONSECUTIVE_PAGES = 5
 const ID_RESUME_OVERLAP = 400000
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -302,12 +304,14 @@ async function main() {
   console.log(cursor ? `resuming: events with id < ${cursor} (overlap with already-stored rows is intentional)` : 'starting from the newest event')
 
   const cutoff = monthsAgo(BACKFILL_MONTHS)
-  console.log('12-month cutoff:', cutoff.toISOString().slice(0, 10), `(stops once a page's newest event is ${STOP_MARGIN_DAYS}+ days before it)`)
+  console.log('12-month cutoff:', cutoff.toISOString().slice(0, 10), `(events older than it are not stored; stops after ${STOP_CONSECUTIVE_PAGES} consecutive pages whose newest event is ${STOP_MARGIN_DAYS}+ days before it)`)
 
   let totalEvents = 0,
     totalWritten = 0,
     totalMatched = 0,
     totalSkipped = 0,
+    totalOutOfScope = 0,
+    oldPageStreak = 0,
     pagesThisRun = 0,
     page = 0
 
@@ -324,6 +328,9 @@ async function main() {
       const rows = []
       for (const event of events) {
         totalEvents++
+        // Out of scope (older than 12 months, e.g. a bulk import of old-dated events): not stored, and not worth an owner lookup.
+        const createdAt = crmTimestamp(event.created_at)
+        if (createdAt && new Date(createdAt) < cutoff) { totalOutOfScope++; continue }
         const row = await buildRow(event)
         if (row) {
           rows.push(row)
@@ -360,8 +367,10 @@ async function main() {
       // Stop rule for id order: a lower id can carry a LATER date (back-dated
       // events, up to ~5.5 days measured), so only stop once even the
       // newest event on the page is well before the cutoff.
-      if (pageIsBeforeCutoff(newestOnPage, new Date(cutoff.getTime() - STOP_MARGIN_DAYS * 86400000))) {
-        console.log(`request ${page}: newest event is ${STOP_MARGIN_DAYS}+ days before the ${BACKFILL_MONTHS}-month cutoff — stopping`)
+      oldPageStreak = nextOldPageStreak(oldPageStreak, newestOnPage, new Date(cutoff.getTime() - STOP_MARGIN_DAYS * 86400000))
+      if (oldPageStreak > 0) console.log(`  (page ${page}: newest event is before the cutoff — ${oldPageStreak}/${STOP_CONSECUTIVE_PAGES} in a row)`)
+      if (oldPageStreak >= STOP_CONSECUTIVE_PAGES) {
+        console.log(`request ${page}: ${STOP_CONSECUTIVE_PAGES} consecutive pages entirely before the ${BACKFILL_MONTHS}-month cutoff — stopping`)
         break
       }
 
@@ -377,7 +386,7 @@ async function main() {
       events_synced: totalWritten,
       last_run_at: new Date().toISOString(),
       last_run_status: pagesThisRun >= PAGE_CAP ? 'partial' : 'ok',
-      last_run_note: `finished: ${totalEvents} events seen, ${totalWritten} written, ${totalMatched} matched, ${totalSkipped} skipped`,
+      last_run_note: `finished: ${totalEvents} events seen, ${totalWritten} written, ${totalMatched} matched, ${totalSkipped} skipped, ${totalOutOfScope} older than the cutoff (not stored)`,
     })
   } catch (err) {
     await upsertSyncState({
@@ -394,6 +403,7 @@ async function main() {
   console.log(LIVE ? 'rows written:' : 'rows that WOULD be written:', totalWritten)
   console.log('matched to an agent:', totalMatched, `(${totalEvents ? ((totalMatched / totalEvents) * 100).toFixed(1) : 0}%)`)
   console.log('skipped (bad data):', totalSkipped)
+  console.log('older than the 12-month cutoff (not stored):', totalOutOfScope)
   if (!LIVE) console.log('\nThis was a dry run — nothing was written. Pass --live to write for real.')
 }
 

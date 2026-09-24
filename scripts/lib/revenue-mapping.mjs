@@ -68,6 +68,17 @@ export function pageIsBeforeCutoff(oldestCreatedAtOnPage, cutoffDate) {
   return new Date(oldestCreatedAtOnPage) < cutoffDate
 }
 
+/**
+ * The backfill's stop rule for id-ordered paging. A lower id can carry a much
+ * OLDER date (back-dated events; on 2026-09-24 a bulk import of ~1,000 events
+ * dated Feb 2024 sat at July-2026 ids), so ONE old-looking page proves
+ * nothing. Stop only after `needed` CONSECUTIVE pages whose newest event is
+ * before the cutoff; any page with a newer event resets the count.
+ */
+export function nextOldPageStreak(streak, newestCreatedAtOnPage, cutoffDate) {
+  return pageIsBeforeCutoff(newestCreatedAtOnPage, cutoffDate) ? streak + 1 : 0
+}
+
 export function monthsAgo(n, from = new Date()) {
   const d = new Date(from)
   d.setMonth(d.getMonth() - n)
