@@ -6,24 +6,11 @@
 // testable with synthetic fixtures, never against the live CRM.
 // ============================================================
 
-/**
- * The CRM sends created_at / updated_at as 'YYYY-MM-DD hh:mm:ss' with NO
- * zone. Evidence they are Dhaka local time, not UTC: read as UTC the loaded
- * events are almost absent 01:00-08:00 and peak at 18:00 (a dead zone
- * across the Dhaka daytime); read as Dhaka time they follow a normal
- * student-purchase day (quiet overnight, evening peak). Postgres would
- * otherwise take a zoneless string as UTC — 6 hours late, pushing every
- * event after 18:00 Dhaka onto the NEXT calendar day and corrupting the
- * Friday/Saturday sales-week boundary. So a zoneless value is pinned to
- * +06:00 here; a value that already carries a zone is left alone.
- * Returns an ISO-8601 string with an explicit offset (or null if blank).
- */
-export function crmTimestamp(raw) {
-  if (raw === null || raw === undefined || raw === '') return null
-  const s = String(raw).trim()
-  if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) return s
-  return s.replace(' ', 'T') + '+06:00'
-}
+// crmTimestamp (zoneless CRM times are Dhaka local) lives in src/lib/crm/time.mjs so
+// the app and the scripts share one definition; re-exported here for callers
+// that already import it from this module.
+import { crmTimestamp } from '../../src/lib/crm/time.mjs'
+export { crmTimestamp }
 
 export function customField(event, label) {
   const f = (event.custom_field ?? []).find((x) => x.label === label)

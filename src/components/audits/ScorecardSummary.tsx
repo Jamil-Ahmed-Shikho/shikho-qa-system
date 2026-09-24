@@ -5,6 +5,7 @@ import {
   type RootCause,
   type ScorecardRubric,
 } from '@/lib/audits/scoring'
+import { formatDhakaDateTime } from '@/lib/dates/format'
 import { chosenLabel, type SpecialCampaign } from '@/lib/campaigns/special'
 
 const card: React.CSSProperties = {
@@ -58,7 +59,7 @@ export function ScorecardSummary({
           )}
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             {score.pass_mark_used !== null && `Pass mark at submission: ${score.pass_mark_used}%`}
-            {score.submitted_at && ` · Submitted ${new Date(score.submitted_at).toLocaleString()}`}
+            {score.submitted_at && ` · Submitted ${formatDhakaDateTime(score.submitted_at)}`}
           </span>
         </div>
 

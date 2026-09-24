@@ -7,6 +7,9 @@ import type { CrmCallingHistory } from '@/lib/crm/types'
 import type { CallStatusEntry } from '@/lib/audits/audits.service'
 import type { AgentMatch } from '@/lib/audits/agent-matching'
 import { describeUnmatched, type CrmAgentInfo } from '@/lib/audits/crm-agent'
+import { parseCrmTime } from '@/lib/crm/time.mjs'
+import { formatDhakaDateTime } from '@/lib/dates/format'
+import { CallStatusPill } from './CallStatusPill'
 
 export interface CallRow {
   call: CrmCallingHistory
@@ -83,6 +86,9 @@ function CallRowItem({
   const agentOptions = baseAgentOptions
   const [selectedAgentId, setSelectedAgentId] = useState(matchedAgent?.id ?? '')
   const [error, setError] = useState<string | null>(null)
+  // True from the click until this row navigates away (or fails) — the
+  // server work takes a few seconds, and a disabled-looking button read as "nothing happened".
+  const [starting, setStarting] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const statusKey = status?.status ?? 'available'
@@ -91,9 +97,11 @@ function CallRowItem({
   // too — this just says so up front instead of failing on click).
   const locked = !!row.outsideTeam && statusKey === 'available'
 
-  const started = new Date(call.started_at)
-  const ended = new Date(call.ended_at)
-  const durationSec = Math.max(0, Math.round((ended.getTime() - started.getTime()) / 1000))
+  // The CRM's times are zoneless Dhaka local time; parse them as such, not as
+  // whatever timezone this browser happens to be in.
+  const started = parseCrmTime(call.started_at)
+  const ended = parseCrmTime(call.ended_at)
+  const durationSec = started && ended ? Math.max(0, Math.round((ended.getTime() - started.getTime()) / 1000)) : 0
   const duration = `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
 
   function handleStart() {
@@ -102,11 +110,13 @@ function CallRowItem({
       return
     }
     setError(null)
+    setStarting(true) // immediate visual response, before any server work
     startTransition(async () => {
       try {
         const auditId = await startAudit(leadId, call.id, selectedAgentId)
-        router.push(`/audits/${auditId}`)
+        router.push(`/audits/${auditId}`) // the audit page shows its own loading state (loading.tsx)
       } catch (err) {
+        setStarting(false)
         setError(err instanceof Error ? err.message : 'Could not start the audit.')
       }
     })
@@ -132,11 +142,13 @@ function CallRowItem({
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 600 }}>{started.toLocaleString()}</div>
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {duration}
-            {(call.destination_number ?? call.destination) && ` · ${call.destination_number ?? call.destination}`}
-            {' · '}{call.call_status}
+          <div style={{ fontSize: '14px', fontWeight: 600 }}>{formatDhakaDateTime(started)}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span>
+              {duration}
+              {(call.destination_number ?? call.destination) && ` · ${call.destination_number ?? call.destination}`}
+            </span>
+            <CallStatusPill status={call.call_status} />
           </div>
         </div>
         <span style={{
@@ -192,17 +204,19 @@ function CallRowItem({
           {statusKey === 'available' && !locked && (
             <button
               onClick={handleStart}
-              disabled={pending || !selectedAgentId}
+              disabled={starting || pending || !selectedAgentId}
+              aria-busy={starting || pending}
               title={!selectedAgentId ? 'Select the agent this call belongs to first' : undefined}
               style={{
                 padding: '8px 16px', fontSize: '13px', fontWeight: 500,
-                color: !selectedAgentId || pending ? 'var(--text-muted)' : 'white',
-                background: !selectedAgentId || pending ? 'var(--surface-1)' : 'var(--brand)',
+                // While starting, stay the brand colour (busy, not disabled-looking).
+                color: starting || pending ? 'white' : !selectedAgentId ? 'var(--text-muted)' : 'white',
+                background: starting || pending ? 'var(--brand)' : !selectedAgentId ? 'var(--surface-1)' : 'var(--brand)',
                 border: 'none', borderRadius: 'var(--radius-sm)',
-                cursor: !selectedAgentId || pending ? 'not-allowed' : 'pointer',
+                cursor: starting || pending ? 'progress' : !selectedAgentId ? 'not-allowed' : 'pointer',
               }}
             >
-              {pending ? 'Starting...' : 'Start Audit'}
+              {starting || pending ? 'Starting audit…' : 'Start Audit'}
             </button>
           )}
           {statusKey === 'in_progress_mine' && status && (

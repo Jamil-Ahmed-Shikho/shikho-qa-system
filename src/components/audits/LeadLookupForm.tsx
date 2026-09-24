@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseLeadIdentifier } from '@/lib/crm/lead-id-parser'
 
@@ -8,6 +8,9 @@ export function LeadLookupForm() {
   const router = useRouter()
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // The lead page takes a moment to render (CRM + database). Without this the
+  // button just sat there after a click; now it says it's working.
+  const [pending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -17,7 +20,7 @@ export function LeadLookupForm() {
       return
     }
     setError(null)
-    router.push(`/audits/leads/${leadId}`)
+    startTransition(() => router.push(`/audits/leads/${leadId}`))
   }
 
   return (
@@ -49,6 +52,7 @@ export function LeadLookupForm() {
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          disabled={pending}
           placeholder="12345 or crm.shikho.com/leads/12345"
           autoFocus
           style={{
@@ -60,14 +64,16 @@ export function LeadLookupForm() {
       </div>
       <button
         type="submit"
-        disabled={!value.trim()}
+        disabled={!value.trim() || pending}
+        aria-busy={pending}
         style={{
           alignSelf: 'flex-start', padding: '10px 20px', fontSize: '14px', fontWeight: 500,
           color: 'white', background: 'var(--brand)', border: 'none', borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer',
+          cursor: pending ? 'progress' : !value.trim() ? 'not-allowed' : 'pointer',
+          opacity: !value.trim() && !pending ? 0.6 : 1,
         }}
       >
-        Find calls
+        {pending ? 'Looking up calls…' : 'Find calls'}
       </button>
     </form>
   )

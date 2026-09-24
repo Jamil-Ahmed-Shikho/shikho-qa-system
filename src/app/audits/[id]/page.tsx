@@ -2,12 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth/auth.service'
-import { getCallById, CrmApiError } from '@/lib/crm/client'
 import { isRecordingFilename, recordingConfigured } from '@/lib/crm/recording'
 import { RecordingPlayer } from '@/components/audits/RecordingPlayer'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { ReleaseDraftButton } from '@/components/audits/ReleaseDraftButton'
 import { loadAgentCoachingHistory, type CoachingHistoryItem } from '@/lib/briefings/briefings.service'
+import { CallStatusPill } from '@/components/audits/CallStatusPill'
+import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
 import { Scorecard } from '@/components/audits/Scorecard'
 import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
@@ -15,34 +16,31 @@ import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getSupabaseServer()
-  const user = await getAuthUser()
 
-  const { data: audit, error } = await supabase
-    .from('audits')
-    .select(
-      `*,
+  // The audit row and the signed-in user don't depend on each other.
+  const [user, { data: audit, error }] = await Promise.all([
+    getAuthUser(),
+    supabase
+      .from('audits')
+      .select(
+        `*,
       agent:users!audits_agent_id_fkey(name, email, team_name),
       auditor:users!audits_auditor_id_fkey(name, email)`
-    )
-    .eq('id', id)
-    .single()
+      )
+      .eq('id', id)
+      .single(),
+  ])
 
   if (error || !audit) notFound()
 
   const agent = audit.agent as unknown as { name: string; email: string; team_name: string | null }
   const auditor = audit.auditor as unknown as { name: string; email: string }
 
-  let lead: { name?: string; phone?: string; class?: string; group?: string; stage?: string } | null = null
-  let crmError: string | null = null
-  if (audit.crm_call_id) {
-    try {
-      const call = await getCallById(audit.crm_call_id, user?.profile.id ?? null)
-      lead = call?.lead ?? null
-    } catch (err) {
-      crmError = err instanceof CrmApiError ? err.message : 'Could not refresh lead info from the CRM.'
-    }
-  }
-
+  // (This page used to fetch the call from the CRM just to read a nested
+  // `lead` object — but the CRM's call objects no longer carry one, so that
+  // request always came back empty and added a network round trip to every
+  // page load. Lead details come from GET /leads/{id} instead — see the
+  // lead panel below.)
   // What the CRM calls recording_url is a bare filename, not a URL.
   const recording = audit.call_recording_url as string | null
 
@@ -51,24 +49,27 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   // booked and when the last one was. null = it could not be loaded (shown
   // as such — never as "no history", which would invite a double-booking).
   const canSchedule = !!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)
-  let coachingHistory: CoachingHistoryItem[] | null = null
-  if (canSchedule && audit.status !== 'draft') {
-    try {
-      coachingHistory = await loadAgentCoachingHistory(audit.agent_id)
-    } catch (err) {
-      console.error(err)
-    }
-  }
+  const historyPromise: Promise<CoachingHistoryItem[] | null> =
+    canSchedule && audit.status !== 'draft'
+      ? loadAgentCoachingHistory(audit.agent_id).catch((err) => {
+          console.error(err)
+          return null
+        })
+      : Promise.resolve(null)
 
   const isOwner = user?.profile.id === audit.auditor_id
   const canRelease = isOwner && audit.status === 'draft'
 
   // The rubric LOCKED when this audit was started (audits.rubric_id), plus
   // whatever has been saved against it.
-  const scorecard = await loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
-    agentTeam: agent?.team_name ?? null,
-    isDraft: audit.status === 'draft',
-  })
+  // Loaded together with the coaching history rather than one after the other.
+  const [scorecard, coachingHistory] = await Promise.all([
+    loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
+      agentTeam: agent?.team_name ?? null,
+      isDraft: audit.status === 'draft',
+    }),
+    historyPromise,
+  ])
 
   return (
     <div>
@@ -83,11 +84,8 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
-            {lead?.name || `Lead #${audit.crm_lead_id}`}
+            {`Lead #${audit.crm_lead_id}`}
           </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
-            {[lead?.phone, lead?.class, lead?.group, lead?.stage].filter(Boolean).join(' · ')}
-          </p>
         </div>
         <span style={{
           fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: 'var(--radius-pill)',
@@ -96,15 +94,6 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           {audit.status}
         </span>
       </div>
-
-      {crmError && (
-        <div style={{
-          background: 'var(--alert-light)', border: '1px solid var(--alert)', borderRadius: 'var(--radius-sm)',
-          padding: '10px 14px', fontSize: '13px', color: 'var(--alert)', marginBottom: '16px',
-        }}>
-          {crmError}
-        </div>
-      )}
 
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px',
@@ -120,9 +109,10 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{auditor?.email}</div>
         </InfoCard>
         <InfoCard title="Call">
-          <div style={{ fontSize: '13px' }}>{audit.call_started_at && new Date(audit.call_started_at).toLocaleString()}</div>
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            {audit.call_destination} · {audit.call_status}
+          <div style={{ fontSize: '13px' }}>{formatDhakaDateTime(audit.call_started_at)}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+            {audit.call_destination && <span>{audit.call_destination}</span>}
+            <CallStatusPill status={audit.call_status} />
           </div>
         </InfoCard>
       </div>

@@ -3,11 +3,19 @@
 // All login / logout / session / profile logic
 // ============================================================
 
+import { cache } from 'react'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import type { AuthUser } from '@/types/database.types'
 
 // ── Get current authenticated user with full profile ─────────
-export async function getAuthUser(): Promise<AuthUser | null> {
+// Wrapped in React's cache(): within ONE request (a page render, its layout,
+// the services it calls, or a server action) every caller shares one
+// result. Uncached, each call cost two network round trips (Supabase Auth
+// getUser + the profile row) and one page made three or four of them.
+// Safe because nothing reads the user, changes it, and reads it again in
+// the same request (changeOwnPassword reads once). A new request always
+// starts fresh, so sign-in/out and deactivation take effect immediately.
+export const getAuthUser = cache(async function getAuthUser(): Promise<AuthUser | null> {
   const supabase = await getSupabaseServer()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -28,7 +36,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     profile,
     role: profile.role,
   }
-}
+})
 
 // ── Sign in with email/password ───────────────────────────────
 export async function signIn(email: string, password: string) {

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCallsForLead, CrmApiError } from '@/lib/crm/client'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getCallStatusMap } from '@/lib/audits/audits.service'
-import { resolveAgentForCall, listActiveAgents, findCallOwner } from '@/lib/audits/agent-matching'
+import { resolveAgentForCall, listActiveAgents, findCallOwner, type AgentResolution } from '@/lib/audits/agent-matching'
 import { checkOrgSync, type OrgNote } from '@/lib/crm/org-sync'
 import { CallList, type CallRow } from '@/components/audits/CallList'
 import { OrgSyncBanner } from '@/components/audits/OrgSyncBanner'
@@ -14,6 +14,13 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
   // Looked up first: the CRM request is logged against this person.
   const viewer = await getAuthUser()
   if (!viewer) redirect('/auth/login')
+
+  // The agent list doesn't depend on the CRM, so it loads WHILE the CRM call
+  // is in flight instead of after it. (The no-op catch only stops an
+  // unhandled-rejection warning on the early-return paths below; the real
+  // await further down still surfaces a genuine failure.)
+  const agentsPromise = listActiveAgents()
+  agentsPromise.catch(() => {})
 
   let calls
   try {
@@ -37,19 +44,32 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
     )
   }
 
-  const statusMap = await getCallStatusMap(calls.map((c) => String(c.id)))
-  const agentOptions = await listActiveAgents()
+  const [statusMap, agentOptions] = await Promise.all([getCallStatusMap(calls.map((c) => String(c.id))), agentsPromise])
+
+  // A lead's calls are usually taken by a handful of agents, so look each
+  // DISTINCT agent up once and share the answer — not once per call (13
+  // calls by 2 agents used to mean 13 matching lookups).
+  const resolutions = new Map<number, Promise<AgentResolution>>()
+  const owners = new Map<number, ReturnType<typeof findCallOwner>>()
+  const resolveOnce = (createdBy: (typeof calls)[number]['created_by']) => {
+    if (!resolutions.has(createdBy.id)) resolutions.set(createdBy.id, resolveAgentForCall(createdBy, viewer.profile.id))
+    return resolutions.get(createdBy.id)!
+  }
+  const ownerOnce = (createdBy: (typeof calls)[number]['created_by']) => {
+    if (!owners.has(createdBy.id)) owners.set(createdBy.id, findCallOwner(createdBy, viewer.profile.id))
+    return owners.get(createdBy.id)!
+  }
 
   const isTeamLead = viewer.role === 'team_lead'
   const rows: CallRow[] = await Promise.all(
     calls.map(async (call) => {
       const status = statusMap.get(String(call.id)) ?? null
-      const { match: matchedAgent, crm: crmAgent } = await resolveAgentForCall(call.created_by, viewer.profile.id)
+      const { match: matchedAgent, crm: crmAgent } = await resolveOnce(call.created_by)
       // A Team Lead audits only their own team's calls. Unknown owners
       // count as "not yours" — the call can't be shown to be theirs.
       let outsideTeam: boolean | undefined
       if (isTeamLead) {
-        const owner = await findCallOwner(call.created_by, viewer.profile.id)
+        const owner = await ownerOnce(call.created_by)
         outsideTeam = !owner || owner.team_leader_id !== viewer.profile.id
       }
       return { call, status, matchedAgent, crmAgent, outsideTeam }
@@ -60,11 +80,14 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
   // stale CRM link is refreshed here; otherwise it costs nothing). One
   // banner, de-duplicated — several calls by one agent don't repeat it.
   const seenNotes = new Map<string, OrgNote>()
-  const notesPerAgent = await Promise.all(
-    rows
-      .filter((r) => r.matchedAgent)
-      .map((r) => checkOrgSync(r.matchedAgent!.id, r.call.created_by.id, viewer.profile.id))
-  )
+  // One check per distinct matched agent (not per call).
+  const orgChecks = new Map<string, Promise<OrgNote[]>>()
+  for (const r of rows) {
+    if (r.matchedAgent && !orgChecks.has(r.matchedAgent.id)) {
+      orgChecks.set(r.matchedAgent.id, checkOrgSync(r.matchedAgent.id, r.call.created_by.id, viewer.profile.id))
+    }
+  }
+  const notesPerAgent = await Promise.all(orgChecks.values())
   for (const n of notesPerAgent.flat()) {
     seenNotes.set(`${n.level}|${n.subject}|${n.crmName}|${n.ourName}|${n.weHaveNone}`, n)
   }
