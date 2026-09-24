@@ -1,6 +1,11 @@
+import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { getAuthUser } from '@/lib/auth/auth.service'
 import { NavCard } from '@/components/dashboard/NavCard'
 
-export default function TeamDashboardPage() {
+export default async function TeamDashboardPage() {
+  const user = await getAuthUser()
+  // A Team Lead sees their own team's sessions; a QA Manager / Admin opening this page sees everyone's.
+  const audience = user?.role === 'team_lead' ? 'scope' : 'org'
   return (
     <div>
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Team Lead Dashboard</h1>
@@ -20,6 +25,8 @@ export default function TeamDashboardPage() {
           description="How your team answered a Special Check, over submitted audits."
         />
       </div>
+
+      <BriefingsSection audience={audience} />
     </div>
   )
 }

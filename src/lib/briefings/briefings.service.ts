@@ -13,6 +13,7 @@ import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import type { AuthUser } from '@/types/database.types'
 import { isValidSlot, upcomingBusinessDays, slotsForDay } from './rules'
+import { buildBriefingsView, type BriefingListItem, type BriefingsView } from './view'
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -271,4 +272,58 @@ function friendlyError(message: string, code?: string): string {
     return 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).'
   }
   return message
+}
+
+// ── Dashboard views (Part B) ─────────────────────────────────
+// Read-only, and deliberately NOT gated by requireScheduler(): Team Leads,
+// Managers and agents look but can't schedule. Who sees which rows is the
+// briefings table's own RLS (schema_021), so this asks for "my briefings"
+// and gets exactly the slice the signed-in role is allowed.
+
+const VIEW_ROW_LIMIT = 1000
+
+export interface BriefingsLoad {
+  view: BriefingsView
+  /** More rows exist than were fetched — the counts are a floor, and the screen says so. */
+  truncated: boolean
+}
+
+/**
+ * Throws on a failed read: an error must never look like "nothing scheduled"
+ * (same rule as loadAgentCoachingHistory). Cancelled sessions are left out —
+ * they are on record but no longer part of anyone's calendar.
+ */
+export async function loadBriefingsView(now: Date = new Date()): Promise<BriefingsLoad> {
+  const supabase = await getSupabaseServer()
+  const recentSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Every session still on the calendar (scheduled), plus the last 30 days of recorded outcomes.
+  const { data, error } = await supabase
+    .from('briefings')
+    .select(
+      'id, audit_id, scheduled_at, status, attended, priority, ' +
+        'agent:users!briefings_agent_id_fkey(name), conductor:users!briefings_conducted_by_fkey(name)'
+    )
+    .or(`status.eq.scheduled,and(status.eq.completed,scheduled_at.gte.${recentSince})`)
+    .order('scheduled_at', { ascending: true })
+    .limit(VIEW_ROW_LIMIT)
+  if (error) throw new Error(`Could not load briefings: ${error.message}`)
+
+  const rows = (data ?? []) as unknown as Array<{
+    id: string; audit_id: string; scheduled_at: string; status: 'scheduled' | 'completed'
+    attended: boolean | null; priority: 'normal' | 'critical_same_day'
+    agent: { name: string } | null; conductor: { name: string } | null
+  }>
+
+  const items: BriefingListItem[] = rows.map((r) => ({
+    id: r.id,
+    auditId: r.audit_id,
+    agentName: r.agent?.name ?? 'Unknown agent',
+    conductorName: r.conductor?.name ?? null,
+    scheduledAt: r.scheduled_at,
+    status: r.status,
+    attended: r.attended,
+    priority: r.priority,
+  }))
+  return { view: buildBriefingsView(items, now), truncated: rows.length >= VIEW_ROW_LIMIT }
 }

@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/auth.service'
 import { PERIOD_OPTIONS, parsePeriod } from '@/lib/dates/sales-week'
 import { getManagerDashboard, listManagerOptions } from '@/lib/manager/dashboard.service'
 import { ManagerDashboardView } from '@/components/dashboard/manager/ManagerDashboardView'
+import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { ManagerPicker } from '@/components/dashboard/manager/ManagerPicker'
 
 export default async function ManagerDashboardPage({
@@ -91,6 +92,9 @@ export default async function ManagerDashboardPage({
       )}
 
       {result?.ok && <ManagerDashboardView rollup={result.rollup} managerName={result.managerName} />}
+
+      {/* A Manager's own chain (the database scopes it). Not shown to an admin browsing another manager: the sessions table has no per-manager filter, so it would show everyone's under that manager's name. */}
+      {isManager && <BriefingsSection audience="scope" canOpenAudit={false} />}
     </div>
   )
 }

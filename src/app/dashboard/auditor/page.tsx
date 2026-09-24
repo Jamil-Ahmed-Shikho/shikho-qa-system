@@ -1,6 +1,11 @@
+import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { getAuthUser } from '@/lib/auth/auth.service'
 import { NavCard } from '@/components/dashboard/NavCard'
 
-export default function AuditorDashboardPage() {
+export default async function AuditorDashboardPage() {
+  const user = await getAuthUser()
+  // A QA Auditor sees their own schedule; a QA Manager / Admin opening this page sees everyone's.
+  const audience = user?.role === 'qa_auditor' ? 'auditor' : 'org'
   return (
     <div>
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>QA Auditor Dashboard</h1>
@@ -20,6 +25,8 @@ export default function AuditorDashboardPage() {
           description="How agents answered a Special Check, over submitted audits — company-wide, not just your own."
         />
       </div>
+
+      <BriefingsSection audience={audience} />
     </div>
   )
 }

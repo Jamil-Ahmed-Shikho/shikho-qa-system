@@ -339,7 +339,8 @@ async function main() {
       }
       totalWritten += rows.length
 
-      const dates = events.map((e) => String(e.created_at)).sort()
+      // Normalised first: the raw strings are 12-hour ('… 08:13:30 pm') and don't sort by time.
+      const dates = events.map((e) => crmTimestamp(e.created_at)).filter(Boolean).sort()
       const oldestOnPage = dates[0]
       const newestOnPage = dates[dates.length - 1]
       const nextCursor = Math.min(...events.map((e) => Number(e.id)))
@@ -349,7 +350,7 @@ async function main() {
       )
 
       await upsertSyncState({
-        watermark: new Date(crmTimestamp(oldestOnPage)).toISOString(),
+        watermark: new Date(oldestOnPage).toISOString(),
         events_synced: totalWritten,
         last_run_at: new Date().toISOString(),
         last_run_status: 'partial',
@@ -359,7 +360,7 @@ async function main() {
       // Stop rule for id order: a lower id can carry a LATER date (back-dated
       // events, up to ~5.5 days measured), so only stop once even the
       // newest event on the page is well before the cutoff.
-      if (pageIsBeforeCutoff(crmTimestamp(newestOnPage), new Date(cutoff.getTime() - STOP_MARGIN_DAYS * 86400000))) {
+      if (pageIsBeforeCutoff(newestOnPage, new Date(cutoff.getTime() - STOP_MARGIN_DAYS * 86400000))) {
         console.log(`request ${page}: newest event is ${STOP_MARGIN_DAYS}+ days before the ${BACKFILL_MONTHS}-month cutoff — stopping`)
         break
       }

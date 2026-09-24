@@ -1,3 +1,4 @@
+import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 
 export default function AdminDashboardPage() {
@@ -40,6 +41,8 @@ export default function AdminDashboardPage() {
           description="Look up a lead's call history and start an audit."
         />
       </div>
+
+      <BriefingsSection audience="org" />
     </div>
   )
 }

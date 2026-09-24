@@ -1,5 +1,14 @@
 import { PlaceholderDashboard } from '@/components/dashboard/PlaceholderDashboard'
+import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { getAuthUser } from '@/lib/auth/auth.service'
 
-export default function AgentDashboardPage() {
-  return <PlaceholderDashboard title="My Performance" />
+export default async function AgentDashboardPage() {
+  const user = await getAuthUser()
+  return (
+    <div>
+      <PlaceholderDashboard title="My Performance" />
+      {/* Only for an actual agent: a Team Lead or admin who lands here would otherwise see their whole scope under "My". */}
+      {user?.role === 'agent' && <BriefingsSection audience="agent" canOpenAudit={false} />}
+    </div>
+  )
 }

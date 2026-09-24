@@ -22,7 +22,22 @@ export function crmTimestamp(raw) {
   if (raw === null || raw === undefined || raw === '') return null
   const s = String(raw).trim()
   if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) return s
-  return s.replace(' ', 'T') + '+06:00'
+  return to24Hour(s).replace(' ', 'T') + '+06:00'
+}
+
+/**
+ * Some CRM endpoints (events, tasks) send the time-of-day in 12-hour form:
+ * '2026-09-10 08:13:30 pm'. Postgres reads that correctly but JavaScript's Date
+ * does not (Invalid Date), so normalise it to 24-hour here, once, and every
+ * consumer — including plain string sorting — gets a valid, orderable value.
+ * 12 am is 00, 12 pm is 12. A 24-hour value passes through untouched.
+ */
+function to24Hour(s) {
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])\.?m\.?$/i.exec(s)
+  if (!m) return s
+  let h = Number(m[2]) % 12
+  if (m[5].toLowerCase() === 'p') h += 12
+  return `${m[1]} ${String(h).padStart(2, '0')}:${m[3]}:${m[4] ?? '00'}`
 }
 
 /** A CRM timestamp as a Date (the correct instant), or null. */
