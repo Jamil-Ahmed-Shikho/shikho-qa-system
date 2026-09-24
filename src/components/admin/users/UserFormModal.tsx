@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
+import { LEAVE_MESSAGE } from '@/lib/ui/unsaved'
 import { TEAM_NAMES } from '@/types/database.types'
 import type { UserProfile, UserRole } from '@/types/database.types'
 import {
@@ -51,6 +53,12 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
   })
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // Snapshot of the values the form opened with; anything different is unsaved work.
+  const [opened] = useState(() => JSON.stringify({ form, tags }))
+  const dirty = JSON.stringify({ form, tags }) !== opened
+  useUnsavedGuard(dirty)
+  // Closing the dialog (x, Cancel, clicking outside) discards edits, so ask first — like leaving a page.
+  const requestClose = () => { if (!dirty || confirm(LEAVE_MESSAGE)) onClose() }
 
   const set = (key: keyof UserInput, value: string) => setForm((f) => ({ ...f, [key]: value }))
   const isEdit = mode === 'edit'
@@ -141,7 +149,7 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
         position: 'fixed', inset: 0, background: 'rgba(15,19,34,0.5)', zIndex: 100,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto',
       }}
-      onClick={(e) => { if (e.target === e.currentTarget && !pending) onClose() }}
+      onClick={(e) => { if (e.target === e.currentTarget && !pending) requestClose() }}
     >
       <form
         onSubmit={handleSubmit}
@@ -152,7 +160,7 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{isEdit ? `Edit ${user?.name}` : 'Add user'}</h2>
-          <button type="button" onClick={onClose} disabled={pending} aria-label="Close"
+          <button type="button" onClick={requestClose} disabled={pending} aria-label="Close"
             style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}>
             ×
           </button>
@@ -273,7 +281,7 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
             )}
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" style={ghostBtn} onClick={onClose} disabled={pending}>Cancel</button>
+            <button type="button" style={ghostBtn} onClick={requestClose} disabled={pending}>Cancel</button>
             <button type="submit" style={{ ...primaryBtn, ...(pending ? { background: 'var(--border-strong)', cursor: 'not-allowed' } : {}) }} disabled={pending}>
               {pending ? 'Saving...' : isEdit ? 'Save changes' : 'Create user'}
             </button>

@@ -1,10 +1,10 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCallsForLead, CrmApiError } from '@/lib/crm/client'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getCallStatusMap } from '@/lib/audits/audits.service'
 import { resolveAgentForCall, listActiveAgents, findCallOwner, type AgentResolution } from '@/lib/audits/agent-matching'
 import { checkOrgSync, type OrgNote } from '@/lib/crm/org-sync'
+import { BackLink } from '@/components/common/BackLink'
 import { CallList, type CallRow } from '@/components/audits/CallList'
 import { OrgSyncBanner } from '@/components/audits/OrgSyncBanner'
 
@@ -29,7 +29,7 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
     const message = err instanceof CrmApiError ? err.message : 'Could not reach the CRM.'
     return (
       <div>
-        <BackLink />
+        <BackLink href="/audits" label="New lookup" />
         <ErrorState message={message} />
       </div>
     )
@@ -38,7 +38,7 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
   if (calls.length === 0) {
     return (
       <div>
-        <BackLink />
+        <BackLink href="/audits" label="New lookup" />
         <EmptyState leadId={leadId} />
       </div>
     )
@@ -97,7 +97,7 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
 
   return (
     <div>
-      <BackLink />
+      <BackLink href="/audits" label="New lookup" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
         {lead?.name || `Lead #${leadId}`}
       </h1>
@@ -112,17 +112,6 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
         canManageUsers={['super_admin', 'qa_manager'].includes(viewer.role)}
       />
     </div>
-  )
-}
-
-function BackLink() {
-  return (
-    <>
-      <Link href="/audits" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>
-        ← New lookup
-      </Link>
-      <div style={{ height: '12px' }} />
-    </>
   )
 }
 

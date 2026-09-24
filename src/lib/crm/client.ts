@@ -131,6 +131,35 @@ export async function getEventsWindow(
   }
 }
 
+/** The few lead fields the audit page shows. The full profile also carries contact details we deliberately don't keep. */
+export interface CrmLeadSummary {
+  /** Contact stage — the lead's CURRENT stage in the CRM, not as it was at the time of the call. */
+  stage: string | null
+  /** Distribution list — the lead's latest (`last_dist_name`); often empty. */
+  distributionList: string | null
+}
+
+/**
+ * GET /leads/{id} reduced to what the audit page shows. Returns null if the
+ * CRM has no such lead; other failures (CRM down, timeout) throw, so the
+ * caller can say "couldn't load" instead of implying the lead has no data.
+ */
+export async function getLeadSummary(leadId: string | number, actorId: string | null): Promise<CrmLeadSummary | null> {
+  let raw: unknown
+  try {
+    raw = await crmFetch<unknown>(`/leads/${leadId}`, actorId)
+  } catch (err) {
+    if (err instanceof CrmApiError && err.status === 404) return null
+    throw err
+  }
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const lead = (r.data && typeof r.data === 'object' ? r.data : r) as Record<string, unknown>
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  const stage = lead.lead_stage && typeof lead.lead_stage === 'object' ? text((lead.lead_stage as Record<string, unknown>).name) : text(lead.lead_stage)
+  return { stage, distributionList: text(lead.last_dist_name) }
+}
+
 export interface CrmUser {
   id: number
   name: string | null

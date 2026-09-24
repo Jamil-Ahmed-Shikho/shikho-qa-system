@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth/auth.service'
@@ -7,7 +6,13 @@ import { RecordingPlayer } from '@/components/audits/RecordingPlayer'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { ReleaseDraftButton } from '@/components/audits/ReleaseDraftButton'
 import { loadAgentCoachingHistory, type CoachingHistoryItem } from '@/lib/briefings/briefings.service'
+import { BackLink } from '@/components/common/BackLink'
 import { CallStatusPill } from '@/components/audits/CallStatusPill'
+import { AuditContextCards } from '@/components/audits/AuditContextCards'
+import { loadAgentRevenue } from '@/lib/audits/audit-context.service'
+import { getLeadSummary } from '@/lib/crm/client'
+import { agentVintage } from '@/lib/agents/vintage'
+import { formatCallDuration } from '@/lib/dates/duration'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
 import { Scorecard } from '@/components/audits/Scorecard'
@@ -24,7 +29,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       .from('audits')
       .select(
         `*,
-      agent:users!audits_agent_id_fkey(name, email, team_name),
+      agent:users!audits_agent_id_fkey(name, email, team_name, joining_date, employment_stage),
       auditor:users!audits_auditor_id_fkey(name, email)`
       )
       .eq('id', id)
@@ -33,7 +38,14 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
   if (error || !audit) notFound()
 
-  const agent = audit.agent as unknown as { name: string; email: string; team_name: string | null }
+  const agent = audit.agent as unknown as {
+    name: string
+    email: string
+    team_name: string | null
+    joining_date: string | null
+    employment_stage: string
+  }
+  const vintage = agentVintage({ employment_stage: agent?.employment_stage ?? 'active', joining_date: agent?.joining_date ?? null })
   const auditor = audit.auditor as unknown as { name: string; email: string }
 
   // (This page used to fetch the call from the CRM just to read a nested
@@ -62,24 +74,41 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
   // The rubric LOCKED when this audit was started (audits.rubric_id), plus
   // whatever has been saved against it.
+  // Lead details (CRM) and revenue (our tables) load alongside the scorecard.
+  // Each fails independently and says so on screen — a failed lookup must not
+  // read as "no data", and must not take the page down.
+  const leadPromise = audit.crm_lead_id
+    ? getLeadSummary(audit.crm_lead_id, user?.profile.id ?? null).then(
+        (lead) => ({ lead, unavailable: false }),
+        (err) => {
+          console.error('Lead lookup failed:', err instanceof Error ? err.message : err)
+          return { lead: null, unavailable: true }
+        }
+      )
+    : Promise.resolve({ lead: null, unavailable: false })
+  const revenuePromise = loadAgentRevenue(audit.agent_id).catch((err) => {
+    console.error(err)
+    return null
+  })
+
   // Loaded together with the coaching history rather than one after the other.
-  const [scorecard, coachingHistory] = await Promise.all([
+  const [scorecard, coachingHistory, leadInfo, revenue] = await Promise.all([
     loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
       agentTeam: agent?.team_name ?? null,
       isDraft: audit.status === 'draft',
     }),
     historyPromise,
+    leadPromise,
+    revenuePromise,
   ])
 
   return (
     <div>
-      <Link
+      {/* Asks first if the scorecard has unsaved changes (see lib/ui/unsaved.ts). */}
+      <BackLink
         href={audit.crm_lead_id ? `/audits/leads/${audit.crm_lead_id}` : '/audits'}
-        style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}
-      >
-        ← Back to call list
-      </Link>
-      <div style={{ height: '12px' }} />
+        label={audit.crm_lead_id ? 'Back to call list' : 'Find a lead'}
+      />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
@@ -103,6 +132,11 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           <div style={{ fontWeight: 600 }}>{agent?.name}</div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{agent?.email}</div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{agent?.team_name}</div>
+          <div style={{ fontSize: '13px', marginTop: '8px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Vintage: </span>
+            <b>{vintage.label}</b>
+            {vintage.detail && <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{vintage.detail}</div>}
+          </div>
         </InfoCard>
         <InfoCard title="Auditor">
           <div style={{ fontWeight: 600 }}>{auditor?.name}</div>
@@ -114,7 +148,17 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
             {audit.call_destination && <span>{audit.call_destination}</span>}
             <CallStatusPill status={audit.call_status} />
           </div>
+          <div style={{ fontSize: '13px', marginTop: '8px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Duration: </span>
+            <b>{formatCallDuration(audit.call_started_at, audit.call_ended_at)}</b>
+          </div>
         </InfoCard>
+        <AuditContextCards
+          showLead={!!audit.crm_lead_id}
+          lead={leadInfo.lead}
+          leadUnavailable={leadInfo.unavailable}
+          revenue={revenue}
+        />
       </div>
 
       <div style={{

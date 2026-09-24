@@ -11,7 +11,8 @@
 // is allowed but asks for confirmation first — it warns, it never blocks.
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
+import { BackLink } from '@/components/common/BackLink'
 import { useRouter } from 'next/navigation'
 import {
   createCheckTypeAction,
@@ -90,8 +91,7 @@ export function CampaignEditor({ tree, usage }: { tree: CampaignTree; usage: Cam
 
   return (
     <div>
-      <Link href="/admin/campaigns" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← All campaigns</Link>
-      <div style={{ height: '12px' }} />
+      <BackLink href="/admin/campaigns" label="All campaigns" />
 
       {/* ── header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -214,6 +214,7 @@ function CheckCard({
   const [name, setName] = useState(check.name)
   const [description, setDescription] = useState(check.description ?? '')
   const [newOption, setNewOption] = useState('')
+  useUnsavedGuard(newOption.trim() !== '' || (editing && (name !== check.name || description !== (check.description ?? ''))))
 
   const u = usage.checks[check.id] ?? NO_USE
   const nameLocked = u.submitted > 0       // a submitted audit answered this check: its text is frozen
@@ -368,6 +369,7 @@ function OptionRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(option.label)
+  useUnsavedGuard(editing && label !== option.label)
   const textLocked = usage.submitted > 0
   const cannotUnarchive = option.is_archived && capReached
 
@@ -442,6 +444,7 @@ function AddCheckForm({
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  useUnsavedGuard(name.trim() !== '' || description.trim() !== '')
 
   async function add(e: React.FormEvent) {
     e.preventDefault()

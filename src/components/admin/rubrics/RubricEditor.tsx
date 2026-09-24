@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
 import { useRouter } from 'next/navigation'
 import {
   updateRubricMeta,
@@ -197,6 +198,7 @@ function MetaEditor({
   const [name, setName] = useState(rubric.name)
   const [totalPoints, setTotalPoints] = useState(rubric.total_points)
   const dirty = name !== rubric.name || totalPoints !== rubric.total_points
+  useUnsavedGuard(dirty)
 
   return (
     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -233,6 +235,7 @@ function TeamMappingEditor({
 }) {
   const [selected, setSelected] = useState<string[]>(current)
   const dirty = JSON.stringify([...selected].sort()) !== JSON.stringify([...current].sort())
+  useUnsavedGuard(dirty)
 
   function toggle(team: string) {
     setSelected((prev) => (prev.includes(team) ? prev.filter((t) => t !== team) : [...prev, team]))
@@ -283,6 +286,7 @@ function CategoryBlock({
 }) {
   const [name, setName] = useState(category.name)
   const dirty = name !== category.name
+  useUnsavedGuard(dirty)
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '14px' }}>
@@ -328,6 +332,7 @@ function CategoryBlock({
 
 function AddCategoryForm({ rubricId, run }: { rubricId: string; run: (fn: () => Promise<unknown>) => void }) {
   const [name, setName] = useState('')
+  useUnsavedGuard(name.trim() !== '')
   return (
     <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
       <input
@@ -364,6 +369,7 @@ function ParameterRow({
   const [name, setName] = useState(parameter.name)
   const [points, setPoints] = useState(parameter.points)
   const dirty = name !== parameter.name || points !== parameter.points
+  useUnsavedGuard(dirty)
 
   return (
     <div style={{ background: 'var(--surface-0)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
@@ -411,6 +417,7 @@ function AddParameterForm({
   run: (fn: () => Promise<unknown>) => void
 }) {
   const [name, setName] = useState('')
+  useUnsavedGuard(name.trim() !== '')
   const [points, setPoints] = useState(5)
   return (
     <div style={{ display: 'flex', gap: '8px', marginTop: '10px', paddingLeft: '8px' }}>
@@ -453,6 +460,7 @@ function ErrorAttributeRow({
 }) {
   const [description, setDescription] = useState(attribute.description)
   const dirty = description !== attribute.description
+  useUnsavedGuard(dirty)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -484,6 +492,7 @@ function AddErrorAttributeForm({
   run: (fn: () => Promise<unknown>) => void
 }) {
   const [description, setDescription] = useState('')
+  useUnsavedGuard(description.trim() !== '')
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>•</span>
@@ -521,6 +530,7 @@ function FatalRow({
   const [description, setDescription] = useState(fatal.description)
   const [severity, setSeverity] = useState<FatalSeverity>(fatal.severity)
   const dirty = description !== fatal.description || severity !== fatal.severity
+  useUnsavedGuard(dirty)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -563,6 +573,7 @@ function FatalRow({
 
 function AddFatalForm({ rubricId, run }: { rubricId: string; run: (fn: () => Promise<unknown>) => void }) {
   const [description, setDescription] = useState('')
+  useUnsavedGuard(description.trim() !== '')
   const [severity, setSeverity] = useState<FatalSeverity>('critical')
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>

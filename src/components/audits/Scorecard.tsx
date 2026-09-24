@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveScorecardDraft, submitScorecard } from '@/lib/audits/scoring-actions'
 import { VoiceInputButton } from '@/components/common/VoiceInputButton'
+import { setUnsaved } from '@/lib/ui/unsaved'
 import { SpecialChecks } from './SpecialChecks'
 import type { SpecialCampaign } from '@/lib/campaigns/special'
 import {
@@ -70,6 +71,13 @@ export function Scorecard({
     const guard = (e: BeforeUnloadEvent) => { e.preventDefault() }
     window.addEventListener('beforeunload', guard)
     return () => window.removeEventListener('beforeunload', guard)
+  }, [dirty])
+
+  // `beforeunload` doesn't fire for in-app navigation (back link, logo, sign
+  // out) — those ask via the shared registry instead. Cleared on unmount.
+  useEffect(() => {
+    setUnsaved('scorecard', dirty)
+    return () => setUnsaved('scorecard', false)
   }, [dirty])
 
   // ── marking ───────────────────────────────────────────────

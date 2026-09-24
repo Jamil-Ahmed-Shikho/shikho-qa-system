@@ -4,7 +4,9 @@
 // Top bar with brand mark, current user, sign out
 // ============================================================
 
+import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { confirmLeave } from '@/lib/ui/unsaved'
 import { ShikhoBirdMark } from '@/components/brand/ShikhoBirdMark'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -29,7 +31,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         background: 'var(--paper)',
         borderBottom: '1px solid var(--border)',
       }}>
-        <ShikhoBirdMark height={28} />
+        {/* Home: /dashboard sends each role to its own dashboard. Asks first if a page has unsaved work. */}
+        <Link
+          href="/dashboard"
+          aria-label="Home"
+          title="Home"
+          style={{ display: 'inline-flex', borderRadius: 'var(--radius-sm)' }}
+          onClick={(e) => {
+            if (!confirmLeave()) e.preventDefault()
+          }}
+        >
+          <ShikhoBirdMark height={28} />
+        </Link>
         {!loading && user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{ textAlign: 'right' }}>
@@ -41,7 +54,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={signOut}
+              onClick={() => {
+                if (confirmLeave()) signOut()
+              }}
               style={{
                 padding: '8px 14px',
                 fontSize: '13px',

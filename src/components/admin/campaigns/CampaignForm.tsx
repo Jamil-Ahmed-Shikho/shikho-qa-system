@@ -3,6 +3,7 @@
 // Used to create a campaign (then it opens the editor) and to edit its details.
 
 import { useState } from 'react'
+import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
 import { useRouter } from 'next/navigation'
 import { createCampaignAction, updateCampaignAction } from '@/lib/campaigns/actions'
 import { CAMPAIGN_LIMITS } from '@/lib/campaigns/rules'
@@ -33,6 +34,9 @@ export function CampaignForm({
   const [saved, setSaved] = useState(false)
 
   const dirty = mode === 'create' || JSON.stringify(values) !== JSON.stringify(initial)
+  // "dirty" also enables the button; the guard needs real edits (a fresh create form is not unsaved work).
+  const blank = JSON.stringify({ name: '', description: '', allTeams: false, teamNames: [] })
+  useUnsavedGuard(JSON.stringify(values) !== (mode === 'create' ? blank : JSON.stringify(initial)))
   const set = (patch: Partial<CampaignFormValues>) => { setValues((v) => ({ ...v, ...patch })); setSaved(false) }
   const toggleTeam = (team: string) =>
     set({ teamNames: values.teamNames.includes(team) ? values.teamNames.filter((t) => t !== team) : [...values.teamNames, team] })

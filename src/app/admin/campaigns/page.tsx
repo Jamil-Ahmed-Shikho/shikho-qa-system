@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BackLink } from '@/components/common/BackLink'
 import { listCampaigns } from '@/lib/campaigns/campaigns.service'
 import { activeChecks, campaignReadiness, scopeLabel } from '@/lib/campaigns/rules'
 
@@ -13,6 +14,7 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
 
   return (
     <div>
+      <BackLink href="/dashboard" label="Dashboard" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Special Checks</h1>

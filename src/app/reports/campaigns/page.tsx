@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BackLink } from '@/components/common/BackLink'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import {
   canNarrowByManager,
@@ -22,6 +23,7 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
   if (campaigns.length === 0) {
     return (
       <div>
+        <BackLink href="/dashboard" label="Dashboard" />
         <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Campaign Report</h1>
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px', marginTop: '16px' }}>
           No Special Check campaigns exist yet.
@@ -53,6 +55,7 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
 
   return (
     <div>
+      <BackLink href="/dashboard" label="Dashboard" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '4px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>Campaign Report</h1>
         <Link href="/admin/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>

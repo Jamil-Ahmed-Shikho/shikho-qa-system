@@ -53,3 +53,15 @@ const fmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', t
 export function describeRange(range: { from: Date; to: Date }): string {
   return `${fmt.format(range.from)} – ${fmt.format(new Date(range.to.getTime() - 1))}`
 }
+
+const dhakaDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }) // YYYY-MM-DD
+
+/** The Saturday that starts the current sales week, as a Dhaka calendar date 'YYYY-MM-DD' (matches agent_weekly_sales.week_start). */
+export function salesWeekStartDate(now: Date): string {
+  return dhakaDate.format(salesWeekStart(now))
+}
+
+/** The Saturday that started the sales week BEFORE the current one, 'YYYY-MM-DD'. */
+export function previousSalesWeekStartDate(now: Date): string {
+  return dhakaDate.format(new Date(salesWeekStart(now).getTime() - 7 * DAY_MS))
+}

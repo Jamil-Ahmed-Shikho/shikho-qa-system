@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
 import { useRouter } from 'next/navigation'
 import { createRubric } from '@/lib/rubrics/actions'
 
@@ -10,6 +11,7 @@ export function NewRubricForm() {
   const [totalPoints, setTotalPoints] = useState(100)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  useUnsavedGuard(name.trim() !== '' || totalPoints !== 100)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

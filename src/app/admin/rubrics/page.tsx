@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BackLink } from '@/components/common/BackLink'
 import { listRubrics } from '@/lib/rubrics/rubrics.service'
 
 export default async function RubricsListPage() {
@@ -14,6 +15,7 @@ export default async function RubricsListPage() {
 
   return (
     <div>
+      <BackLink href="/dashboard" label="Dashboard" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Rubrics</h1>

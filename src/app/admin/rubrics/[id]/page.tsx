@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BackLink } from '@/components/common/BackLink'
 import { notFound } from 'next/navigation'
 import { getRubricTree } from '@/lib/rubrics/rubrics.service'
 import { RubricEditor } from '@/components/admin/rubrics/RubricEditor'
@@ -10,10 +10,7 @@ export default async function RubricEditPage({ params }: { params: Promise<{ id:
 
   return (
     <div>
-      <Link href="/admin/rubrics" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>
-        ← All rubrics
-      </Link>
-      <div style={{ height: '12px' }} />
+      <BackLink href="/admin/rubrics" label="All rubrics" />
       <RubricEditor rubric={rubric} />
     </div>
   )
