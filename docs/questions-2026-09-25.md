@@ -60,3 +60,25 @@ Is that right? Should the agent see their own PIP at all (I allow it once approv
 - **No emails or notifications** for PIP — nothing in the PIP code can send one.
 - **No full backfill** — only the one bounded daily-sync run.
 - Nothing is committed; everything is in the working tree for your review.
+
+---
+
+## D. CAPA (re-audits) and Disputes — built 2026-09-26, questions that need your answer
+
+**Q16. What should a dispute decision DO to the audit?** Today resolving records an outcome (upheld / partially upheld / not upheld) and a note, **and does not change the score** — scorecards are immutable (§4). If a dispute is upheld, should the audit be re-scored (a corrected version), voided (excluded from averages / RYG / PIP), replaced by a re-audit (using the new CAPA link), or left with just the note? Until you say, "upheld" changes nothing automatically, and the screens say so.
+
+**Q17. Is there a time limit to dispute?** None today (an agent can dispute any submitted audit, once). Do you want a window (e.g. N days from submission)?
+
+**Q18. When does an agent first SEE an audit?** Immediately when it is submitted (needed so they can dispute it). That means an agent can see a Critical-fatal audit before their coaching session. Should visibility wait for the coaching briefing (or a delay), with disputes opening only after?
+
+**Q19. Can a Team Lead file without the agent knowing?** Yes today — it is clearly recorded as "filed by Team Lead X on behalf of Y" and the agent sees that. Should the agent have to agree first? And can the agent still add their own version afterwards? (Today: one dispute per audit, so no.)
+
+**Q20. Should the QA Manager who conducted an audit be allowed to resolve a dispute about it?** Today: allowed, with a visible warning ("You conducted this audit — consider asking another QA Manager"). Should it be blocked instead?
+
+**Q21. Appeals.** Once resolved, a dispute is final. Should an agent be able to appeal a decision?
+
+**Q22. What the agent sees.** An agent sees their own scorecard, feedback and the recording, but NOT: the Special Check answers, QA's root-cause tags (skill / knowledge / process / attitude), who audited them, CRM lead details, revenue, or any re-audit flag. OK, or should any of those be visible (e.g. root cause is useful coaching information)?
+
+**Q23. Who may flag a failed audit for re-audit?** QA Manager / Super Admin (any) and a QA Auditor (only audits they conducted). Team Leads cannot. Right? And should the agent ever be told their audit is flagged?
+
+**Q24. When a follow-up re-audit is submitted,** the original is marked "passed" or "failed again" by whether the follow-up passed (no critical fatal AND score ≥ the pass mark). A failed follow-up can itself be flagged for another re-audit (a chain). Any limit on how many rounds?

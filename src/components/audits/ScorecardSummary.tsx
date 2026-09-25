@@ -22,7 +22,10 @@ export function ScorecardSummary({
   saved,
   score,
   special,
+  showRootCause = true,
 }: {
+  /** false for the agent's own view: QA's root-cause tags (skill / knowledge / process / attitude) are internal classification. */
+  showRootCause?: boolean
   rubric: ScorecardRubric
   saved: MarksPayload
   /** The Special Check campaigns attached to this audit, with the checks that were answered. */
@@ -154,7 +157,7 @@ export function ScorecardSummary({
                         {ticks.map(([aid, cause]) => (
                           <li key={aid}>
                             {attrText.get(aid) ?? 'Error attribute'}
-                            {cause && (
+                            {showRootCause && cause && (
                               <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, padding: '1px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)', color: 'var(--brand)' }}>
                                 {ROOT_CAUSE_LABELS[cause as RootCause]}
                               </span>

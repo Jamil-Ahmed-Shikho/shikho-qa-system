@@ -33,6 +33,9 @@ const ROLE_ROUTES: Record<string, string[]> = {
   // scopes the rows: Team Lead = own team, Manager = own chain, QA = all). Managing the
   // cycles/candidates is under /admin (Super Admin / QA Manager only).
   '/pip': ['super_admin', 'qa_manager', 'qa_auditor', 'manager', 'team_lead'],
+  // An agent's own submitted audits + the place to dispute one (Step 5). Agents only: the page
+  // is written for them (it hides QA-internal detail), and RLS limits it to their own audits anyway.
+  '/my-audits': ['agent'],
 }
 
 export async function middleware(request: NextRequest) {

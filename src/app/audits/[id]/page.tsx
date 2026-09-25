@@ -13,6 +13,10 @@ import { loadAgentRevenue } from '@/lib/audits/audit-context.service'
 import { getLeadSummary } from '@/lib/crm/client'
 import { agentVintage } from '@/lib/agents/vintage'
 import { loadVintageSlabs } from '@/lib/agents/vintage.service'
+import { loadCapaInfo, type CapaInfo } from '@/lib/capa/capa.service'
+import { isMissingDisputesSchema, loadDisputeForAudit, type DisputeView } from '@/lib/disputes/disputes.service'
+import { CapaPanel } from '@/components/audits/CapaPanel'
+import { DisputePanel } from '@/components/disputes/DisputePanel'
 import { formatCallDuration } from '@/lib/dates/duration'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
@@ -93,8 +97,29 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     return null
   })
 
+  // Re-audit (CAPA) and dispute state, each failing independently: a failed read is shown as such
+  // (dispute) or hidden with a log line (CAPA), never mistaken for "none". If schema_028 hasn't been
+  // applied yet, both quietly show nothing.
+  const capaPromise: Promise<CapaInfo | null> = loadCapaInfo({
+    id: audit.id, agent_id: audit.agent_id, status: audit.status, re_audit_of: audit.re_audit_of ?? null, capa_status: audit.capa_status ?? null,
+  }).catch((err) => {
+    if (!isMissingDisputesSchema(err)) console.error(err)
+    return null
+  })
+  const disputePromise: Promise<{ dispute: DisputeView | null; failed: boolean }> =
+    audit.status === 'draft'
+      ? Promise.resolve({ dispute: null, failed: false })
+      : loadDisputeForAudit(audit.id).then(
+          (dispute) => ({ dispute, failed: false }),
+          (err) => {
+            const missing = isMissingDisputesSchema(err)
+            if (!missing) console.error(err)
+            return { dispute: null, failed: !missing }
+          }
+        )
+
   // Loaded together with the coaching history rather than one after the other.
-  const [scorecard, coachingHistory, leadInfo, revenue] = await Promise.all([
+  const [scorecard, coachingHistory, leadInfo, revenue, capa, disputeInfo] = await Promise.all([
     loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
       agentTeam: agent?.team_name ?? null,
       isDraft: audit.status === 'draft',
@@ -102,6 +127,8 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     historyPromise,
     leadPromise,
     revenuePromise,
+    capaPromise,
+    disputePromise,
   ])
 
   return (
@@ -187,6 +214,16 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
+      {capa && (
+        <CapaPanel
+          audit={{ id: audit.id, status: audit.status, passed: audit.passed }}
+          info={capa}
+          canFlag={!!user && (['super_admin', 'qa_manager'].includes(user.role) || (user.role === 'qa_auditor' && isOwner))}
+          isDraftOwner={canRelease}
+          agentName={agent?.name ?? 'the agent'}
+        />
+      )}
+
       <h2 style={{ fontSize: '17px', fontWeight: 600, margin: '0 0 12px' }}>
         {audit.status === 'draft' ? 'Scorecard' : 'Result'}
       </h2>
@@ -229,6 +266,22 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           {scorecard.rubric.categories.reduce((n, c) => n + c.parameters.length, 0)} parameters so far.
           Only they can score it.
         </div>
+      )}
+
+      {audit.status !== 'draft' && disputeInfo.failed && (
+        <div role="alert" style={{ fontSize: '13px', color: 'var(--alert)', marginBottom: '20px' }}>
+          The dispute status could not be loaded right now. This does not mean there is none — reload to check before filing one.
+        </div>
+      )}
+      {audit.status !== 'draft' && !disputeInfo.failed && user && (
+        <DisputePanel
+          auditId={audit.id}
+          auditStatus={audit.status}
+          dispute={disputeInfo.dispute}
+          viewer={{ role: user.role }}
+          agentName={agent?.name ?? 'the agent'}
+          youConductedAudit={isOwner}
+        />
       )}
 
       {canRelease && (

@@ -1,4 +1,5 @@
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { NavCard } from '@/components/dashboard/NavCard'
 
@@ -30,6 +31,8 @@ export default async function AuditorDashboardPage() {
           description="Agents on a performance improvement plan and their training sessions."
         />
       </div>
+
+      <PendingReauditsSection />
 
       <BriefingsSection audience={audience} />
     </div>
