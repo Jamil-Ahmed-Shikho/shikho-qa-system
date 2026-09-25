@@ -1,5 +1,6 @@
 import type { CrmLeadSummary } from '@/lib/crm/client'
 import type { AgentRevenue } from '@/lib/audits/audit-context.service'
+import { formatUsd } from '@/lib/money/usd'
 
 const card: React.CSSProperties = {
   background: 'var(--paper)', borderStyle: 'solid', borderWidth: '1px', borderColor: 'var(--border)',
@@ -11,7 +12,6 @@ const cardTitle: React.CSSProperties = {
 const rowLabel: React.CSSProperties = { fontSize: '12px', color: 'var(--text-muted)' }
 const note: React.CSSProperties = { fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: '10px' }
 
-const money = new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 })
 const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /** 'YYYY-MM-DD' (a Saturday) -> "19 Sep – 25 Sep" (that Saturday to the Friday after). */
@@ -36,6 +36,7 @@ export function AuditContextCards({
   lead,
   leadUnavailable,
   revenue,
+  revenueNeedsUpdate = false,
 }: {
   /** false for audits with no CRM lead (chats/complaints) — the lead card would have nothing to say. */
   showLead?: boolean
@@ -44,6 +45,8 @@ export function AuditContextCards({
   leadUnavailable: boolean
   /** null = revenue could not be read. */
   revenue: AgentRevenue | null
+  /** Revenue is shown in dollars, which needs schema_029; say so rather than "couldn't load". */
+  revenueNeedsUpdate?: boolean
 }) {
   return (
     <>
@@ -68,7 +71,7 @@ export function AuditContextCards({
 
       <section style={card} aria-label="Revenue">
         <div style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <span>Revenue (BDT)</span>
+          <span>Revenue</span>
           <span style={{
             fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
             background: 'var(--highlight-light)', color: 'var(--text-primary)',
@@ -77,23 +80,25 @@ export function AuditContextCards({
             Partial data
           </span>
         </div>
-        {revenue === null ? (
+        {revenueNeedsUpdate ? (
+          <Value muted>Revenue in dollars needs a database update (schema_029) before it can be shown.</Value>
+        ) : revenue === null ? (
           <Value muted>Couldn&apos;t load revenue right now.</Value>
         ) : (
           <>
             <div style={rowLabel}>Last week ({weekRange(revenue.lastWeek.weekStart)})</div>
-            {revenue.lastWeek.total === null ? (
+            {revenue.lastWeek.totalUsd === null ? (
               <Value muted>Not available yet</Value>
             ) : (
-              <Value>৳ {money.format(revenue.lastWeek.total)}</Value>
+              <Value>{formatUsd(revenue.lastWeek.totalUsd)}</Value>
             )}
             <div style={{ ...rowLabel, marginTop: '10px' }}>This week so far ({weekRange(revenue.currentWeek.weekStart)})</div>
-            <Value>৳ {money.format(revenue.currentWeek.total)}</Value>
+            <Value>{formatUsd(revenue.currentWeek.totalUsd)}</Value>
           </>
         )}
         <div style={note}>
-          Sales are still being loaded from the CRM and matched to agents, so these figures can be lower than the real ones.
-          Treat them as indicative, not final.
+          In US dollars: each sale is converted at the exchange rate in force on the day it was made. Sales are still being loaded
+          from the CRM and matched to agents, so these figures can be lower than the real ones. Treat them as indicative, not final.
         </div>
       </section>
     </>

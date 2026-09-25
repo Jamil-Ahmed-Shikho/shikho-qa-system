@@ -9,7 +9,7 @@ import { loadAgentCoachingHistory, type CoachingHistoryItem } from '@/lib/briefi
 import { BackLink } from '@/components/common/BackLink'
 import { CallStatusPill } from '@/components/audits/CallStatusPill'
 import { AuditContextCards } from '@/components/audits/AuditContextCards'
-import { loadAgentRevenue } from '@/lib/audits/audit-context.service'
+import { loadAgentRevenue, RevenueNeedsMigrationError } from '@/lib/audits/audit-context.service'
 import { getLeadSummary } from '@/lib/crm/client'
 import { agentVintage } from '@/lib/agents/vintage'
 import { loadVintageSlabs } from '@/lib/agents/vintage.service'
@@ -92,10 +92,14 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         }
       )
     : Promise.resolve({ lead: null, unavailable: false })
-  const revenuePromise = loadAgentRevenue(audit.agent_id).catch((err) => {
-    console.error(err)
-    return null
-  })
+  const revenuePromise = loadAgentRevenue(audit.agent_id).then(
+    (revenue) => ({ revenue, needsUpdate: false }),
+    (err) => {
+      const needsUpdate = err instanceof RevenueNeedsMigrationError
+      if (!needsUpdate) console.error(err)
+      return { revenue: null, needsUpdate }
+    }
+  )
 
   // Re-audit (CAPA) and dispute state, each failing independently: a failed read is shown as such
   // (dispute) or hidden with a log line (CAPA), never mistaken for "none". If schema_028 hasn't been
@@ -119,7 +123,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         )
 
   // Loaded together with the coaching history rather than one after the other.
-  const [scorecard, coachingHistory, leadInfo, revenue, capa, disputeInfo] = await Promise.all([
+  const [scorecard, coachingHistory, leadInfo, revenueInfo, capa, disputeInfo] = await Promise.all([
     loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
       agentTeam: agent?.team_name ?? null,
       isDraft: audit.status === 'draft',
@@ -186,7 +190,8 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           showLead={!!audit.crm_lead_id}
           lead={leadInfo.lead}
           leadUnavailable={leadInfo.unavailable}
-          revenue={revenue}
+          revenue={revenueInfo.revenue}
+          revenueNeedsUpdate={revenueInfo.needsUpdate}
         />
       </div>
 
