@@ -69,13 +69,24 @@ export async function runDailyRevenueSync(): Promise<SyncResult> {
         if (error) throw new Error(`Flagging missing events failed: ${error.message}`)
         return Number(data ?? 0)
       },
-      async recomputeWeeklySales() {
-        const { data, error } = await admin.rpc('recompute_weekly_sales')
-        if (error) throw new Error(error.message)
-        return data
+      async recomputeWeeklySales(syncedThrough) {
+        const call = (args: Record<string, unknown>) => admin.rpc('recompute_weekly_sales', args)
+        let res = await call(syncedThrough ? { p_synced_through: syncedThrough } : {})
+        // Before schema_030 is applied the function has no such argument — fall back to the old behaviour rather than failing the sync.
+        if (res.error && syncedThrough && /recompute_weekly_sales/.test(res.error.message) && /(could not find|does not exist|schema cache)/i.test(res.error.message)) {
+          res = await call({})
+        }
+        if (res.error) throw new Error(res.error.message)
+        return res.data
       },
       async writeState(patch) {
-        const { error } = await admin.from('revenue_sync_state').upsert({ id: 'daily', ...patch })
+        let { error } = await admin.from('revenue_sync_state').upsert({ id: 'daily', ...patch })
+        // Before schema_030 the data_complete_through column doesn't exist: record everything else rather than lose the run's outcome.
+        if (error && patch.data_complete_through && /data_complete_through/.test(error.message)) {
+          const { data_complete_through: _omit, ...rest } = patch
+          void _omit
+          ;({ error } = await admin.from('revenue_sync_state').upsert({ id: 'daily', ...rest }))
+        }
         // The state row IS the failure channel; if it can't be written, say so loudly.
         if (error) console.error('revenue_sync_state write failed:', error.message)
       },

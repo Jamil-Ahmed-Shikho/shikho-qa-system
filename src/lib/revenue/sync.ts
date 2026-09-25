@@ -43,14 +43,20 @@ export interface SyncStore {
   upsertRows(rows: Record<string, unknown>[]): Promise<void>
   /** flag_missing_revenue_events(): returns how many rows were newly flagged. */
   flagMissing(runStartedIso: string, windowFromIso: string): Promise<number>
-  /** recompute_weekly_sales() */
-  recomputeWeeklySales(): Promise<unknown>
+  /**
+   * recompute_weekly_sales(). `syncedThrough` is THIS run's start time when its window was fully fetched (null
+   * otherwise): the recompute runs before the run records itself, so it must be told — that is the evidence that lets a
+   * week be trusted once a successful sync has run after it ended (schema_030), instead of waiting for the next week's first sale.
+   */
+  recomputeWeeklySales(syncedThrough: string | null): Promise<unknown>
   writeState(patch: {
     watermark?: string | null
     events_synced?: number
     last_run_at: string
     last_run_status: 'ok' | 'error' | 'partial'
     last_run_note: string
+    /** Start time of the last run whose window was FULLY fetched: everything the CRM created before it is loaded. Only ever set by such a run. */
+    data_complete_through?: string
   }): Promise<void>
 }
 
@@ -242,7 +248,7 @@ export async function runRevenueSync(deps: SyncDeps, cfg: SyncConfig = DEFAULT_S
     let recomputed = true
     let recomputeError = ''
     try {
-      await deps.store.recomputeWeeklySales()
+      await deps.store.recomputeWeeklySales(windowComplete ? startedIso : null)
     } catch (err) {
       recomputed = false
       recomputeError = err instanceof Error ? err.message : String(err)
@@ -269,6 +275,9 @@ export async function runRevenueSync(deps: SyncDeps, cfg: SyncConfig = DEFAULT_S
       last_run_at: deps.now().toISOString(),
       last_run_status: status,
       last_run_note: note,
+      // Set whenever the window was fully fetched — even if the recompute itself failed: the DATA is complete, and a later
+      // standalone recompute may rely on that. Never set by an error or an incompletely-fetched run.
+      ...(windowComplete ? { data_complete_through: startedIso } : {}),
     })
     return { status, note, fetched: events.length, upserted: rows.length, skippedBadData, ownerLookups, ownerLookupsFailed, newlyFlaggedMissing, windowComplete, recomputed }
   } catch (err) {
