@@ -47,6 +47,9 @@ export default async function ManagerDashboardPage({
           <Link href="/reports/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Campaign Report →
           </Link>
+          <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            PIPs in your chain →
+          </Link>
           {!isManager && managerId && options.length > 0 && (
             <ManagerPicker options={options} selectedId={managerId} period={period} />
           )}

@@ -24,6 +24,11 @@ export default async function AuditorDashboardPage() {
           title="Campaign Report"
           description="How agents answered a Special Check, over submitted audits — company-wide, not just your own."
         />
+        <NavCard
+          href="/pip"
+          title="PIP training"
+          description="Agents on a performance improvement plan and their training sessions."
+        />
       </div>
 
       <BriefingsSection audience={audience} />

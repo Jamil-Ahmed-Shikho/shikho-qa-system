@@ -24,6 +24,11 @@ export default async function TeamDashboardPage() {
           title="Campaign Report"
           description="How your team answered a Special Check, over submitted audits."
         />
+        <NavCard
+          href="/pip"
+          title="PIP — your agents"
+          description="Agents on a performance improvement plan: give your feedback on their progress."
+        />
       </div>
 
       <BriefingsSection audience={audience} />

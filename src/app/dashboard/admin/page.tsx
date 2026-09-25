@@ -36,6 +36,11 @@ export default function AdminDashboardPage() {
           description="How agents answered a Special Check, over submitted audits — filterable by team, site, agent, auditor and date."
         />
         <NavCard
+          href="/admin/pip"
+          title="PIP"
+          description="Performance improvement plans: policy, monthly cycles, suggested candidates, approvals."
+        />
+        <NavCard
           href="/audits"
           title="Audit a Call"
           description="Look up a lead's call history and start an audit."

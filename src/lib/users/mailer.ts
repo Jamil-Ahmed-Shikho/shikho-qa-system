@@ -33,7 +33,7 @@ function getTransporter() {
   return transporter
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -45,12 +45,12 @@ function escapeHtml(s: string): string {
 const INDIGO = '#304090'
 const FONT = `'Poppins','Hind Siliguri',Arial,sans-serif`
 
-function emailShell(title: string, body: string): string {
+export function emailShell(title: string, body: string, width = 480): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:24px 0;background:#F4F5FA;font-family:${FONT}">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
-    <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%">
+    <table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width:${width}px;max-width:100%">
       <tr><td style="background:${INDIGO};padding:24px 32px;border-radius:16px 16px 0 0">
         <h1 style="color:#fff;margin:0;font-size:19px;font-weight:600;font-family:${FONT}">${title}</h1>
       </td></tr>
@@ -173,4 +173,17 @@ export async function sendBriefingCancelledEmail(agentName: string, agentEmail: 
     agentEmail,
     teamLeaderEmail
   )
+}
+
+// ── Briefings daily digest (§5, Part C) ──────────────────────
+// One email to one Team Lead / Manager. The content is built (and scoped to
+// that person's own people) by digest.ts / digest-email.ts; this only sends.
+export async function sendBriefingDigestEmail(to: string, subject: string, html: string, text: string) {
+  await getTransporter().sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
+    to,
+    subject,
+    html,
+    text,
+  })
 }

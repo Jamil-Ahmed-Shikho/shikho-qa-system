@@ -12,6 +12,7 @@ import { AuditContextCards } from '@/components/audits/AuditContextCards'
 import { loadAgentRevenue } from '@/lib/audits/audit-context.service'
 import { getLeadSummary } from '@/lib/crm/client'
 import { agentVintage } from '@/lib/agents/vintage'
+import { loadVintageSlabs } from '@/lib/agents/vintage.service'
 import { formatCallDuration } from '@/lib/dates/duration'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
@@ -23,7 +24,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   const supabase = await getSupabaseServer()
 
   // The audit row and the signed-in user don't depend on each other.
-  const [user, { data: audit, error }] = await Promise.all([
+  const [user, { data: audit, error }, vintageSlabs] = await Promise.all([
     getAuthUser(),
     supabase
       .from('audits')
@@ -34,6 +35,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       )
       .eq('id', id)
       .single(),
+    loadVintageSlabs(), // independent of the audit: fetched alongside it, not after it
   ])
 
   if (error || !audit) notFound()
@@ -45,7 +47,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     joining_date: string | null
     employment_stage: string
   }
-  const vintage = agentVintage({ employment_stage: agent?.employment_stage ?? 'active', joining_date: agent?.joining_date ?? null })
+  const vintage = agentVintage({ employment_stage: agent?.employment_stage ?? 'active', joining_date: agent?.joining_date ?? null }, vintageSlabs)
   const auditor = audit.auditor as unknown as { name: string; email: string }
 
   // (This page used to fetch the call from the CRM just to read a nested

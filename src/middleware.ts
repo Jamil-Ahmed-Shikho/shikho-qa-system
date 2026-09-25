@@ -29,6 +29,10 @@ const ROLE_ROUTES: Record<string, string[]> = {
   // Team Lead gets it scoped to their own team — both confirmed as
   // corrections after the first build of this step.
   '/reports': ['super_admin', 'qa_manager', 'qa_auditor', 'manager', 'team_lead'],
+  // PIPs (§6.4): the approved-or-later PIPs within each role's own scope (the database
+  // scopes the rows: Team Lead = own team, Manager = own chain, QA = all). Managing the
+  // cycles/candidates is under /admin (Super Admin / QA Manager only).
+  '/pip': ['super_admin', 'qa_manager', 'qa_auditor', 'manager', 'team_lead'],
 }
 
 export async function middleware(request: NextRequest) {

@@ -98,13 +98,25 @@ export async function getCallById(callId: string | number, actorId: string | nul
 }
 
 /**
- * One page of purchase events created in the last `days` days, newest first
- * (§8 daily revenue sync). `created_at:<days>` + `last_n_days` is the CRM's
- * rolling-window filter (confirmed live: a 15-day request returned events
- * back to the 15th day before today). Both event types, same multi-type
- * `type:in` syntax as the backfill. A 500-row page takes ~4-8s, so this
- * uses a longer timeout than the 5s default and retries transient failures
- * (timeout / network / 5xx — never a 4xx such as an expired token).
+ * The Dhaka calendar date `days` days before `now` (YYYY-MM-DD) — the lower
+ * bound of the daily sync's window. Dhaka has no DST, so a fixed +6h shift is exact.
+ */
+export function windowStartDate(days: number, now: Date = new Date()): string {
+  return new Date(now.getTime() + 6 * 3600_000 - days * 86_400_000).toISOString().slice(0, 10)
+}
+
+/**
+ * One page of purchase events from the last `days` days INCLUDING today,
+ * newest first (§8 daily revenue sync). Uses `created_at:<date>` with the
+ * `>` operator (events after midnight, Dhaka, of that date) — confirmed live
+ * 2026-09-25. The CRM's `last_n_days` filter was tried first and is WRONG for
+ * this job: it silently excludes the current day, so a run at 04:00 never saw
+ * the previous day's newest events (newest returned: 23 Sep 23:28 while events
+ * existed up to 25 Sep 01:37). Other operators (`>=`, `gte`) are ignored by
+ * the API, i.e. return everything — do not use them. Both event types, same
+ * multi-type `type:in` syntax as the backfill. A 500-row page takes ~4-8s, so
+ * this uses a longer timeout than the 5s default and retries transient
+ * failures (timeout / network / 5xx — never a 4xx such as an expired token).
  * Page-number paging is fine here: a 15-day window is only a few pages.
  */
 export async function getEventsWindow(
@@ -115,8 +127,8 @@ export async function getEventsWindow(
   sleepMs: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
 ): Promise<CrmEvent[]> {
   const query =
-    `?search=created_at:${days};type:shikho_purchase_completed,installment_enrollment` +
-    `&conditions=created_at:last_n_days;type:in` +
+    `?search=created_at:${windowStartDate(days)};type:shikho_purchase_completed,installment_enrollment` +
+    `&conditions=created_at:%3E;type:in` +
     `&join=and&page=${page}&limit=${limit}&orderBy=created_at&sortedBy=desc`
   for (let attempt = 1; ; attempt++) {
     try {
