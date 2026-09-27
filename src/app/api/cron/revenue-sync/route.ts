@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { runDailyRevenueSync } from '@/lib/revenue/sync-runner'
 import { runAgentStatusCompute } from '@/lib/status/status-runner'
+import { runWeeklyTargetCompute } from '@/lib/queue/targets-runner'
 
 // Daily revenue sync (§8 Part C). Vercel Cron calls this with GET and sends
 // `Authorization: Bearer $CRON_SECRET`; the middleware lets /api/cron/*
@@ -35,8 +36,11 @@ export async function GET(req: NextRequest) {
     // CRM sync can never starve it. It never throws (errors come back in the result).
     const agentStatus = await runAgentStatusCompute()
     if (!agentStatus.ok) console.error('Agent status computation failed:', agentStatus.error)
+    // Then this week's audit targets (§9): reads the status just computed for the +1 bonus. Never throws.
+    const auditTargets = await runWeeklyTargetCompute()
+    if (!auditTargets.ok) console.error('Weekly audit target computation failed:', auditTargets.error)
     const result = await runDailyRevenueSync()
-    return NextResponse.json({ ...result, agentStatus }, { status: result.status === 'error' ? 500 : 200 })
+    return NextResponse.json({ ...result, agentStatus, auditTargets }, { status: result.status === 'error' ? 500 : 200 })
   } catch (err) {
     // runRevenueSync records its own failures in revenue_sync_state; this is
     // only reached if it couldn't even start (e.g. missing env vars).

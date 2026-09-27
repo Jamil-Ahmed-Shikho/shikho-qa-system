@@ -15,6 +15,7 @@
 
 import { cache } from 'react'
 import type { CrmCallingHistory, CrmEvent } from './types'
+import { buildAgentCallsQuery, type AgentCallFilters } from './agent-calls'
 
 class CrmApiError extends Error {
   constructor(
@@ -96,6 +97,46 @@ export async function getCallById(callId: string | number, actorId: string | nul
   const call = await crmFetch<CrmCallingHistory | null>(`/calling-histories/${callId}`, actorId)
   return call && typeof call === 'object' ? call : null
 }
+
+/**
+ * One page of a CRM agent's calls, filtered and id-cursor paginated (§9/§10, Part 2 — the agent-scoped call
+ * browser). Query building is pure and unit-tested (src/lib/crm/agent-calls.ts); this is only the fetch. A
+ * heavier timeout than the 5s default, matching the other multi-filter list calls (getEventsWindow).
+ */
+export async function getCallsForAgent(
+  crmAgentId: number,
+  filters: AgentCallFilters,
+  beforeId: number | null,
+  limit: number,
+  actorId: string | null
+): Promise<CrmCallingHistory[]> {
+  const query = buildAgentCallsQuery({ crmAgentId, filters, beforeId, limit })
+  const body = await crmFetch<{ data?: CrmCallingHistory[] }>(`/calling-histories${query}`, actorId, 15000)
+  return body.data ?? []
+}
+
+export interface CrmLeadStage {
+  id: number
+  name: string
+  stageType: string | null
+}
+
+/**
+ * GET /stages — read live, never hard-coded (CLAUDE.md §10: the CRM's lead-stage list is confirmed NOT
+ * exhaustive from observation alone). `cache()` de-dupes repeat calls within one page render.
+ */
+export const getLeadStages = cache(async (actorId: string | null): Promise<CrmLeadStage[]> => {
+  const body = await crmFetch<{ data?: unknown[] } | unknown[]>('/stages?page=1&limit=100', actorId)
+  const rows = Array.isArray(body) ? body : (body.data ?? [])
+  return rows
+    .map((r) => {
+      const o = r as Record<string, unknown>
+      const id = Number(o.id)
+      const name = typeof o.name === 'string' ? o.name : null
+      return Number.isFinite(id) && name ? { id, name, stageType: typeof o.stage_type === 'string' ? o.stage_type : null } : null
+    })
+    .filter((s): s is CrmLeadStage => s !== null)
+})
 
 /**
  * The Dhaka calendar date `days` days before `now` (YYYY-MM-DD) — the lower

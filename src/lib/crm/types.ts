@@ -34,6 +34,8 @@ export interface CrmCallingHistory {
   call_status: string
   created_at: string
   created_by: CrmCallCreatedBy
+  // The lead's stage AT THE TIME OF THE CALL (an id only — the CURRENT stage is on GET /leads/{id}, §10).
+  lead_stage_id?: number | string | null
   // The live API returns `destination_number`; `destination` is what the
   // original sample showed. Either may be present.
   destination?: string
