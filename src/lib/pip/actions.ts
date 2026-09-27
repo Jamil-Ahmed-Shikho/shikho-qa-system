@@ -28,10 +28,25 @@ export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: 
 const ADMIN_ROLES = ['super_admin', 'qa_manager']
 const QA_ROLES = ['super_admin', 'qa_manager', 'qa_auditor']
 
+// Bug fixed here (found while adding a Manager-only action, Stage 5): the old two-way special case
+// ('qa_auditor' present -> "QA staff", else "a Super Admin or QA Manager") mis-worded every OTHER
+// allow-list, including the Manager-only ones added in Stage 3 -- a Team Lead requesting a PIP change
+// they can't make would have been told "Only a Super Admin or QA Manager can..." instead of "Only a
+// Manager can...". Now it names whoever is actually allowed.
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: 'a Super Admin', qa_manager: 'a QA Manager', qa_auditor: 'a QA Auditor', manager: 'a Manager', team_lead: 'a Team Lead', agent: 'an agent',
+}
+function allowedRolesLabel(allowed: string[]): string {
+  if (allowed.length === 1) return ROLE_LABEL[allowed[0]] ?? allowed[0]
+  if (JSON.stringify([...allowed].sort()) === JSON.stringify(['qa_manager', 'super_admin'])) return 'a Super Admin or QA Manager'
+  if (JSON.stringify([...allowed].sort()) === JSON.stringify(['qa_auditor', 'qa_manager', 'super_admin'])) return 'QA staff'
+  return allowed.map((r) => ROLE_LABEL[r] ?? r).join(' or ')
+}
+
 async function actor(allowed: string[], what: string) {
   const user = await getAuthUser()
   if (!user) return { ok: false, error: 'You are not signed in.' } as const
-  if (!allowed.includes(user.role)) return { ok: false, error: `Only ${allowed.includes('qa_auditor') ? 'QA staff' : 'a Super Admin or QA Manager'} can ${what}.` } as const
+  if (!allowed.includes(user.role)) return { ok: false, error: `Only ${allowedRolesLabel(allowed)} can ${what}.` } as const
   return { ok: true, user } as const
 }
 
@@ -50,6 +65,8 @@ function refresh(cycleId?: string, candidateId?: string) {
   if (cycleId) revalidatePath(`/admin/pip/${cycleId}`)
   if (candidateId) revalidatePath(`/pip/${candidateId}`)
   revalidatePath('/pip')
+  revalidatePath('/pip/review')
+  if (cycleId) revalidatePath(`/pip/review/${cycleId}`)
 }
 
 // ── policy + cycles ─────────────────────────────────────────
@@ -61,12 +78,11 @@ export async function setPolicyAction(input: PolicyInput): Promise<ActionResult>
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.rpc('set_pip_policy', {
     p_revenue_benchmark: input.revenueBenchmark,
-    p_vintage_min_days: input.vintageMinDays,
+    p_vintage_min_weeks: input.vintageMinWeeks,
     p_duration_weeks: input.durationWeeks,
     p_target_revenue: input.targetRevenue,
     p_bottom_n_per_site: input.bottomNPerSite,
-    p_revenue_window_weeks: input.revenueWindowWeeks,
-    p_revenue_unit: input.revenueUnit,
+    p_scoped_teams: input.scopedTeams,
   })
   if (error) return { ok: false, error: plain(error.message) }
   await log(a.user.profile.id, 'pip.policy_changed', (data as string) ?? null, { ...input })
@@ -101,13 +117,53 @@ export async function generateCandidatesAction(cycleId: string, acknowledgeParti
   return { ok: true, inserted: r.inserted, sharePct: Number(r.attributed_share_pct) }
 }
 
+// ── the Manager-review workflow (§6.4, Section C, Q9/Q11) — schema_043 ──
+// A Manager REQUESTS a change (never a direct edit); QA Manager/Super Admin accepts or rejects
+// each one, and separately retains full unilateral authority via decideAction() above. Publishing
+// is the list-level decision that finally turns every remaining 'suggested' row 'approved'.
+export async function requestChangeAction(cycleId: string, agentId: string, type: 'exclude' | 'include', reason: string): Promise<ActionResult<{ id: string }>> {
+  const a = await actor(['manager'], 'request a PIP list change')
+  if (!a.ok) return { ok: false, error: a.error }
+  if (!reason.trim()) return { ok: false, error: 'A reason is required.' }
+  if (reason.length > 1000) return { ok: false, error: 'The reason can be at most 1000 characters.' }
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('pip_request_change', {
+    p_cycle_id: cycleId, p_agent_id: agentId, p_type: type, p_reason: reason.trim(),
+  })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.request_created', data as string, { cycleId, agentId, type })
+  refresh(cycleId)
+  return { ok: true, id: data as string }
+}
+
+export async function decideRequestAction(requestId: string, cycleId: string, action: 'accept' | 'reject', note: string | null): Promise<ActionResult> {
+  const a = await actor(ADMIN_ROLES, 'decide a Manager\'s PIP request')
+  if (!a.ok) return { ok: false, error: a.error }
+  const supabase = await getSupabaseServer()
+  const { error } = await supabase.rpc('pip_decide_request', { p_request_id: requestId, p_action: action, p_note: note })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, `pip.request_${action}ed`, requestId, { note })
+  refresh(cycleId)
+  return { ok: true }
+}
+
+export async function publishCycleAction(cycleId: string): Promise<ActionResult<{ approved: number }>> {
+  const a = await actor(ADMIN_ROLES, 'publish a PIP cycle')
+  if (!a.ok) return { ok: false, error: a.error }
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('pip_publish_cycle', { p_cycle_id: cycleId })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.cycle_published', cycleId, { approved: data })
+  refresh(cycleId)
+  return { ok: true, approved: Number(data) }
+}
+
 // ── the candidate workflow ──────────────────────────────────
 export async function decideAction(
   candidateId: string,
   cycleId: string,
-  action: 'exclude' | 'restore' | 'approve' | 'complete' | 'fail',
-  note: string | null,
-  downgrade = false
+  action: 'exclude' | 'restore' | 'complete' | 'fail',
+  note: string | null
 ): Promise<ActionResult<{ status: string }>> {
   const a = await actor(ADMIN_ROLES, 'change a PIP candidate')
   if (!a.ok) return { ok: false, error: a.error }
@@ -116,14 +172,15 @@ export async function decideAction(
     if (bad) return { ok: false, error: bad }
   }
   const supabase = await getSupabaseServer()
+  // The incentive downgrade is no longer a per-fail choice (schema_044, Q13) — it is set
+  // automatically the moment a candidate is published/approved, so this call never sends it.
   const { data, error } = await supabase.rpc('pip_decide', {
     p_candidate_id: candidateId,
     p_action: action,
     p_note: note,
-    p_downgrade: downgrade,
   })
   if (error) return { ok: false, error: plain(error.message) }
-  await log(a.user.profile.id, `pip.candidate_${action}`, candidateId, { note, downgrade, status: data })
+  await log(a.user.profile.id, `pip.candidate_${action}`, candidateId, { note, status: data })
   refresh(cycleId, candidateId)
   return { ok: true, status: data as string }
 }
@@ -186,6 +243,28 @@ export async function updateTrainingAction(
   if (error) return { ok: false, error: plain(error.message) }
   if (!data || data.length === 0) return { ok: false, error: 'You can only update your own training sessions.' }
   await log(a.user.profile.id, 'pip.training_updated', trainingId, { ...change })
+  refresh(undefined, candidateId)
+  return { ok: true }
+}
+
+// ── Stage 5: a Manager's exception on a termination-review flag — a request/record, same shape as
+// the Stage 3 Manager requests, never a direct edit of the flag or the candidate. ─────────────────
+export async function recordTerminationExceptionAction(
+  flagId: string,
+  candidateId: string,
+  type: 'dismissed' | 'another_chance',
+  reason: string
+): Promise<ActionResult> {
+  const a = await actor(['manager'], 'record a termination-review decision')
+  if (!a.ok) return { ok: false, error: a.error }
+  if (!reason.trim()) return { ok: false, error: 'A reason is required.' }
+  if (reason.length > 1000) return { ok: false, error: 'The reason can be at most 1000 characters.' }
+  const supabase = await getSupabaseServer()
+  const { error } = await supabase.rpc('pip_manager_termination_exception', {
+    p_flag_id: flagId, p_type: type, p_reason: reason.trim(),
+  })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.termination_exception_recorded', flagId, { type })
   refresh(undefined, candidateId)
   return { ok: true }
 }

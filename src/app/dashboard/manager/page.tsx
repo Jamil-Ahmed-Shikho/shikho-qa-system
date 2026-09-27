@@ -50,6 +50,11 @@ export default async function ManagerDashboardPage({
           <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             PIPs in your chain →
           </Link>
+          {isManager && (
+            <Link href="/pip/review" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+              PIP cycles to review →
+            </Link>
+          )}
           {!isManager && managerId && options.length > 0 && (
             <ManagerPicker options={options} selectedId={managerId} period={period} />
           )}

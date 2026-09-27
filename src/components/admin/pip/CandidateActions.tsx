@@ -1,8 +1,14 @@
 'use client'
-// The buttons for one candidate. What is offered follows the workflow the database enforces:
-//   suggested -> Approve | Exclude (reason required)     excluded -> Restore
-//   approved  -> Mark completed | Mark failed (optionally downgrade the incentive)
+// The buttons for one candidate (§6.4, Section C, Stage 3). What is offered follows the workflow
+// the database enforces:
+//   suggested -> Exclude (reason required)     excluded -> Restore
+//   approved  -> Mark completed | Mark failed
+// Approval is now a LIST-LEVEL decision ("Publish this cycle", above this table) rather than a
+// per-candidate one — a still-suggested row waits here for either an exclude or the cycle publishing.
 // completed / failed are final. Only a Super Admin / QA Manager sees this component's page at all.
+// The incentive downgrade is no longer a choice made here (Stage 4, schema_044, Q13) — it is set
+// automatically the moment the candidate is APPROVED (publish), not on failure; the "Incentive
+// downgraded" note on this page reflects that from the moment the cycle is published.
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -17,18 +23,17 @@ export function CandidateActions({ candidateId, cycleId, status, agentName }: { 
   const router = useRouter()
   const [mode, setMode] = useState<Mode>(null)
   const [note, setNote] = useState('')
-  const [downgrade, setDowngrade] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   useUnsavedGuard(mode !== null && note.trim() !== '')
 
-  async function run(action: 'exclude' | 'restore' | 'approve' | 'complete' | 'fail', withNote: string | null = null) {
+  async function run(action: 'exclude' | 'restore' | 'complete' | 'fail', withNote: string | null = null) {
     setError(null)
     setBusy(true)
-    const res = await decideAction(candidateId, cycleId, action, withNote, action === 'fail' ? downgrade : false)
+    const res = await decideAction(candidateId, cycleId, action, withNote)
     setBusy(false)
     if (!res.ok) return setError(res.error)
-    setMode(null); setNote(''); setDowngrade(false)
+    setMode(null); setNote('')
     router.refresh()
   }
 
@@ -40,11 +45,7 @@ export function CandidateActions({ candidateId, cycleId, status, agentName }: { 
       {mode === null && (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {status === 'suggested' && (
-            <>
-              <button style={{ ...primaryBtn, padding: '5px 12px', fontSize: '12px', ...disabled }} disabled={busy}
-                onClick={() => { if (confirm(`Approve ${agentName} for this PIP? This puts them on a performance improvement plan.`)) run('approve') }}>Approve</button>
-              <button style={{ ...ghostBtn, ...disabled }} disabled={busy} onClick={() => setMode('exclude')}>Exclude…</button>
-            </>
+            <button style={{ ...ghostBtn, ...disabled }} disabled={busy} onClick={() => setMode('exclude')}>Exclude…</button>
           )}
           {status === 'excluded' && <button style={{ ...ghostBtn, ...disabled }} disabled={busy} onClick={() => run('restore')}>Restore to suggested</button>}
           {status === 'approved' && (
@@ -64,15 +65,10 @@ export function CandidateActions({ candidateId, cycleId, status, agentName }: { 
             placeholder={mode === 'exclude' ? 'Reason (required) — e.g. on approved leave' : 'Note (optional)'}
             value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000}
           />
-          {mode === 'fail' && (
-            <label style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <input type="checkbox" checked={downgrade} onChange={(e) => setDowngrade(e.target.checked)} /> Incentive downgraded
-            </label>
-          )}
           <div style={{ display: 'flex', gap: '6px' }}>
             <button style={{ ...primaryBtn, padding: '5px 12px', fontSize: '12px', ...disabled }} disabled={busy || (mode === 'exclude' && !note.trim())}
               onClick={() => run(mode, note.trim() || null)}>{busy ? 'Saving…' : 'Confirm'}</button>
-            <button style={ghostBtn} disabled={busy} onClick={() => { setMode(null); setNote(''); setDowngrade(false); setError(null) }}>Cancel</button>
+            <button style={ghostBtn} disabled={busy} onClick={() => { setMode(null); setNote(''); setError(null) }}>Cancel</button>
           </div>
         </div>
       )}

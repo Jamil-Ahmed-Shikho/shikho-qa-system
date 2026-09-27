@@ -162,6 +162,8 @@ export interface Audit {
 // Derived, not stored — computed per CRM call for the call-list view (§10).
 export type CallAuditStatus = 'available' | 'in_progress_mine' | 'taken' | 'audited'
 
+// TS3P and BPO have always referred to the same channel (Third Party Telesales/BPO vendor) — consolidated
+// to TS3P only, schema_039 (2026-09-27). Existing 'BPO' rows are migrated, not left as duplicates.
 export const TEAM_NAMES = [
   'Telesales',
   'CX Non-Voice',
@@ -169,7 +171,6 @@ export const TEAM_NAMES = [
   'Engagement',
   'Retention',
   'TS3P',
-  'BPO',
 ] as const
 
 export type TeamName = (typeof TEAM_NAMES)[number]

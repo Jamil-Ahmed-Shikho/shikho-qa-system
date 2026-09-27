@@ -65,3 +65,15 @@ export function salesWeekStartDate(now: Date): string {
 export function previousSalesWeekStartDate(now: Date): string {
   return dhakaDate.format(new Date(salesWeekStart(now).getTime() - 7 * DAY_MS))
 }
+
+/** The instant Dhaka midnight begins for a 'YYYY-MM-DD' Dhaka calendar date (a half-open range's `from`). */
+export function dhakaDateStartUtc(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d) - BD_OFFSET_MS)
+}
+
+/** The instant just after a 'YYYY-MM-DD' Dhaka calendar date ends — an exclusive upper bound that includes the whole of that date. */
+export function dhakaDateEndUtc(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + 1) - BD_OFFSET_MS)
+}

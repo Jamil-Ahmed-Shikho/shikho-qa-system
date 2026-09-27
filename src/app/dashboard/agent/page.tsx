@@ -1,5 +1,6 @@
 import { PlaceholderDashboard } from '@/components/dashboard/PlaceholderDashboard'
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { MyPipSection } from '@/components/dashboard/MyPipSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 import { getAuthUser } from '@/lib/auth/auth.service'
 
@@ -14,6 +15,7 @@ export default async function AgentDashboardPage() {
           <NavCard href="/my-audits" title="My audits" description="See your audits, the feedback, and dispute one you think is wrong." />
         </div>
       )}
+      {user?.role === 'agent' && <MyPipSection />}
       {user?.role === 'agent' && <BriefingsSection audience="agent" canOpenAudit={false} />}
     </div>
   )

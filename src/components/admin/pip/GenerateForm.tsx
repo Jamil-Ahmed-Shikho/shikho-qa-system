@@ -11,7 +11,7 @@ import { primaryBtn, disabledStyle } from '@/components/admin/users/styles'
  * sales are unmatched an agent can look far lower than they really are — and this
  * list leads to a real performance process.
  */
-export function GenerateForm({ cycleId, ready }: { cycleId: string; ready: boolean }) {
+export function GenerateForm({ cycleId }: { cycleId: string }) {
   const router = useRouter()
   const [ack, setAck] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -38,10 +38,9 @@ export function GenerateForm({ cycleId, ready }: { cycleId: string; ready: boole
         </span>
       </label>
       <div>
-        <button onClick={go} disabled={busy || !ack || !ready} style={{ ...primaryBtn, ...(busy || !ack || !ready ? disabledStyle : {}) }}>
+        <button onClick={go} disabled={busy || !ack} style={{ ...primaryBtn, ...(busy || !ack ? disabledStyle : {}) }}>
           {busy ? 'Suggesting…' : 'Suggest candidates'}
         </button>
-        {!ready && <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '10px' }}>Set the revenue window and unit on the policy first.</span>}
       </div>
       {error && <div role="alert" style={{ fontSize: '13px', color: 'var(--alert)' }}>{error}</div>}
       {result && <div style={{ fontSize: '13px', color: 'var(--status-green)' }}>{result}</div>}

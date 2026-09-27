@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/auth.service'
 import { FeedbackForm } from '@/components/pip/FeedbackForm'
 import { AddTrainingForm, TrainingRowActions } from '@/components/pip/TrainingControls'
 import { SchemaMissing, isMissingPipSchema } from '@/components/pip/SchemaMissing'
+import { TerminationFlagPanel } from '@/components/pip/TerminationFlagPanel'
 import { StatusBadge, card, fmtDate, fmtMoney, td, th } from '@/components/pip/pip-display'
 import { loadCandidate } from '@/lib/pip/pip.service'
 import { formatDhakaDateTime } from '@/lib/dates/format'
@@ -26,11 +27,12 @@ export default async function PipDetailPage({ params }: { params: Promise<{ cand
     )
   }
   if (!loaded) notFound()
-  const { candidate: c, feedback, trainings } = loaded
+  const { candidate: c, feedback, trainings, terminationFlag } = loaded
 
   const role = user?.role ?? ''
   const isQa = ['super_admin', 'qa_manager', 'qa_auditor'].includes(role)
   const isAdmin = ['super_admin', 'qa_manager'].includes(role)
+  const isManager = role === 'manager'
   const canGiveFeedback = role === 'team_lead' && c.status !== 'suggested' && c.status !== 'excluded'
   const canAddTraining = isQa && c.status === 'approved'
   const backHref = isAdmin ? `/admin/pip/${c.cycleId}` : '/pip'
@@ -48,7 +50,21 @@ export default async function PipDetailPage({ params }: { params: Promise<{ cand
         {isQa && <> · revenue at selection {fmtMoney(c.revenue, c.revenueUnit)}</>}
       </p>
 
-      {c.decisionNote && <div style={{ ...card, marginBottom: '16px', fontSize: '13px' }}><b>Outcome note:</b> {c.decisionNote}{c.incentiveDowngraded && <span style={{ color: 'var(--alert)' }}> · Incentive downgraded</span>}</div>}
+      {/* The downgrade applies at approval/publish, not at failure (schema_044, Q13) — so it must show
+          on its own, independent of a decision note, which only exists once complete/failed. */}
+      {c.incentiveDowngraded && (
+        <div style={{ ...card, marginBottom: '16px', fontSize: '13px', borderColor: 'var(--alert)', color: 'var(--alert)' }}>
+          Incentive slab downgraded due to this PIP.
+        </div>
+      )}
+      {c.decisionNote && <div style={{ ...card, marginBottom: '16px', fontSize: '13px' }}><b>Outcome note:</b> {c.decisionNote}</div>}
+
+      {/* Termination-review flag (Stage 5) — visible only to QA staff and the agent's own Manager
+          (RLS on pip_termination_flags); a Team Lead or the agent never sees this section at all,
+          since terminationFlag comes back null for them regardless of whether one actually exists. */}
+      {terminationFlag && (isQa || isManager) && (
+        <TerminationFlagPanel candidateId={c.id} flag={terminationFlag} canAct={isManager && !terminationFlag.exceptionType} />
+      )}
 
       <section style={{ ...card, marginBottom: '16px' }} aria-label="Team Leader feedback">
         <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 10px' }}>Team Leader feedback</h2>

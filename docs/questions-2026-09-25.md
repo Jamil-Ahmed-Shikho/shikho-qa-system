@@ -29,7 +29,7 @@ The design lists the names (1st Month, 1-3, 3-6, 6-9, 9-12 Months, 1 Year Plus) 
 
 **Q7. OJT / re-training agents.** They are included if they have audits. Should RYG apply to agents still in OJT at all?
 
-## C. PIP (§6.4) — compliance-sensitive, so the model refuses to guess
+## C. PIP (§6.4) — ANSWERED 2026-09-27 (full rebuild in progress, staged; see CLAUDE.md §6.4 "PIP REBUILD" for the current, authoritative state of each stage)
 
 **Q8. How is "revenue" measured for selection?** Two settings are deliberately **empty** and **suggestions will not run until you set them** (`/admin/pip` → Policy):
 - the **window** — how many completed sales weeks before the cycle starts (e.g. 4);
