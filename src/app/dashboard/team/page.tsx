@@ -1,5 +1,6 @@
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { getAuthUser } from '@/lib/auth/auth.service'
+import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 
 export default async function TeamDashboardPage() {
@@ -14,6 +15,11 @@ export default async function TeamDashboardPage() {
       </p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+        <NavCard
+          href="/calibration"
+          title="Calibration sessions"
+          description="Calibration sessions you have been invited to."
+        />
         <NavCard
           href="/audits"
           title="Audit a Call"
@@ -31,6 +37,7 @@ export default async function TeamDashboardPage() {
         />
       </div>
 
+      <CalibrationSection />
       <BriefingsSection audience={audience} />
     </div>
   )

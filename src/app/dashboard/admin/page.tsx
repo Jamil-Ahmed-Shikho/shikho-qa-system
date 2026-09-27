@@ -1,4 +1,5 @@
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
+import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
 import { countDisputesAwaitingDecision } from '@/lib/disputes/disputes.service'
@@ -45,9 +46,24 @@ export default async function AdminDashboardPage() {
           description="Audits agents (or their Team Leads) have disputed: review and record a decision."
         />
         <NavCard
+          href="/admin/ojt"
+          title="OJT Management"
+          description="Everyone in OJT or re-training: certify, re-train, not certify or discontinue, with a full history."
+        />
+        <NavCard
+          href="/admin/targets"
+          title="Audit & revenue targets"
+          description="Weekly audit and revenue targets by vintage and team. Changes never rewrite past weeks."
+        />
+        <NavCard
           href="/admin/pip"
           title="PIP"
           description="Performance improvement plans: policy, monthly cycles, suggested candidates, approvals."
+        />
+        <NavCard
+          href="/calibration"
+          title="Calibration sessions"
+          description="Schedule team calibration sessions and calibrate with QA teammates."
         />
         <NavCard
           href="/audits"
@@ -58,6 +74,7 @@ export default async function AdminDashboardPage() {
 
       <PendingReauditsSection />
 
+      <CalibrationSection />
       <BriefingsSection audience="org" />
     </div>
   )

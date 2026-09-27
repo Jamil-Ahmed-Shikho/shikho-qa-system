@@ -1,10 +1,15 @@
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
 import { getAuthUser } from '@/lib/auth/auth.service'
+import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { NavCard } from '@/components/dashboard/NavCard'
+import { QueueSection } from '@/components/dashboard/QueueSection'
 
-export default async function AuditorDashboardPage() {
+export default async function AuditorDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const user = await getAuthUser()
+  const sp = await searchParams
+  // A QA Auditor defaults to their own portfolio; a QA Manager / Super Admin has no assigned portfolio, so defaults to everyone.
+  const view = sp.view === 'mine' || sp.view === 'team' ? sp.view : user?.role === 'qa_auditor' ? 'mine' : 'team'
   // A QA Auditor sees their own schedule; a QA Manager / Admin opening this page sees everyone's.
   const audience = user?.role === 'qa_auditor' ? 'auditor' : 'org'
   return (
@@ -14,7 +19,14 @@ export default async function AuditorDashboardPage() {
         Your audit queue, targets, and tools.
       </p>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+      <QueueSection view={view} base="/dashboard/auditor" />
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: '24px' }}>
+        <NavCard
+          href="/calibration"
+          title="Calibration sessions"
+          description="Schedule a calibration session, or see the ones you are invited to."
+        />
         <NavCard
           href="/audits"
           title="Audit a Call"
@@ -34,6 +46,7 @@ export default async function AuditorDashboardPage() {
 
       <PendingReauditsSection />
 
+      <CalibrationSection />
       <BriefingsSection audience={audience} />
     </div>
   )
