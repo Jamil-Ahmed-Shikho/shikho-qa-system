@@ -178,6 +178,17 @@ export async function sendBriefingCancelledEmail(agentName: string, agentEmail: 
 // ── Briefings daily digest (§5, Part C) ──────────────────────
 // One email to one Team Lead / Manager. The content is built (and scoped to
 // that person's own people) by digest.ts / digest-email.ts; this only sends.
+// Calibration results (§5, Stage 4): one email to one participant; the content is built by calibration/report-email.ts.
+export async function sendCalibrationReportEmail(to: string, subject: string, html: string, text: string) {
+  await getTransporter().sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
+    to,
+    subject,
+    html,
+    text,
+  })
+}
+
 export async function sendBriefingDigestEmail(to: string, subject: string, html: string, text: string) {
   await getTransporter().sendMail({
     from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,

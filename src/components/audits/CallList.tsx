@@ -39,11 +39,13 @@ export function CallList({
   leadId,
   agentOptions,
   canManageUsers,
+  canCalibrate = false,
 }: {
   rows: CallRow[]
   leadId: string
   agentOptions: AgentOption[]
   canManageUsers: boolean
+  canCalibrate?: boolean
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -61,7 +63,7 @@ export function CallList({
         </div>
       )}
       {rows.map((row) => (
-        <CallRowItem key={row.call.id} row={row} leadId={leadId} agentOptions={agentOptions} canManageUsers={canManageUsers} />
+        <CallRowItem key={row.call.id} row={row} leadId={leadId} agentOptions={agentOptions} canManageUsers={canManageUsers} canCalibrate={canCalibrate} />
       ))}
     </div>
   )
@@ -72,11 +74,13 @@ function CallRowItem({
   leadId,
   agentOptions: baseAgentOptions,
   canManageUsers,
+  canCalibrate = false,
 }: {
   row: CallRow
   leadId: string
   agentOptions: AgentOption[]
   canManageUsers: boolean
+  canCalibrate?: boolean
 }) {
   const router = useRouter()
   const { call, status, matchedAgent } = row
@@ -200,7 +204,16 @@ function CallRowItem({
           </span>
         )}
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {canCalibrate && call.recording_url && (
+            <a
+              href={`/calibration/new?lead=${encodeURIComponent(leadId)}&call=${encodeURIComponent(String(call.id))}`}
+              title="Schedule a calibration session on this call"
+              style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--brand)', textDecoration: 'none' }}
+            >
+              Calibrate
+            </a>
+          )}
           {statusKey === 'available' && !locked && (
             <button
               onClick={handleStart}

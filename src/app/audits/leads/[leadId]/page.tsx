@@ -110,6 +110,7 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
         leadId={leadId}
         agentOptions={agentOptions}
         canManageUsers={['super_admin', 'qa_manager'].includes(viewer.role)}
+        canCalibrate={['super_admin', 'qa_manager', 'qa_auditor'].includes(viewer.role)}
       />
     </div>
   )
