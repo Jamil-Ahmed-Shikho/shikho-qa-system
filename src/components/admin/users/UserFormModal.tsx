@@ -63,6 +63,11 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
   const set = (key: keyof UserInput, value: string) => setForm((f) => ({ ...f, [key]: value }))
   const isEdit = mode === 'edit'
   const stageBlocksJoining = form.employment_stage === 'ojt' || form.employment_stage === 're_training'
+  // §7 (schema_038): once someone is in OJT/re-training, moving them anywhere is Certify/Re-Train/Not
+  // Certify/Discontinue on OJT Management, never this form — and this form can't put anyone INTO OJT/re-training
+  // either (that only happens at ID-creation, or via Re-Train). The server enforces this either way.
+  const stageLockedToOjt = isEdit && (user?.employment_stage === 'ojt' || user?.employment_stage === 're_training')
+  const stageOptions = isEdit ? EMPLOYMENT_STAGES.filter((s) => s.value !== 'ojt' && s.value !== 're_training') : EMPLOYMENT_STAGES
   const roleOptions = USER_ROLES.filter((r) => canManageRole(currentRole, r.value))
 
   const tagOptions = (field: TagField) =>
@@ -236,21 +241,33 @@ export function UserFormModal({ mode, user, users, orgInfo, currentUserId, curre
 
         <Section title="Employment">
           <Field label="Employment stage">
-            <select
-              style={inputStyle}
-              value={form.employment_stage}
-              onChange={(e) => {
-                const stage = e.target.value
-                setForm((f) => ({
-                  ...f,
-                  employment_stage: stage,
-                  // §7: joining_date stays empty during OJT / re-training.
-                  joining_date: stage === 'ojt' || stage === 're_training' ? '' : f.joining_date,
-                }))
-              }}
-            >
-              {EMPLOYMENT_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            {stageLockedToOjt ? (
+              <div>
+                <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>
+                  {EMPLOYMENT_STAGES.find((s) => s.value === form.employment_stage)?.label ?? form.employment_stage}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Certify, Re-Train, Not Certify or Discontinue this person from{' '}
+                  <a href="/admin/ojt" style={{ color: 'var(--brand)' }}>OJT Management</a> — every change there is logged.
+                </div>
+              </div>
+            ) : (
+              <select
+                style={inputStyle}
+                value={form.employment_stage}
+                onChange={(e) => {
+                  const stage = e.target.value
+                  setForm((f) => ({
+                    ...f,
+                    employment_stage: stage,
+                    // §7: joining_date stays empty during OJT / re-training.
+                    joining_date: stage === 'ojt' || stage === 're_training' ? '' : f.joining_date,
+                  }))
+                }}
+              >
+                {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            )}
           </Field>
           <Field label={form.role === 'agent' && form.employment_stage === 'active' ? 'Joining date *' : 'Joining date'}>
             <input style={{ ...inputStyle, ...(stageBlocksJoining ? { opacity: 0.6 } : {}) }} type="date"

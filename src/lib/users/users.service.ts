@@ -237,6 +237,22 @@ export async function activateAccount(
 
 // ── Update ───────────────────────────────────────────────────
 
+const OJT_STAGES = new Set(['ojt', 're_training'])
+
+/**
+ * §7 (schema_038): OJT/re-training stage changes must always go through ojt_transition() (Certify / Re-Train /
+ * Not Certify / Discontinue on /admin/ojt) so every one is logged — never a silent edit through the ordinary
+ * Users form. That form may still change employment_stage FREELY once someone is already active / not_certified
+ * / discontinued (e.g. discontinuing a long-tenured active agent, §9.5, has no other path and isn't OJT-related);
+ * it is blocked only when the CURRENT stage is ojt/re_training, or the REQUESTED one is — i.e. entering or
+ * leaving the OJT lifecycle. The stage select just echoing its own current value is not "a change" and is
+ * always allowed. Exported and pure so the rule itself is unit-tested without a database.
+ */
+export function employmentStageChangeAllowed(beforeStage: string, requestedStage: string): boolean {
+  if (requestedStage === beforeStage) return true
+  return !OJT_STAGES.has(beforeStage) && !OJT_STAGES.has(requestedStage)
+}
+
 export async function updateAccount(
   actor: AuthUser,
   id: string,
@@ -246,6 +262,10 @@ export async function updateAccount(
   const admin = getSupabaseAdmin()
   const { data: before, error: loadError } = await admin.from('users').select('*').eq('id', id).single()
   if (loadError || !before) return { ok: false, error: 'User not found.' }
+
+  if (!employmentStageChangeAllowed(before.employment_stage, v.employment_stage)) {
+    return { ok: false, error: 'OJT and re-training stage changes are made from OJT Management (/admin/ojt), not here — every change there is logged.' }
+  }
 
   if (!canManageRole(actor.role, before.role as UserRole) || !canManageRole(actor.role, v.role)) {
     return { ok: false, error: 'Only a Super Admin can edit or assign privileged roles.' }
