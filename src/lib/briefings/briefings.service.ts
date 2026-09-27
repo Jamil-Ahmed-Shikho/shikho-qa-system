@@ -265,6 +265,7 @@ export async function markAttendance(auditId: string, attended: boolean): Promis
 function friendlyError(message: string, code?: string): string {
   if (code === '23505') {
     if (message.includes('uq_briefings_conductor_slot')) return 'That slot was just taken — please pick another.'
+    if (message.includes('uq_briefings_agent_slot')) return 'This agent already has a coaching session booked at that exact date and time — pick a different slot.'
     if (message.includes('briefings_audit_id_key')) return 'This audit already has a briefing — reschedule it instead of creating a new one.'
     return 'That slot is no longer available.'
   }
