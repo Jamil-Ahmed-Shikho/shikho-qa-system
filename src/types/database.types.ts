@@ -128,7 +128,9 @@ export interface RubricWithTree extends Rubric {
 // ============================================================
 
 export type AuditType = 'call' | 'chat' | 'complaint'
-export type AuditRowStatus = 'draft' | 'submitted' | 'acknowledged' | 'disputed' | 'resolved'
+// 'disputed'/'resolved' removed (schema_048, §4 Section D) -- Disputes replaced entirely by
+// Review Request, whose OWN lifecycle lives on review_requests.status, decoupled from this.
+export type AuditRowStatus = 'draft' | 'submitted' | 'acknowledged'
 export type CapaStatus = 'pending_reaudit' | 'passed' | 'failed_again'
 
 export interface Audit {

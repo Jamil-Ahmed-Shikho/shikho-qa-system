@@ -10,6 +10,13 @@
 
 import { getSupabaseServer } from '@/lib/supabase/server'
 
+/** True when a failed read looks like "CAPA's own schema (capa_status/flag_reaudit/pending_reaudits) isn't applied yet" —
+ * split out from the old shared isMissingDisputesSchema() when Disputes was removed entirely (schema_048). */
+export function isMissingCapaSchema(err: unknown): boolean {
+  const m = err instanceof Error ? err.message : String(err)
+  return /pending_reaudits|flag_reaudit|unflag_reaudit|capa_status/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
+}
+
 export type CapaStatus = 'pending_reaudit' | 'passed' | 'failed_again'
 
 export const CAPA_LABEL: Record<CapaStatus, string> = {

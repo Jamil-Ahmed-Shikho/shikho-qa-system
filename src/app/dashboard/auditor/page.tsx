@@ -1,3 +1,4 @@
+import { AssignedReviewRequestsSection } from '@/components/dashboard/AssignedReviewRequestsSection'
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
 import { getAuthUser } from '@/lib/auth/auth.service'
@@ -44,6 +45,7 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
         />
       </div>
 
+      <AssignedReviewRequestsSection />
       <PendingReauditsSection />
 
       <CalibrationSection />

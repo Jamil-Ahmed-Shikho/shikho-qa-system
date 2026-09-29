@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import { listPendingReaudits, type PendingReaudit } from '@/lib/capa/capa.service'
-import { isMissingDisputesSchema } from '@/lib/disputes/disputes.service'
+import { isMissingCapaSchema, listPendingReaudits, type PendingReaudit } from '@/lib/capa/capa.service'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 
 const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '6px 10px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
@@ -16,7 +15,7 @@ export async function PendingReauditsSection() {
   try {
     items = await listPendingReaudits()
   } catch (err) {
-    if (isMissingDisputesSchema(err)) return null
+    if (isMissingCapaSchema(err)) return null
     console.error(err)
     return (
       <section style={{ marginTop: '28px' }} aria-label="Re-audits waiting">

@@ -13,10 +13,10 @@ import { loadAgentRevenue, RevenueNeedsMigrationError } from '@/lib/audits/audit
 import { getLeadSummary } from '@/lib/crm/client'
 import { agentVintage } from '@/lib/agents/vintage'
 import { loadVintageSlabs } from '@/lib/agents/vintage.service'
-import { loadCapaInfo, type CapaInfo } from '@/lib/capa/capa.service'
-import { isMissingDisputesSchema, loadDisputeForAudit, type DisputeView } from '@/lib/disputes/disputes.service'
+import { isMissingCapaSchema, loadCapaInfo, type CapaInfo } from '@/lib/capa/capa.service'
+import { isMissingReviewRequestSchema, loadEffectiveResult, loadReviewRequestForAudit, type ReviewRequestView } from '@/lib/review-requests/review-requests.service'
 import { CapaPanel } from '@/components/audits/CapaPanel'
-import { DisputePanel } from '@/components/disputes/DisputePanel'
+import { ReviewRequestPanel } from '@/components/review-requests/ReviewRequestPanel'
 import { formatCallDuration } from '@/lib/dates/duration'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
@@ -34,7 +34,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       .from('audits')
       .select(
         `*,
-      agent:users!audits_agent_id_fkey(name, email, team_name, joining_date, employment_stage),
+      agent:users!audits_agent_id_fkey(name, email, team_name, team_leader_id, joining_date, employment_stage),
       auditor:users!audits_auditor_id_fkey(name, email)`
       )
       .eq('id', id)
@@ -48,6 +48,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     name: string
     email: string
     team_name: string | null
+    team_leader_id: string | null
     joining_date: string | null
     employment_stage: string
   }
@@ -78,6 +79,17 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   const isOwner = user?.profile.id === audit.auditor_id
   const canRelease = isOwner && audit.status === 'draft'
 
+  // QA staff options for assigning a Review Request's re-audit (Section D, Part 1) — only an
+  // admin ever needs this list, and it's cheap, so it's fetched unconditionally for them rather
+  // than threading a second round trip through every branch that might need it.
+  const qaStaffOptions = user && ['super_admin', 'qa_manager'].includes(user.role)
+    ? await supabase.from('users').select('id, name, role').in('role', ['super_admin', 'qa_manager', 'qa_auditor']).eq('is_active', true).order('name')
+        .then(
+          ({ data }) => (data ?? []).map((u) => ({ id: u.id, name: u.id === user.profile.id ? `${u.name} (you)` : u.name, role: u.role })),
+          () => []
+        )
+    : undefined
+
   // The rubric LOCKED when this audit was started (audits.rubric_id), plus
   // whatever has been saved against it.
   // Lead details (CRM) and revenue (our tables) load alongside the scorecard.
@@ -101,29 +113,37 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     }
   )
 
-  // Re-audit (CAPA) and dispute state, each failing independently: a failed read is shown as such
-  // (dispute) or hidden with a log line (CAPA), never mistaken for "none". If schema_028 hasn't been
-  // applied yet, both quietly show nothing.
+  // CAPA and the Review Request state each fail independently: a failed read is shown as such
+  // (Review Request) or hidden with a log line (CAPA), never mistaken for "none". If the relevant
+  // schema hasn't been applied yet, both quietly show nothing.
   const capaPromise: Promise<CapaInfo | null> = loadCapaInfo({
     id: audit.id, agent_id: audit.agent_id, status: audit.status, re_audit_of: audit.re_audit_of ?? null, capa_status: audit.capa_status ?? null,
   }).catch((err) => {
-    if (!isMissingDisputesSchema(err)) console.error(err)
+    if (!isMissingCapaSchema(err)) console.error(err)
     return null
   })
-  const disputePromise: Promise<{ dispute: DisputeView | null; failed: boolean }> =
+  const requestPromise: Promise<{ request: ReviewRequestView | null; failed: boolean }> =
     audit.status === 'draft'
-      ? Promise.resolve({ dispute: null, failed: false })
-      : loadDisputeForAudit(audit.id).then(
-          (dispute) => ({ dispute, failed: false }),
+      ? Promise.resolve({ request: null, failed: false })
+      : loadReviewRequestForAudit(audit.id).then(
+          (request) => ({ request, failed: false }),
           (err) => {
-            const missing = isMissingDisputesSchema(err)
+            const missing = isMissingReviewRequestSchema(err)
             if (!missing) console.error(err)
-            return { dispute: null, failed: !missing }
+            return { request: null, failed: !missing }
           }
         )
 
+  // If this audit has been REVISED (Q16 — a Review Request's approved re-audit), the revision's
+  // own figures are the effective ones to show; the original row itself is never edited (§4).
+  const effectivePromise = loadEffectiveResult({
+    score_percent: audit.score_percent, passed: audit.passed, critical_fail: audit.critical_fail,
+    pass_mark_used: audit.pass_mark_used, submitted_at: audit.submitted_at, overall_feedback: audit.overall_feedback,
+    rubric_id: audit.rubric_id, superseded_by: audit.superseded_by ?? null,
+  }).catch((err) => { console.error(err); return null })
+
   // Loaded together with the coaching history rather than one after the other.
-  const [scorecard, coachingHistory, leadInfo, revenueInfo, capa, disputeInfo] = await Promise.all([
+  const [scorecardForOriginal, coachingHistory, leadInfo, revenueInfo, capa, requestInfo, effective] = await Promise.all([
     loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
       agentTeam: agent?.team_name ?? null,
       isDraft: audit.status === 'draft',
@@ -132,8 +152,14 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     leadPromise,
     revenuePromise,
     capaPromise,
-    disputePromise,
+    requestPromise,
+    effectivePromise,
   ])
+  // A revised audit's PARAMETER results live on the re-audit's own row -- load those instead of
+  // the original's when displaying the summary (draft scoring always uses the original, unaffected).
+  const scorecard = effective?.isRevision && audit.superseded_by
+    ? await loadScorecard(audit.superseded_by, effective.rubricId, effective.overallFeedback, { agentTeam: agent?.team_name ?? null, isDraft: false }).catch((err) => { console.error(err); return scorecardForOriginal })
+    : scorecardForOriginal
 
   return (
     <div>
@@ -142,6 +168,17 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         href={audit.crm_lead_id ? `/audits/leads/${audit.crm_lead_id}` : '/audits'}
         label={audit.crm_lead_id ? 'Back to call list' : 'Find a lead'}
       />
+
+      {audit.review_request_id && (
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--brand-light)', borderStyle: 'solid', borderWidth: '1px', borderColor: 'var(--brand)', fontSize: '13px', marginBottom: '16px' }}>
+          This is a <b>re-audit</b> for a Review Request. Scoring it and submitting works exactly like any other audit.
+        </div>
+      )}
+      {audit.superseded_by && (
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--status-green-light, var(--highlight-light))', borderStyle: 'solid', borderWidth: '1px', borderColor: 'var(--status-green)', fontSize: '13px', marginBottom: '16px' }}>
+          This audit was <b>revised</b> — the result below is the revised one. The original scoring is kept, unedited, for history.
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
@@ -246,11 +283,11 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           saved={scorecard.saved}
           special={scorecard.special}
           score={{
-            score_percent: audit.score_percent === null ? null : Number(audit.score_percent),
-            passed: audit.passed,
-            critical_fail: audit.critical_fail,
-            pass_mark_used: audit.pass_mark_used === null ? null : Number(audit.pass_mark_used),
-            submitted_at: audit.submitted_at,
+            score_percent: effective?.scorePercent ?? (audit.score_percent === null ? null : Number(audit.score_percent)),
+            passed: effective?.passed ?? audit.passed,
+            critical_fail: effective?.criticalFail ?? audit.critical_fail,
+            pass_mark_used: effective?.passMarkUsed ?? (audit.pass_mark_used === null ? null : Number(audit.pass_mark_used)),
+            submitted_at: effective?.submittedAt ?? audit.submitted_at,
           }}
         />
       ) : isOwner ? (
@@ -273,19 +310,21 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {audit.status !== 'draft' && disputeInfo.failed && (
+      {audit.status !== 'draft' && requestInfo.failed && (
         <div role="alert" style={{ fontSize: '13px', color: 'var(--alert)', marginBottom: '20px' }}>
-          The dispute status could not be loaded right now. This does not mean there is none — reload to check before filing one.
+          The Review Request status could not be loaded right now. This does not mean there is none — reload to check before filing one.
         </div>
       )}
-      {audit.status !== 'draft' && !disputeInfo.failed && user && (
-        <DisputePanel
+      {audit.status !== 'draft' && !requestInfo.failed && user && (
+        <ReviewRequestPanel
           auditId={audit.id}
           auditStatus={audit.status}
-          dispute={disputeInfo.dispute}
-          viewer={{ role: user.role }}
+          request={requestInfo.request}
+          viewer={{ role: user.role, id: user.profile.id }}
           agentName={agent?.name ?? 'the agent'}
-          youConductedAudit={isOwner}
+          isOwnTeamAgent={user.role === 'team_lead' && agent?.team_leader_id === user.profile.id}
+          isOwnChainAgent={false}
+          qaStaff={qaStaffOptions}
         />
       )}
 

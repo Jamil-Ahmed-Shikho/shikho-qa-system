@@ -63,22 +63,24 @@ Is that right? Should the agent see their own PIP at all (I allow it once approv
 
 ---
 
-## D. CAPA (re-audits) and Disputes — built 2026-09-26, questions that need your answer
+## D. CAPA (re-audits) and Disputes — built 2026-09-26; Disputes REPLACED 2026-09-29 by Review Request (§4 Section D, schema_048)
 
-**Q16. What should a dispute decision DO to the audit?** Today resolving records an outcome (upheld / partially upheld / not upheld) and a note, **and does not change the score** — scorecards are immutable (§4). If a dispute is upheld, should the audit be re-scored (a corrected version), voided (excluded from averages / RYG / PIP), replaced by a re-audit (using the new CAPA link), or left with just the note? Until you say, "upheld" changes nothing automatically, and the screens say so.
+**Q16, RESOLVED (2026-09-29).** A dispute never re-scored anything — replaced by Review Request, where QA Manager can order a real re-audit (reusing the existing scoring engine, a genuine new `audits` row tagged `review_request_id`), and approving it sets the ORIGINAL audit's `superseded_by` to point at the re-audit — the original itself stays immutable, exactly as §4 always required; "upheld" (no revision) leaves everything as it was.
 
-**Q17. Is there a time limit to dispute?** None today (an agent can dispute any submitted audit, once). Do you want a window (e.g. N days from submission)?
+**Q17, RESOLVED.** A 7-day window from submission, confirmed and built (`file_review_request()` refuses after it).
 
-**Q18. When does an agent first SEE an audit?** Immediately when it is submitted (needed so they can dispute it). That means an agent can see a Critical-fatal audit before their coaching session. Should visibility wait for the coaching briefing (or a delay), with disputes opening only after?
+**Q18, still open** — not addressed by Section D. An agent still sees an audit (and now sees considerably more of it, see Q22) immediately on submission.
 
-**Q19. Can a Team Lead file without the agent knowing?** Yes today — it is clearly recorded as "filed by Team Lead X on behalf of Y" and the agent sees that. Should the agent have to agree first? And can the agent still add their own version afterwards? (Today: one dispute per audit, so no.)
+**Q19, RESOLVED (unchanged in effect, re-confirmed).** A Team Lead or Manager can file on the agent's behalf, no agent consent needed — the same answer as before, just restated for Review Request.
 
-**Q20. Should the QA Manager who conducted an audit be allowed to resolve a dispute about it?** Today: allowed, with a visible warning ("You conducted this audit — consider asking another QA Manager"). Should it be blocked instead?
+**Q20, RESOLVED (2026-09-29) — CHANGED from the old warn-don't-block.** A QA Manager may decide a Review Request (including approving/rejecting their own re-audit) about an audit they conducted themselves, **no restriction, no warning** — confirmed explicitly.
 
-**Q21. Appeals.** Once resolved, a dispute is final. Should an agent be able to appeal a decision?
+**Q21, RESOLVED.** No appeal, no second Review Request on the same audit — final once decided (by either the Team Lead's uphold, or QA Manager's final decision).
 
-**Q22. What the agent sees.** An agent sees their own scorecard, feedback and the recording, but NOT: the Special Check answers, QA's root-cause tags (skill / knowledge / process / attitude), who audited them, CRM lead details, revenue, or any re-audit flag. OK, or should any of those be visible (e.g. root cause is useful coaching information)?
+**Q22, RESOLVED (2026-09-29) — CHANGED.** An agent NOW sees: the Special Check answers, QA's root-cause tags, who audited them, and the CRM lead link (§4's RLS change for Special Check answers is built in schema_048; root-cause tags/auditor-name/CRM-lead-link are UI-only conditionals, Stage 2, not yet built). Still hidden: any re-audit/CAPA flag, and anyone else's anything. Own revenue stays visible (already was).
 
-**Q23. Who may flag a failed audit for re-audit?** QA Manager / Super Admin (any) and a QA Auditor (only audits they conducted). Team Leads cannot. Right? And should the agent ever be told their audit is flagged?
+**Q23, still open — Part 2's manual CAPA flag is explicitly UNCHANGED** by this rebuild (it runs alongside, not replaced): QA Manager/Super Admin any audit, a QA Auditor only their own, Team Leads cannot. Confirmed as already correct, no change needed, but the original question (should the agent ever be told?) is still unanswered.
 
-**Q24. When a follow-up re-audit is submitted,** the original is marked "passed" or "failed again" by whether the follow-up passed (no critical fatal AND score ≥ the pass mark). A failed follow-up can itself be flagged for another re-audit (a chain). Any limit on how many rounds?
+**Q24, still open** — unrelated to Section D, still genuinely open (chain-length limit on repeat CAPA flags).
+
+**New, from Section D itself, flagged for Jamil's awareness rather than guessed:** approving a Review Request's revision updates the audit's own effective score (`superseded_by`) but does **not** retroactively recompute an already-frozen RYG period, a past week's audit-target snapshot, or any other aggregate computed before the revision — consistent with this system's own "never rewrite a frozen historical period" principle elsewhere (§6.2, §9), but a deliberate reading, not explicitly asked.

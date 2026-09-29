@@ -2,11 +2,11 @@ import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
-import { countDisputesAwaitingDecision } from '@/lib/disputes/disputes.service'
+import { countReviewRequestsAwaitingDecision } from '@/lib/review-requests/review-requests.service'
 
 export default async function AdminDashboardPage() {
-  // How many disputes are waiting for a decision (null = couldn't be counted / not set up yet).
-  const waiting = await countDisputesAwaitingDecision().catch(() => null)
+  // How many Review Requests are waiting for QA Manager (null = couldn't be counted / not set up yet).
+  const waiting = await countReviewRequestsAwaitingDecision().catch(() => null)
   return (
     <div>
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Admin Dashboard</h1>
@@ -41,9 +41,9 @@ export default async function AdminDashboardPage() {
           description="How agents answered a Special Check, over submitted audits — filterable by team, site, agent, auditor and date."
         />
         <NavCard
-          href="/admin/disputes"
-          title={waiting ? `Disputes (${waiting} waiting)` : 'Disputes'}
-          description="Audits agents (or their Team Leads) have disputed: review and record a decision."
+          href="/admin/review-requests"
+          title={waiting ? `Review Requests (${waiting} waiting)` : 'Review Requests'}
+          description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."
         />
         <NavCard
           href="/admin/ojt"
