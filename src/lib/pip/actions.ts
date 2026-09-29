@@ -5,15 +5,22 @@
 // the session client, so row-level security and the schema_027 functions are
 // the real gate; the role checks here only give friendlier messages.
 //
-// NO EMAIL, NO NOTIFICATION — by design. PIP messages to real people are held
-// for a human review; nothing in this file (or anything it calls) sends one.
-// Each change is recorded in audit_log.
+// NO EMAIL, NO NOTIFICATION anywhere in this file except sendPipNotificationsAction
+// (Stage 7) — and even that one only ever fires on a person pressing the button, and
+// only actually reaches a real inbox once PIP_NOTIFICATIONS_MODE is deliberately set
+// to 'live' (default 'off' sends nothing). Each change is recorded in audit_log.
 // ============================================================
 
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth/auth.service'
-import { getSupabaseServer } from '@/lib/supabase/server'
+import { getSupabaseAdmin, getSupabaseServer } from '@/lib/supabase/server'
 import { writeAuditLogs } from '@/lib/users/audit-log'
+import { sendPipNotificationEmail } from '@/lib/users/mailer'
+import { dhakaDateEndUtc, dhakaDateStartUtc } from '@/lib/dates/sales-week'
+import { fmtDate } from '@/components/pip/pip-display'
+import { agentNotificationHtml, agentNotificationSubject, agentNotificationText, staffNotificationHtml, staffNotificationSubject, staffNotificationText } from './notification-email'
+import { buildAgentNotifications, buildStaffNotifications, type NotifyAgent, type NotifyStaff } from './notifications'
+import { parseNotifyMode, parseNotifyTestRecipients, runNotifySend } from './notification-runner'
 import {
   validateExclusionReason,
   validateFeedback,
@@ -267,4 +274,113 @@ export async function recordTerminationExceptionAction(
   await log(a.user.profile.id, 'pip.termination_exception_recorded', flagId, { type })
   refresh(undefined, candidateId)
   return { ok: true }
+}
+
+// ── Stage 7: publish notification emails — manual, mode-gated, idempotent per cycle ────────────────
+// Reads use the service role because they need an unrestricted view across candidates and staff
+// regardless of who happens to be signed in; the ADMIN_ROLES check above stands in for RLS here,
+// same shape as Calibration's report-actions.ts (calibration_report_recipients, then admin reads).
+// The WRITE (notifications_sent_at/by) also uses the service role because pip_cycles has no write
+// policy for any signed-in role (schema_027) -- a plain session-client UPDATE would be refused.
+export async function sendPipNotificationsAction(
+  cycleId: string,
+  resend: boolean
+): Promise<ActionResult<{ mode: 'off' | 'test' | 'live'; sent: number; skipped: number; failed: string[] }>> {
+  const a = await actor(ADMIN_ROLES, 'send PIP publish notifications')
+  if (!a.ok) return { ok: false, error: a.error }
+  const admin = getSupabaseAdmin()
+
+  const { data: cycle, error: cycleErr } = await admin
+    .from('pip_cycles')
+    .select('id, start_date, end_date, published_at, notifications_sent_at')
+    .eq('id', cycleId)
+    .maybeSingle()
+  if (cycleErr) return { ok: false, error: plain(cycleErr.message) }
+  if (!cycle) return { ok: false, error: 'That PIP cycle does not exist.' }
+  if (!cycle.published_at) return { ok: false, error: 'This cycle has not been published yet.' }
+  if (cycle.notifications_sent_at && !resend) {
+    return { ok: false, error: `Notifications for this cycle were already sent on ${new Date(cycle.notifications_sent_at).toLocaleString()}. Confirm to send again.` }
+  }
+
+  const { data: candRows, error: candErr } = await admin
+    .from('pip_candidates')
+    .select('target_revenue, incentive_downgraded, agent:users!pip_candidates_agent_id_fkey(id, name, email, is_active, account_status, team_leader_id)')
+    .eq('pip_cycle_id', cycleId)
+    .eq('status', 'approved')
+  if (candErr) return { ok: false, error: plain(candErr.message) }
+  type AgentRow = { id: string; name: string; email: string; is_active: boolean; account_status: string | null; team_leader_id: string | null }
+  const agents: NotifyAgent[] = (candRows ?? []).flatMap((c) => {
+    const ag = (Array.isArray(c.agent) ? c.agent[0] : c.agent) as AgentRow | null
+    if (!ag) return []
+    return [{
+      id: ag.id, name: ag.name, email: ag.email, isActive: ag.is_active, accountStatus: ag.account_status,
+      teamLeaderId: ag.team_leader_id, targetRevenue: c.target_revenue === null ? null : Number(c.target_revenue),
+      incentiveDowngraded: !!c.incentive_downgraded,
+    }]
+  })
+  if (agents.length === 0) return { ok: false, error: 'This cycle has no published (approved) candidates to notify.' }
+
+  const teamLeadIds = [...new Set(agents.map((ag) => ag.teamLeaderId).filter((id): id is string => !!id))]
+  const { data: tlRows, error: tlErr } = teamLeadIds.length
+    ? await admin.from('users').select('id, name, email, is_active, account_status, manager_id').in('id', teamLeadIds)
+    : { data: [] as { id: string; name: string; email: string; is_active: boolean; account_status: string | null; manager_id: string | null }[], error: null }
+  if (tlErr) return { ok: false, error: plain(tlErr.message) }
+  const teamLeads: NotifyStaff[] = (tlRows ?? []).map((tl) => ({
+    id: tl.id, name: tl.name, email: tl.email, role: 'team_lead', isActive: tl.is_active, accountStatus: tl.account_status, managerId: tl.manager_id,
+  }))
+
+  const managerIds = [...new Set(teamLeads.map((tl) => tl.managerId).filter((id): id is string => !!id))]
+  const { data: mgrRows, error: mgrErr } = managerIds.length
+    ? await admin.from('users').select('id, name, email, is_active, account_status').in('id', managerIds)
+    : { data: [] as { id: string; name: string; email: string; is_active: boolean; account_status: string | null }[], error: null }
+  if (mgrErr) return { ok: false, error: plain(mgrErr.message) }
+  const managers: NotifyStaff[] = (mgrRows ?? []).map((m) => ({
+    id: m.id, name: m.name, email: m.email, role: 'manager', isActive: m.is_active, accountStatus: m.account_status, managerId: null,
+  }))
+
+  const label = `${fmtDate(cycle.start_date)} – ${fmtDate(cycle.end_date)}`
+  const from = dhakaDateStartUtc(cycle.start_date)
+  const to = new Date(Math.min(Date.now(), dhakaDateEndUtc(cycle.end_date).getTime()))
+
+  const agentNotifs = buildAgentNotifications(agents)
+  const staffNotifs = buildStaffNotifications(agents, teamLeads, managers)
+  if (agentNotifs.length === 0 && staffNotifs.length === 0) {
+    return { ok: false, error: 'Nobody on this cycle has an active login to notify (every published agent, Team Lead and Manager is profile-only).' }
+  }
+
+  const targets = [
+    ...(await Promise.all(agentNotifs.map(async (n) => {
+      const { data: usd, error: usdErr } = await admin.rpc('agent_revenue_usd', { p_agent_id: n.recipient.id, p_from: from.toISOString(), p_to: to.toISOString() })
+      const achievementUsd = usdErr ? null : Number(usd)
+      const input = { label, n, achievementUsd }
+      return {
+        email: n.recipient.email,
+        send: () => sendPipNotificationEmail(n.recipient.email, agentNotificationSubject(), agentNotificationHtml(input), agentNotificationText(input)),
+      }
+    }))),
+    ...staffNotifs.map((n) => {
+      const input = { label, n }
+      return {
+        email: n.recipient.email,
+        send: () => sendPipNotificationEmail(n.recipient.email, staffNotificationSubject(input), staffNotificationHtml(input), staffNotificationText(input)),
+      }
+    }),
+  ]
+
+  const mode = parseNotifyMode(process.env.PIP_NOTIFICATIONS_MODE)
+  const result = await runNotifySend(mode, parseNotifyTestRecipients(process.env.PIP_NOTIFICATIONS_TEST_RECIPIENTS), targets)
+  if (mode === 'off') return { ok: false, error: 'PIP notification emails are switched off (PIP_NOTIFICATIONS_MODE is not set). Nothing was sent.' }
+  if (mode === 'test' && result.sent === 0) {
+    return { ok: false, error: 'Test mode has no matching test recipients on this cycle (PIP_NOTIFICATIONS_TEST_RECIPIENTS). Nothing was sent.' }
+  }
+
+  // Only a real send counts as "sent" for idempotency -- a test-mode send leaves the button
+  // available for the real one (same rule as Calibration's report_sent_at).
+  if (result.mode === 'live') {
+    const { error } = await admin.from('pip_cycles').update({ notifications_sent_at: new Date().toISOString(), notifications_sent_by: a.user.profile.id }).eq('id', cycleId)
+    if (error) console.error('pip_cycles.notifications_sent_at not recorded:', error.message)
+  }
+  await log(a.user.profile.id, 'pip.notifications_sent', cycleId, { mode: result.mode, sent: result.sent, skipped: result.skippedNotAllowed, failed: result.failed.length, resend })
+  refresh(cycleId)
+  return { ok: true, mode: result.mode, sent: result.sent, skipped: result.skippedNotAllowed, failed: result.failed }
 }

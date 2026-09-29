@@ -198,3 +198,16 @@ export async function sendBriefingDigestEmail(to: string, subject: string, html:
     text,
   })
 }
+
+// PIP publish notifications (§6.4, Section C, Stage 7): one email per published agent
+// (their own period/target/achievement/downgrade note) and one per Team Lead/Manager
+// (only their own people's names) — content built by pip/notification-email.ts.
+export async function sendPipNotificationEmail(to: string, subject: string, html: string, text: string) {
+  await getTransporter().sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
+    to,
+    subject,
+    html,
+    text,
+  })
+}

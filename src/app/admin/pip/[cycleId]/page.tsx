@@ -5,6 +5,7 @@ import { CandidateActions } from '@/components/admin/pip/CandidateActions'
 import { GenerateForm } from '@/components/admin/pip/GenerateForm'
 import { ManagerRequestsSection } from '@/components/admin/pip/ManagerRequestsSection'
 import { PublishButton } from '@/components/admin/pip/PublishButton'
+import { SendNotificationsButton } from '@/components/admin/pip/SendNotificationsButton'
 import { SchemaMissing, isMissingPipSchema } from '@/components/pip/SchemaMissing'
 import { StatusBadge, card, fmtDate, fmtMoney, fmtMonth, td, th } from '@/components/pip/pip-display'
 import { loadCycleWithCandidates, loadManagerRequests } from '@/lib/pip/pip.service'
@@ -56,9 +57,20 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
       </p>
 
       {cycle.publishedAt ? (
-        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--status-green-light, var(--highlight-light))', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--status-green)', fontSize: '13px', marginBottom: '16px' }}>
-          <b>Published</b> {fmtDate(cycle.publishedAt)}{cycle.publishedByName ? ` by ${cycle.publishedByName}` : ''} — Team Leads, Managers and (once built) agents can now see this list.
-        </div>
+        <section style={{ ...card, marginBottom: '20px' }} aria-label="Published, notifications">
+          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--status-green-light, var(--highlight-light))', borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--status-green)', fontSize: '13px', marginBottom: '16px' }}>
+            <b>Published</b> {fmtDate(cycle.publishedAt)}{cycle.publishedByName ? ` by ${cycle.publishedByName}` : ''} — Team Leads, Managers and agents can now see this list.
+          </div>
+          <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Notifications (Stage 7)</h2>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px', maxWidth: '680px' }}>
+            Emails each published agent their own period/target/achievement/incentive-downgrade note, and each
+            of their Team Leads and Managers a summary naming only their own people on this list. Off by default
+            (<code>PIP_NOTIFICATIONS_MODE</code>) — nothing reaches a real inbox until that is deliberately set to
+            <code>live</code>.
+            {cycle.notificationsSentAt && <> <b>Last sent for real:</b> {fmtDate(cycle.notificationsSentAt)}.</>}
+          </p>
+          <SendNotificationsButton cycleId={cycle.id} alreadySentLabel={cycle.notificationsSentAt ? new Date(cycle.notificationsSentAt).toLocaleString() : null} />
+        </section>
       ) : candidates.length > 0 && (
         <section style={{ ...card, marginBottom: '20px' }} aria-label="Manager requests and publishing">
           <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Manager requests</h2>

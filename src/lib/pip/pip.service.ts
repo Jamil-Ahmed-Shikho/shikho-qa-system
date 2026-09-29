@@ -41,6 +41,8 @@ export interface PipCycle {
   /** Set once QA Manager/Super Admin publishes the final list (schema_043) — before that, the list is still under review. */
   publishedAt: string | null
   publishedByName: string | null
+  /** Set once notifications have gone out for real (Stage 7, schema_047) — a test-mode send never sets this. */
+  notificationsSentAt: string | null
 }
 
 export type PipRequestType = 'exclude' | 'include'
@@ -211,10 +213,11 @@ function cycleFromRow(r: Row, candidateCount: number): PipCycle {
     candidateCount,
     publishedAt: (r.published_at as string | null) ?? null,
     publishedByName: (Array.isArray(pub) ? pub[0]?.name : pub?.name) ?? null,
+    notificationsSentAt: (r.notifications_sent_at as string | null) ?? null,
   }
 }
 
-const CYCLE_SELECT = 'id, month, start_date, end_date, policy_id, published_at, publisher:users!pip_cycles_published_by_fkey(name)'
+const CYCLE_SELECT = 'id, month, start_date, end_date, policy_id, published_at, notifications_sent_at, publisher:users!pip_cycles_published_by_fkey(name)'
 
 export async function loadCycles(): Promise<PipCycle[]> {
   const supabase = await getSupabaseServer()
