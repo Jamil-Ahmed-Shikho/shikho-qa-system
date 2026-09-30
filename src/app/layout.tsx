@@ -86,6 +86,7 @@ const globalCSS = `
 
   @media (prefers-color-scheme: dark) {
     :root {
+      --paper: #221F38;
       --surface-0: #14131F;
       --surface-1: #1B1A2C;
       --surface-2: #221F38;
