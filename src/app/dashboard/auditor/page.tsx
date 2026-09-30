@@ -59,6 +59,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Who's Red/Yellow/Green, zero-seller streaks, current PIP progress, and critical-fatal audits — My view / Team view."
         />
         <NavCard
+          href="/reports/qa-impact"
+          title="Coaching Impact & Revenue Growth"
+          description="Score before vs. after coaching sessions, and revenue growth by channel — My view / Team view."
+        />
+        <NavCard
           href="/pip"
           title="PIP training"
           description="Agents on a performance improvement plan and their training sessions."
