@@ -54,7 +54,7 @@ export interface AgentCallRow {
  * DISTINCT lead on the page (a repeat lead — the agent called it more than once — is looked up only once).
  * A failure on one lead never fails the page; that row just shows "couldn't load" (undefined, never a silent "—").
  */
-async function loadDistributionLists(leadIds: number[], actorId: string): Promise<Map<number, string | null>> {
+export async function loadDistributionLists(leadIds: number[], actorId: string): Promise<Map<number, string | null>> {
   const distinct = [...new Set(leadIds)]
   const pairs = await Promise.all(
     distinct.map(async (id): Promise<[number, string | null] | null> => {

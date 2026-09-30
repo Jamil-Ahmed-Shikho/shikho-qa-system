@@ -38,6 +38,10 @@ const ROLE_ROUTES: Record<string, string[]> = {
   // An agent's own submitted audits + the place to dispute one (Step 5). Agents only: the page
   // is written for them (it hides QA-internal detail), and RLS limits it to their own audits anyway.
   '/my-audits': ['agent'],
+  // Team Leader Checks (schema_057) — a lightweight, Special-Check-only tool, team_lead only.
+  // Deliberately NOT super_admin/qa_manager: managing the check DEFINITIONS is under /admin;
+  // this route is the logging flow itself, which is a Team Lead's own tool, not an admin one.
+  '/tl-checks': ['team_lead'],
 }
 
 export async function middleware(request: NextRequest) {
