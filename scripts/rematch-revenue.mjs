@@ -102,14 +102,25 @@ async function resolveAgentId(leadOwnerId) {
 async function main() {
   console.log(LIVE ? '=== LIVE — updating agent_id where it now resolves ===' : '=== DRY RUN — no writes ===')
 
-  const { data: unmatched, error } = await supabase
-    .from('agent_revenue_transactions')
-    .select('lead_owner_crm_id')
-    .is('agent_id', null)
-  if (error) throw new Error(`Reading unmatched rows failed: ${error.message}`)
+  // PostgREST caps an unranged select at 1000 rows, so page through everything —
+  // otherwise this silently only ever sees the first 1000 unmatched rows (a real
+  // bug found 2026-09-30: with ~43k unmatched, that missed 97%+ of distinct owners
+  // every single run).
+  const PAGE_SIZE = 1000
+  const unmatched = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await supabase
+      .from('agent_revenue_transactions')
+      .select('lead_owner_crm_id')
+      .is('agent_id', null)
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(`Reading unmatched rows failed: ${error.message}`)
+    unmatched.push(...(page ?? []))
+    if (!page || page.length < PAGE_SIZE) break
+  }
 
-  const distinctIds = [...new Set((unmatched ?? []).map((r) => r.lead_owner_crm_id))]
-  console.log(`${unmatched?.length ?? 0} unmatched rows, ${distinctIds.length} distinct lead_owner ids`)
+  const distinctIds = [...new Set(unmatched.map((r) => r.lead_owner_crm_id))]
+  console.log(`${unmatched.length} unmatched rows, ${distinctIds.length} distinct lead_owner ids`)
 
   let resolvedCount = 0,
     rowsUpdated = 0
