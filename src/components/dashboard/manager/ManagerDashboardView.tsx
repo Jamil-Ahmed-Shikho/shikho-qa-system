@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { ManagerRollup, Metrics, TeamLeadGroup } from '@/lib/manager/rollup'
+import type { ChannelGroup, ManagerRollup, Metrics, TeamLeadGroup } from '@/lib/manager/rollup'
 
 const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`)
 const STAGE_LABEL: Record<string, string> = {
@@ -9,11 +9,20 @@ const STAGE_LABEL: Record<string, string> = {
 }
 
 export function ManagerDashboardView({ rollup, managerName }: { rollup: ManagerRollup; managerName: string }) {
-  const { overview, groups, activeTeamLeads } = rollup
+  const { overview, groups, activeTeamLeads, channelGroups } = rollup
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [openChannel, setOpenChannel] = useState<Set<string>>(new Set())
 
   const toggle = (key: string) =>
     setOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  const toggleChannel = (key: string) =>
+    setOpenChannel((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -85,7 +94,87 @@ export function ManagerDashboardView({ rollup, managerName }: { rollup: ManagerR
         Counts submitted audits only (drafts excluded), dated by submission. The sales week runs Saturday–Friday, Dhaka time.
         Coverage is agents audited at least once ÷ current agents. Click a Team Lead to see their agents.
       </p>
+
+      <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '28px 0 4px' }}>By Channel</h2>
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+        The exact same figures above, regrouped by team/channel instead of by Team Lead — useful when your chain spans more than one.
+      </p>
+      <div style={{ overflowX: 'auto', background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '700px' }}>
+          <thead>
+            <tr style={{ background: 'var(--surface-1)', textAlign: 'left' }}>
+              {['Channel', 'Agents', 'Coverage', 'Audits', 'Avg score', 'Pass rate', 'Critical'].map((h, i) => (
+                <th key={h} style={{ ...th, textAlign: i >= 1 ? 'right' : 'left' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {channelGroups.map((g) => (
+              <ChannelGroupRows key={g.channel} group={g} isOpen={openChannel.has(g.channel)} onToggle={() => toggleChannel(g.channel)} />
+            ))}
+            <tr style={{ borderTop: '2px solid var(--border-strong)', background: 'var(--surface-0)', fontWeight: 600 }}>
+              <td style={td}>Total</td>
+              <MetricCells m={overview} />
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
+  )
+}
+
+function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; isOpen: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <tr onClick={onToggle} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+        <td style={td}>
+          <span style={{ display: 'inline-block', width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
+          <b>{group.channel}</b>
+        </td>
+        <MetricCells m={group.metrics} />
+      </tr>
+      {isOpen && (
+        <tr>
+          <td colSpan={7} style={{ padding: 0, background: 'var(--surface-0)' }}>
+            {group.agents.length === 0 ? (
+              <div style={{ padding: '12px 16px 12px 36px', color: 'var(--text-muted)', fontSize: '12px' }}>No agents in this channel.</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
+                    <th style={{ ...subTh, paddingLeft: '36px' }}>Agent</th>
+                    <th style={subTh}>Team / Site</th>
+                    <th style={subTh}>Stage</th>
+                    <th style={{ ...subTh, textAlign: 'right' }}>Audits</th>
+                    <th style={{ ...subTh, textAlign: 'right' }}>Avg score</th>
+                    <th style={{ ...subTh, textAlign: 'right' }}>Pass rate</th>
+                    <th style={{ ...subTh, textAlign: 'right' }}>Critical</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.agents.map((a) => (
+                    <tr key={a.agent_id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ ...subTd, paddingLeft: '36px' }}>
+                        <div style={{ fontWeight: 600 }}>{a.agent_name}</div>
+                        <div style={{ color: 'var(--text-muted)' }}>{a.agent_email}</div>
+                      </td>
+                      <td style={subTd}>{[a.team_name, a.site_name].filter(Boolean).join(' · ') || '—'}</td>
+                      <td style={subTd}>{STAGE_LABEL[a.employment_stage] ?? a.employment_stage}</td>
+                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed}</td>
+                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct(a.score_sum / a.audits_completed) : '—'}</td>
+                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct((a.audits_passed / a.audits_completed) * 100) : '—'}</td>
+                      <td style={{ ...subTd, textAlign: 'right', color: a.critical_fails ? 'var(--alert)' : undefined, fontWeight: a.critical_fails ? 600 : undefined }}>
+                        {a.critical_fails}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 

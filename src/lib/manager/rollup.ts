@@ -50,10 +50,20 @@ export interface TeamLeadGroup {
   metrics: Metrics
 }
 
+/** Same agent rows, regrouped by team/channel instead of by Team Lead — a Manager's chain can span more
+ *  than one channel (e.g. Retention + Dhaka Telesales, §2), so this answers "how is each channel doing"
+ *  as a second cut of the identical data, never a separate calculation. */
+export interface ChannelGroup {
+  channel: string
+  agents: AgentStatRow[]
+  metrics: Metrics
+}
+
 export interface ManagerRollup {
   overview: Metrics
   activeTeamLeads: number
   groups: TeamLeadGroup[]
+  channelGroups: ChannelGroup[]
 }
 
 const CURRENT_STAGES = ['ojt', 're_training', 'active']
@@ -116,5 +126,20 @@ export function buildRollup(teamLeads: TeamLeadInfo[], rows: AgentStatRow[]): Ma
     overview: computeMetrics(visible),
     activeTeamLeads: teamLeads.filter((t) => t.is_active).length,
     groups,
+    channelGroups: buildChannelRollup(visible),
   }
+}
+
+function buildChannelRollup(visible: AgentStatRow[]): ChannelGroup[] {
+  const byChannel = new Map<string, AgentStatRow[]>()
+  for (const agent of visible) {
+    const channel = agent.employment_stage === 'ojt' ? 'OJT' : agent.team_name ?? 'No team'
+    const list = byChannel.get(channel) ?? []
+    list.push(agent)
+    byChannel.set(channel, list)
+  }
+  const byName = (a: AgentStatRow, b: AgentStatRow) => a.agent_name.localeCompare(b.agent_name)
+  return [...byChannel.entries()]
+    .map(([channel, agents]) => ({ channel, agents: agents.sort(byName), metrics: computeMetrics(agents) }))
+    .sort((a, b) => a.channel.localeCompare(b.channel))
 }
