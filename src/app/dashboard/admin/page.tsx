@@ -56,6 +56,11 @@ export default async function AdminDashboardPage() {
           description="Per-auditor audit/coaching progress, channel-wise audit target vs completion, and the OJT/re-training pipeline."
         />
         <NavCard
+          href="/reports/qa-status-overview"
+          title="RYG, PIP, Zero-Seller & Fatal Overview"
+          description="Who's Red/Yellow/Green, who's on a zero-seller streak, current PIP progress against target, and every critical-fatal audit."
+        />
+        <NavCard
           href="/admin/review-requests"
           title={waiting ? `Review Requests (${waiting} waiting)` : 'Review Requests'}
           description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."
