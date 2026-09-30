@@ -3,3 +3,5 @@ node_modules/
 .env.local
 .vercel
 *.tsbuildinfo
+docs/test-accounts.md
+import-data/

@@ -134,7 +134,7 @@ export function AssignControls({ id, auditId, qaStaff }: { id: string; auditId: 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={{ ...inputStyle, width: 'auto', minWidth: '220px' }}>
           <option value="">Choose…</option>
-          {qaStaff.map((p) => <option key={p.id} value={p.id}>{p.name}{p.role !== 'qa_auditor' ? ' (myself)' : ''}</option>)}
+          {qaStaff.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <button style={{ ...primaryBtn, ...(busy ? disabledStyle : {}) }} disabled={busy} onClick={submit}>{busy ? 'Assigning…' : 'Assign'}</button>
       </div>

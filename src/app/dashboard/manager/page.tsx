@@ -47,12 +47,20 @@ export default async function ManagerDashboardPage({
           <Link href="/reports/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Campaign Report →
           </Link>
+          <Link href="/reports/repeat-mistakes" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            Repeat-Mistake Report →
+          </Link>
           <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             PIPs in your chain →
           </Link>
           {isManager && (
             <Link href="/pip/review" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
               PIP cycles to review →
+            </Link>
+          )}
+          {isManager && (
+            <Link href="/dashboard/manager/review-requests" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+              Request a review →
             </Link>
           )}
           {!isManager && managerId && options.length > 0 && (

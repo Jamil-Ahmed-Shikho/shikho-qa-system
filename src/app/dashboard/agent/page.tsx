@@ -12,7 +12,7 @@ export default async function AgentDashboardPage() {
       {/* Only for an actual agent: a Team Lead or admin who lands here would otherwise see their whole scope under "My". */}
       {user?.role === 'agent' && (
         <div style={{ marginTop: '20px' }}>
-          <NavCard href="/my-audits" title="My audits" description="See your audits, the feedback, and dispute one you think is wrong." />
+          <NavCard href="/my-audits" title="My audits" description="See your audits, the feedback, and request a review of one you think is wrong." />
         </div>
       )}
       {user?.role === 'agent' && <MyPipSection />}

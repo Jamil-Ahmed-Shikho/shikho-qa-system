@@ -41,6 +41,11 @@ export default async function AdminDashboardPage() {
           description="How agents answered a Special Check, over submitted audits — filterable by team, site, agent, auditor and date."
         />
         <NavCard
+          href="/reports/repeat-mistakes"
+          title="Repeat-Mistake Report"
+          description="Agents whose audits show the same rubric parameter failing repeatedly — flagged automatically, for spotting training-needs patterns."
+        />
+        <NavCard
           href="/admin/review-requests"
           title={waiting ? `Review Requests (${waiting} waiting)` : 'Review Requests'}
           description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."

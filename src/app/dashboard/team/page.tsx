@@ -31,6 +31,11 @@ export default async function TeamDashboardPage() {
           description="How your team answered a Special Check, over submitted audits."
         />
         <NavCard
+          href="/reports/repeat-mistakes"
+          title="Repeat-Mistake Report"
+          description="Agents on your team whose audits show the same rubric parameter failing repeatedly."
+        />
+        <NavCard
           href="/pip"
           title="PIP — your agents"
           description="Agents on a performance improvement plan: give your feedback on their progress."

@@ -188,6 +188,55 @@ export async function loadMyAudits(): Promise<MyAuditItem[]> {
   })
 }
 
+export interface ManagerFileableAudit {
+  id: string
+  agentId: string
+  agentName: string | null
+  scorePercent: number | null
+  passed: boolean | null
+  criticalFail: boolean
+  submittedAt: string
+}
+
+/** A Manager's own entry point to file a Review Request on behalf of an agent in
+ * their chain (§4, Section D — `file_review_request` already accepts role='manager',
+ * this was just missing a screen, since `/audits` isn't in a Manager's ROLE_ROUTES).
+ * RLS (`audits_select_manager_chain`) already scopes this to the manager's own chain —
+ * no new SECURITY DEFINER function needed. Only within the 7-day filing window, and
+ * not already carrying a Review Request (the database would refuse a second one anyway,
+ * with its own plain message, but there's no reason to list something that can't be filed). */
+export async function loadManagerFileableAudits(): Promise<ManagerFileableAudit[]> {
+  const supabase = await getSupabaseServer()
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const [audits, requests] = await Promise.all([
+    supabase
+      .from('audits')
+      .select('id, agent_id, score_percent, passed, critical_fail, submitted_at, agent:users!audits_agent_id_fkey(name)')
+      .eq('status', 'submitted')
+      .is('review_request_id', null)
+      .gte('submitted_at', since)
+      .order('submitted_at', { ascending: false }),
+    supabase.from('review_requests').select('audit_id').limit(1000),
+  ])
+  if (audits.error) throw new Error(`Could not load your chain's audits: ${audits.error.message}`)
+  if (requests.error) throw new Error(`Could not check existing Review Requests: ${requests.error.message}`)
+  const alreadyFiled = new Set((requests.data ?? []).map((r) => r.audit_id as string))
+  return (audits.data ?? [])
+    .filter((a) => !alreadyFiled.has(a.id as string))
+    .map((a) => {
+      const agentRaw = a.agent as { name: string } | { name: string }[] | null
+      return {
+        id: a.id as string,
+        agentId: a.agent_id as string,
+        agentName: (Array.isArray(agentRaw) ? agentRaw[0]?.name : agentRaw?.name) ?? null,
+        scorePercent: a.score_percent === null ? null : Number(a.score_percent),
+        passed: (a.passed as boolean | null) ?? null,
+        criticalFail: !!a.critical_fail,
+        submittedAt: a.submitted_at as string,
+      }
+    })
+}
+
 export interface EffectiveResult {
   scorePercent: number | null
   passed: boolean | null
