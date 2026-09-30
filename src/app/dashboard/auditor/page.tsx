@@ -64,6 +64,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Score before vs. after coaching sessions, and revenue growth by channel — My view / Team view."
         />
         <NavCard
+          href="/reports/qa-oversight"
+          title="Review Request & Calibration Oversight"
+          description="What's stuck, Team Lead/auditor outcomes, and calibration consistency — My view / Team view."
+        />
+        <NavCard
           href="/pip"
           title="PIP training"
           description="Agents on a performance improvement plan and their training sessions."
