@@ -1,10 +1,14 @@
 // ============================================================
-// SHIKHO QA SYSTEM — QA Manager dashboard, Stage 1: Auditor ranking (§11)
-// Server-only. qa_auditor_ranking() and the coaching-target table both do
-// their own role check (super_admin/qa_manager only) — see schema_050.
+// SHIKHO QA SYSTEM — QA Manager dashboard, Stage 1 (Auditor ranking) and
+// Stage 2 (channel-wise audit progress) (§11). Server-only.
+// qa_auditor_ranking() and qa_channel_progress() do their own role check —
+// super_admin/qa_manager (Team View, always) or qa_auditor (My View or Team
+// View, schema_052). The coaching-target table is QA-staff-only.
 // ============================================================
 
 import { getSupabaseServer } from '@/lib/supabase/server'
+
+export type QaRankingView = 'mine' | 'team'
 
 export interface AuditorRankingRow {
   auditorId: string
@@ -26,7 +30,7 @@ export interface AuditorRankingRow {
 
 export function isMissingQaRankingSchema(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err)
-  return /qa_auditor_ranking|qa_coaching_targets/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
+  return /qa_auditor_ranking|qa_coaching_targets|qa_channel_progress/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
 }
 
 function fromRow(r: {
@@ -46,9 +50,9 @@ function fromRow(r: {
   }
 }
 
-export async function loadAuditorRanking(from: Date, to: Date): Promise<AuditorRankingRow[]> {
+export async function loadAuditorRanking(from: Date, to: Date, view: QaRankingView = 'team'): Promise<AuditorRankingRow[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.rpc('qa_auditor_ranking', { p_from: from.toISOString(), p_to: to.toISOString() })
+  const { data, error } = await supabase.rpc('qa_auditor_ranking', { p_from: from.toISOString(), p_to: to.toISOString(), p_view: view })
   if (error) throw new Error(`Could not load the auditor ranking: ${error.message}`)
   return (data ?? []).map(fromRow)
 }
@@ -58,4 +62,25 @@ export async function loadCoachingTarget(): Promise<number | null> {
   const { data, error } = await supabase.from('qa_coaching_targets').select('weekly_target').is('effective_to', null).maybeSingle()
   if (error) throw new Error(`Could not load the coaching target: ${error.message}`)
   return data?.weekly_target ?? null
+}
+
+export interface ChannelProgressRow {
+  channel: string
+  agentsCount: number
+  auditsDone: number
+  auditTarget: number
+  auditsPct: number | null
+}
+
+export async function loadChannelProgress(from: Date, to: Date, view: QaRankingView = 'team'): Promise<ChannelProgressRow[]> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('qa_channel_progress', { p_from: from.toISOString(), p_to: to.toISOString(), p_view: view })
+  if (error) throw new Error(`Could not load channel-wise progress: ${error.message}`)
+  return (data ?? []).map((r: { channel: string; agents_count: number; audits_done: number; audit_target: number; audits_pct: number | null }) => ({
+    channel: r.channel,
+    agentsCount: r.agents_count,
+    auditsDone: r.audits_done,
+    auditTarget: r.audit_target,
+    auditsPct: r.audits_pct,
+  }))
 }

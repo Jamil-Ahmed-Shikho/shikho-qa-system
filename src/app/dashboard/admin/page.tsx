@@ -46,9 +46,14 @@ export default async function AdminDashboardPage() {
           description="Agents whose audits show the same rubric parameter failing repeatedly — flagged automatically, for spotting training-needs patterns."
         />
         <NavCard
-          href="/admin/qa-auditor-ranking"
+          href="/reports/qa-auditor-ranking"
           title="Auditor Ranking"
           description="Audit coverage, coaching, sales growth and PIP/Zero-Seller recovery — a Total Score per QA Auditor."
+        />
+        <NavCard
+          href="/reports/qa-team-progress"
+          title="This Week's QA Progress"
+          description="Per-auditor audit/coaching progress, channel-wise audit target vs completion, and the OJT/re-training pipeline."
         />
         <NavCard
           href="/admin/review-requests"

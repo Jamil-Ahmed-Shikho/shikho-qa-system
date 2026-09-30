@@ -44,6 +44,16 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Agents whose audits show the same rubric parameter failing repeatedly — company-wide, not just your own."
         />
         <NavCard
+          href="/reports/qa-auditor-ranking"
+          title="Auditor Ranking"
+          description="Your own audit/coaching/sales/PIP/Zero-Seller numbers, or everyone's — My view / Team view."
+        />
+        <NavCard
+          href="/reports/qa-team-progress"
+          title="This Week's QA Progress"
+          description="Audit/coaching progress, channel-wise targets, and the OJT pipeline — My view / Team view."
+        />
+        <NavCard
           href="/pip"
           title="PIP training"
           description="Agents on a performance improvement plan and their training sessions."
