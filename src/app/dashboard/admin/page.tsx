@@ -46,6 +46,11 @@ export default async function AdminDashboardPage() {
           description="Agents whose audits show the same rubric parameter failing repeatedly — flagged automatically, for spotting training-needs patterns."
         />
         <NavCard
+          href="/admin/qa-auditor-ranking"
+          title="Auditor Ranking"
+          description="Audit coverage, coaching, sales growth and PIP/Zero-Seller recovery — a Total Score per QA Auditor."
+        />
+        <NavCard
           href="/admin/review-requests"
           title={waiting ? `Review Requests (${waiting} waiting)` : 'Review Requests'}
           description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."
