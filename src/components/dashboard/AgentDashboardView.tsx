@@ -97,23 +97,23 @@ export function AgentDashboardView({ data }: { data: AgentDashboard }) {
         )}
       </div>
 
-      {/* Score trend */}
+      {/* Score trend — the chart only; the full list with auditor/result/etc lives on "My audits" */}
       {scoreTrend.length > 0 && (
         <div style={card}>
-          <SectionTitle>Your last {scoreTrend.length} audits</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-            {scoreTrend.map((t) => (
-              <BarRow
-                key={t.auditId}
-                label={shortDate(t.submittedAt)}
-                value={t.scorePercent}
-                max={100}
-                display={`${t.scorePercent}%`}
-                gradient={t.criticalFail ? 'var(--alert)' : 'linear-gradient(90deg, var(--brand), var(--accent))'}
-                href={`/my-audits/${t.auditId}`}
-              />
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
+            <SectionTitle>Your last {scoreTrend.length} audits</SectionTitle>
+            <TrendBadge trend={scoreTrend} />
           </div>
+
+          {scoreTrend.length > 1 ? <TrendChart trend={scoreTrend} /> : (
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '10px 0 0' }}>
+              Score: <b style={{ color: 'var(--text-primary)' }}>{scoreTrend[0].scorePercent}%</b> on {shortDate(scoreTrend[0].submittedAt)}. One more audit and your trend will show here.
+            </p>
+          )}
+
+          <Link href="/my-audits" style={{ display: 'inline-block', marginTop: '10px', fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
+            See all audits →
+          </Link>
         </div>
       )}
 
@@ -168,6 +168,92 @@ function StatTile({ label, value, sub, accent, small }: { label: string; value: 
       <div style={{ fontSize: small ? '20px' : '24px', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '2px' }}>{value}</div>
       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{sub}</div>
     </div>
+  )
+}
+
+function TrendBadge({ trend }: { trend: { scorePercent: number }[] }) {
+  if (trend.length < 2) return null
+  const delta = trend[trend.length - 1].scorePercent - trend[0].scorePercent
+  const meta = delta > 2
+    ? { label: 'Trending up', icon: '▲', color: 'var(--status-green)', bg: 'var(--status-green-light, #E3F7EC)' }
+    : delta < -2
+      ? { label: 'Trending down', icon: '▼', color: 'var(--alert)', bg: 'var(--alert-light)' }
+      : { label: 'Holding steady', icon: '–', color: 'var(--text-muted)', bg: 'var(--surface-1)' }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 700,
+      padding: '4px 10px', borderRadius: 'var(--radius-pill)', color: meta.color, background: meta.bg,
+    }}>
+      <span aria-hidden>{meta.icon}</span>{meta.label}
+    </span>
+  )
+}
+
+/** A plain-SVG line-and-stem chart, no charting library — matches the rest of this system's "plain
+ * CSS/SVG, no dependency" convention for small visualizations (e.g. the Campaign Report's bar chart).
+ * Each audit gets its own vertical reference line from 0 up to its score, so the chart reads as actual
+ * magnitudes (out of 100), not just relative wiggle — per Jamil's own description, 2026-10-02. Every
+ * point is a link to that audit (the one interaction this chart replaces the old row-list for). */
+function TrendChart({ trend }: { trend: { auditId: string; submittedAt: string; scorePercent: number; passed: boolean | null; criticalFail: boolean }[] }) {
+  const W = 760, H = 320
+  const marginLeft = 32, marginRight = 10, marginTop = 28, marginBottom = 52
+  const plotLeft = marginLeft, plotRight = W - marginRight
+  const plotTop = marginTop, plotBottom = H - marginBottom
+  const plotW = plotRight - plotLeft, plotH = plotBottom - plotTop
+  const n = trend.length
+
+  const x = (i: number) => (n > 1 ? plotLeft + (i / (n - 1)) * plotW : plotLeft + plotW / 2)
+  const y = (score: number) => plotBottom - (Math.max(0, Math.min(100, score)) / 100) * plotH
+
+  const points = trend.map((t, i) => ({ cx: x(i), cy: y(t.scorePercent), ...t }))
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.cx.toFixed(1)} ${p.cy.toFixed(1)}`).join(' ')
+  const dotColor = (p: { passed: boolean | null; criticalFail: boolean }) =>
+    p.criticalFail ? 'var(--alert)' : p.passed ? 'var(--status-green)' : 'var(--highlight)'
+
+  const gridValues = [0, 25, 50, 75, 100]
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="auto" style={{ display: 'block', maxHeight: '340px' }} role="img" aria-label="Score trend across your recent audits, 0 to 100">
+      <defs>
+        <linearGradient id="agentTrendLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="var(--brand)" />
+          <stop offset="100%" stopColor="var(--accent)" />
+        </linearGradient>
+      </defs>
+
+      {/* Horizontal gridlines, 0/25/50/75/100 */}
+      {gridValues.map((v) => (
+        <g key={v}>
+          <line x1={plotLeft} x2={plotRight} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth={1} />
+          <text x={plotLeft - 8} y={y(v) + 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">{v}</text>
+        </g>
+      ))}
+
+      {/* Per-audit vertical stem, from the baseline up to the score */}
+      {points.map((p, i) => (
+        <line key={`stem-${i}`} x1={p.cx} x2={p.cx} y1={plotBottom} y2={p.cy} stroke={dotColor(p)} strokeOpacity={0.28} strokeWidth={2} />
+      ))}
+
+      <path d={path} fill="none" stroke="url(#agentTrendLine)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+
+      {points.map((p, i) => (
+        <a key={i} href={`/my-audits/${p.auditId}`} aria-label={`Audit from ${shortDate(p.submittedAt)}, score ${p.scorePercent}%`}>
+          <circle cx={p.cx} cy={p.cy} r={16} fill="transparent" />
+          <text x={p.cx} y={p.cy - 12} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--text-primary)">{p.scorePercent}%</text>
+          <circle cx={p.cx} cy={p.cy} r={5.5} fill={dotColor(p)} stroke="var(--paper)" strokeWidth={2} />
+          <text
+            x={p.cx}
+            y={plotBottom + 18}
+            textAnchor="end"
+            fontSize={11}
+            fill="var(--text-muted)"
+            transform={`rotate(-38 ${p.cx} ${plotBottom + 18})`}
+          >
+            {shortDate(p.submittedAt)}
+          </text>
+        </a>
+      ))}
+    </svg>
   )
 }
 

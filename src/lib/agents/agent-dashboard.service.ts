@@ -24,7 +24,9 @@ export interface TrendPoint {
   auditId: string
   submittedAt: string
   scorePercent: number
+  passed: boolean | null
   criticalFail: boolean
+  auditorName: string | null
 }
 
 export interface FailedParameter {
@@ -83,7 +85,7 @@ export async function loadAgentDashboard(agentId: string, agentName: string, now
   const [recentAudits, statusRow, briefing, requests, revenue] = await Promise.all([
     supabase
       .from('audits')
-      .select('id, score_percent, passed, critical_fail, submitted_at, audit_parameter_results(passed, parameter_id, rubric_parameters(name))')
+      .select('id, score_percent, passed, critical_fail, submitted_at, auditor:users!audits_auditor_id_fkey(name), audit_parameter_results(passed, parameter_id, rubric_parameters(name))')
       .eq('agent_id', agentId)
       .eq('status', 'submitted')
       .gte('submitted_at', historyFrom.toISOString())
@@ -96,8 +98,13 @@ export async function loadAgentDashboard(agentId: string, agentName: string, now
   ])
   if (recentAudits.error) throw new Error(`Could not load your audits: ${recentAudits.error.message}`)
 
-  type Row = { id: string; score_percent: number | null; passed: boolean | null; critical_fail: boolean; submitted_at: string; audit_parameter_results: { passed: boolean; parameter_id: string; rubric_parameters: { name: string } | { name: string }[] | null }[] }
+  type Row = {
+    id: string; score_percent: number | null; passed: boolean | null; critical_fail: boolean; submitted_at: string
+    auditor: { name: string } | { name: string }[] | null
+    audit_parameter_results: { passed: boolean; parameter_id: string; rubric_parameters: { name: string } | { name: string }[] | null }[]
+  }
   const rows = (recentAudits.data ?? []) as unknown as Row[]
+  const auditorNameOf = (r: Row) => (Array.isArray(r.auditor) ? r.auditor[0]?.name : r.auditor?.name) ?? null
 
   const thisWeek = bucket(rows, thisWeekStart, new Date(Math.max(now.getTime(), thisWeekStart.getTime())), salesWeekStartDate(now))
   const lastWeek = bucket(rows, lastWeekStart, thisWeekStart, lastWeekStartStr)
@@ -109,7 +116,7 @@ export async function loadAgentDashboard(agentId: string, agentName: string, now
   const scoreTrend: TrendPoint[] = rows
     .slice(0, 10)
     .filter((r) => r.score_percent !== null)
-    .map((r) => ({ auditId: r.id, submittedAt: r.submitted_at, scorePercent: r.score_percent as number, criticalFail: r.critical_fail }))
+    .map((r) => ({ auditId: r.id, submittedAt: r.submitted_at, scorePercent: r.score_percent as number, passed: r.passed, criticalFail: r.critical_fail, auditorName: auditorNameOf(r) }))
     .reverse()
 
   const failCounts = new Map<string, { name: string; count: number }>()

@@ -122,13 +122,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           href="/dashboard"
           aria-label="Home"
           title="Home"
-          style={{ display: 'inline-flex', borderRadius: 'var(--radius-sm)' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', borderRadius: 'var(--radius-sm)', textDecoration: 'none' }}
           onClick={(e) => {
             if (!confirmLeave()) e.preventDefault()
           }}
         >
-          <ShikhoBirdMark height={48} />
+          <ShikhoBirdMark height={44} />
+          <span className="shikho-portal-subtitle" aria-hidden style={{ width: '1px', height: '28px', background: 'var(--border-strong)' }} />
+          <span
+            className="shikho-portal-subtitle"
+            style={{ fontSize: '18px', lineHeight: 1, fontWeight: 700, color: 'var(--brand)', fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
+          >
+            Audit Management System
+          </span>
         </Link>
+        <style>{`@media (max-width: 480px) { .shikho-portal-subtitle { display: none; } }`}</style>
         {!loading && user && (
           <UserMenu
             name={user.profile.name}

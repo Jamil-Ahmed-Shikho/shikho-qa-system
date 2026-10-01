@@ -39,7 +39,7 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
     console.error(error)
     return (
       <div>
-        <BackLink href="/my-audits" label="My audits" />
+        <BackLink href="/my-audits" label="My audits" size="lg" />
         <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px' }}>This audit could not be loaded right now. Try again shortly.</div>
       </div>
     )
@@ -78,7 +78,7 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
-      <BackLink href="/my-audits" label="My audits" />
+      <BackLink href="/my-audits" label="My audits" size="lg" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Audit of your call</h1>
@@ -87,7 +87,16 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
             {auditorName && <> · by {auditorName}</>}
           </p>
           {audit.crm_lead_id && (
-            <a href={`https://crm.shikho.com/leads/${audit.crm_lead_id}`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--brand)' }}>
+            <a
+              href={`https://crm.shikho.com/leads/${audit.crm_lead_id}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
+                fontSize: '13px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none',
+                padding: '7px 14px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)',
+              }}
+            >
               View lead in CRM →
             </a>
           )}

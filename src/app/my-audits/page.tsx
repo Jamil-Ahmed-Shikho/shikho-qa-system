@@ -20,7 +20,7 @@ export default async function MyAuditsPage() {
 
   return (
     <div>
-      <BackLink href="/dashboard" label="Dashboard" />
+      <BackLink href="/dashboard" label="Dashboard" size="lg" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>My audits</h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px', maxWidth: '640px' }}>
         Your submitted audits. Open one to see the full scorecard and feedback — and, if you think it is wrong, to request a review.
@@ -33,11 +33,12 @@ export default async function MyAuditsPage() {
       ) : (
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 12px', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
-            <thead><tr><th style={th}>Audited</th><th style={th}>Score</th><th style={th}>Result</th><th style={th}>Review Request</th><th style={th} /></tr></thead>
+            <thead><tr><th style={th}>Audited</th><th style={th}>Auditor</th><th style={th}>Score</th><th style={th}>Result</th><th style={th}>Review Request</th><th style={th} /></tr></thead>
             <tbody>
               {audits.map((a) => (
                 <tr key={a.id}>
                   <td style={td}>{formatDhakaDateTime(a.submittedAt)}<div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Call {formatDhakaDateTime(a.callStartedAt)}</div></td>
+                  <td style={td}>{a.auditorName ?? '—'}</td>
                   <td style={{ ...td, fontWeight: 600 }}>{a.scorePercent === null ? '—' : `${a.scorePercent}%`}</td>
                   <td style={{ ...td, color: a.passed ? 'var(--status-green)' : 'var(--alert)', fontWeight: 600 }}>
                     {a.criticalFail ? 'Critical fatal error' : a.passed ? 'Passed' : 'Did not pass'}

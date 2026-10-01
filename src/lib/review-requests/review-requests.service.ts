@@ -55,6 +55,7 @@ export interface MyAuditItem {
   submittedAt: string | null
   callStartedAt: string | null
   supersededBy: string | null
+  auditorName: string | null
   reviewRequest: { status: ReviewRequestStatus; finalOutcome: FinalOutcome | null; filerRole: FilerRole } | null
 }
 
@@ -162,7 +163,7 @@ export async function loadMyAudits(): Promise<MyAuditItem[]> {
   const [audits, requests] = await Promise.all([
     supabase
       .from('audits')
-      .select('id, status, score_percent, passed, critical_fail, submitted_at, call_started_at, superseded_by')
+      .select('id, status, score_percent, passed, critical_fail, submitted_at, call_started_at, superseded_by, auditor:users!audits_auditor_id_fkey(name)')
       .neq('status', 'draft')
       .is('review_request_id', null) // a re-audit is not one of "my audits" in its own right
       .order('submitted_at', { ascending: false })
@@ -174,6 +175,7 @@ export async function loadMyAudits(): Promise<MyAuditItem[]> {
   const byAudit = new Map((requests.data ?? []).map((r) => [r.audit_id as string, r]))
   return (audits.data ?? []).map((a) => {
     const r = byAudit.get(a.id as string)
+    const auditorRaw = a.auditor as { name: string } | { name: string }[] | null
     return {
       id: a.id as string,
       status: a.status as string,
@@ -183,6 +185,7 @@ export async function loadMyAudits(): Promise<MyAuditItem[]> {
       submittedAt: (a.submitted_at as string | null) ?? null,
       callStartedAt: (a.call_started_at as string | null) ?? null,
       supersededBy: (a.superseded_by as string | null) ?? null,
+      auditorName: (Array.isArray(auditorRaw) ? auditorRaw[0]?.name : auditorRaw?.name) ?? null,
       reviewRequest: r ? { status: r.status as ReviewRequestStatus, finalOutcome: (r.final_outcome as FinalOutcome | null) ?? null, filerRole: r.filer_role as FilerRole } : null,
     }
   })
