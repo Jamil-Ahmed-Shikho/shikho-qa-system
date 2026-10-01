@@ -111,9 +111,16 @@ export function AgentDashboardView({ data }: { data: AgentDashboard }) {
             </p>
           )}
 
-          <Link href="/my-audits" style={{ display: 'inline-block', marginTop: '10px', fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
-            See all audits →
-          </Link>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+            <Link href="/my-audits" className="shikho-see-all-btn" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '11px 24px',
+              borderRadius: 'var(--radius-pill)', background: 'var(--brand)', color: 'white',
+              fontSize: '14px', fontWeight: 600, textDecoration: 'none',
+            }}>
+              See all audits →
+            </Link>
+          </div>
+          <style>{`.shikho-see-all-btn:hover { background: #253470; }`}</style>
         </div>
       )}
 

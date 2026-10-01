@@ -104,6 +104,18 @@ function UserMenu({ name, email, role, onSignOut }: { name: string; email: strin
   )
 }
 
+// shikho-logo.png is a 4500x4500 square with the bird mark stacked ABOVE the "shikho"
+// wordmark text (measured by scanning the PNG's pixel alpha/colour channels, 2026-10-02:
+// the bird's colourful pixels span rows ~1386-2050, the wordmark text's own pixels span
+// ~2055-3114). Centering the header title against the image's FULL bounding box (bird +
+// text) therefore sits the title ~7.4% of the logo's height ABOVE where the wordmark text
+// itself actually is — visible as the title looking "too high" next to the logo. Nudging
+// the title down by that same measured fraction of the logo's rendered height aligns it
+// with the wordmark instead. Recompute the fraction (0.5743 - 0.5 = 0.0743) if the PNG is
+// ever replaced with a different layout.
+const LOGO_HEIGHT = 44
+const TITLE_WORDMARK_NUDGE_PX = LOGO_HEIGHT * 0.0743
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth()
 
@@ -127,11 +139,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             if (!confirmLeave()) e.preventDefault()
           }}
         >
-          <ShikhoBirdMark height={44} />
+          <ShikhoBirdMark height={LOGO_HEIGHT} />
           <span className="shikho-portal-subtitle" aria-hidden style={{ width: '1px', height: '28px', background: 'var(--border-strong)' }} />
           <span
             className="shikho-portal-subtitle"
-            style={{ fontSize: '18px', lineHeight: 1, fontWeight: 700, color: 'var(--brand)', fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
+            style={{
+              fontSize: '18px', lineHeight: 1, fontWeight: 700, color: 'var(--brand)', fontFamily: 'var(--font-display)',
+              letterSpacing: '-0.01em', position: 'relative', top: `${TITLE_WORDMARK_NUDGE_PX}px`,
+            }}
           >
             Audit Management System
           </span>

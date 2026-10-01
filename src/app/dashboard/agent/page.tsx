@@ -2,7 +2,6 @@ import { PlaceholderDashboard } from '@/components/dashboard/PlaceholderDashboar
 import { AgentDashboardView } from '@/components/dashboard/AgentDashboardView'
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { MyPipSection } from '@/components/dashboard/MyPipSection'
-import { NavCard } from '@/components/dashboard/NavCard'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { loadAgentDashboard } from '@/lib/agents/agent-dashboard.service'
 
@@ -34,9 +33,6 @@ export default async function AgentDashboardPage() {
         <AgentDashboardView data={dashboard} />
       )}
 
-      <div style={{ marginTop: '20px' }}>
-        <NavCard href="/my-audits" title="My audits" description="See your audits, the feedback, and request a review of one you think is wrong." />
-      </div>
       <MyPipSection />
       <BriefingsSection audience="agent" canOpenAudit={false} />
     </div>
