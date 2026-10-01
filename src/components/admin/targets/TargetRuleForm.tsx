@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUnsavedGuard } from '@/lib/ui/use-unsaved'
 import { setTargetRuleAction, type RuleKind } from '@/lib/queue/actions'
+import type { TargetRuleRow } from '@/lib/queue/queue.service'
+import { formatUsd } from '@/lib/money/usd'
 
 const field: React.CSSProperties = {
   padding: '8px 10px', fontSize: '14px', borderRadius: 'var(--radius-md)', borderWidth: '1px', borderStyle: 'solid',
@@ -15,6 +17,8 @@ const chip: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', userSelect: 'none',
 }
 const chipOn: React.CSSProperties = { background: 'var(--brand-light)', borderColor: 'var(--brand)', color: 'var(--brand)', fontWeight: 600 }
+const th: React.CSSProperties = { textAlign: 'left', fontSize: '12px', color: 'var(--text-muted)', padding: '6px 8px', fontWeight: 500 }
+const td: React.CSSProperties = { padding: '8px', fontSize: '14px', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'var(--border)' }
 
 type Staged = {
   key: string // group|team — identifies the (vintage, team) target, so re-adding the same combo edits it in place
@@ -22,9 +26,20 @@ type Staged = {
   groupLabel: string
   team: string | null
   value: string
+  from: 'current' | 'next'
 }
 
-export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; slabLabels: string[]; teams: readonly string[] }) {
+const ymd = (d: string) => d.slice(0, 10)
+
+export function TargetRuleForm({
+  kind, slabLabels, teams, rows, thisWeek,
+}: {
+  kind: RuleKind
+  slabLabels: string[]
+  teams: readonly string[]
+  rows: TargetRuleRow[]
+  thisWeek: string
+}) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [groups, setGroups] = useState<string[]>([])
@@ -43,6 +58,18 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
   }
 
+  function upsertStaged(entries: Staged[]) {
+    setStaged((prev) => {
+      const next = [...prev]
+      for (const entry of entries) {
+        const idx = next.findIndex((s) => s.key === entry.key)
+        if (idx >= 0) next[idx] = entry
+        else next.push(entry)
+      }
+      return next
+    })
+  }
+
   function addToStaged(e: React.FormEvent) {
     e.preventDefault()
     setMsg(null)
@@ -52,20 +79,25 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
     if (value.trim() === '' || !Number.isFinite(n) || n < 0) return setMsg({ ok: false, text: 'Enter the target (zero or more).' })
 
     const teamList: (string | null)[] = allTeams ? [null] : selectedTeams
-    setStaged((prev) => {
-      const next = [...prev]
-      for (const g of groups) {
-        for (const t of teamList) {
-          const key = `${g}|${t ?? ''}`
-          const entry: Staged = { key, group: g, groupLabel: groupLabel(g), team: t, value: String(n) }
-          const idx = next.findIndex((s) => s.key === key)
-          if (idx >= 0) next[idx] = entry
-          else next.push(entry)
-        }
+    const entries: Staged[] = []
+    for (const g of groups) {
+      for (const t of teamList) {
+        entries.push({ key: `${g}|${t ?? ''}`, group: g, groupLabel: groupLabel(g), team: t, value: String(n), from })
       }
-      return next
-    })
+    }
+    upsertStaged(entries)
     setGroups([]); setSelectedTeams([]); setAllTeams(false); setValue('')
+  }
+
+  /** "Edit" on an existing row: stage it pre-filled so a changed number alone corrects it in place. */
+  function editRow(r: TargetRuleRow, state: 'Current' | 'Scheduled') {
+    const group = r.isOjt ? 'ojt' : (r.vintageLabel ?? '')
+    const rowFrom: 'current' | 'next' = state === 'Scheduled' ? 'next' : 'current'
+    upsertStaged([{
+      key: `${group}|${r.teamName ?? ''}`,
+      group, groupLabel: groupLabel(group), team: r.teamName, value: String(r.value), from: rowFrom,
+    }])
+    setMsg(null)
   }
 
   function updateStagedValue(key: string, v: string) {
@@ -84,7 +116,7 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
       const results = await Promise.all(
         staged.map(async (s) => ({
           s,
-          res: await setTargetRuleAction({ kind, group: s.group, team: s.team, value: Number(s.value), from }),
+          res: await setTargetRuleAction({ kind, group: s.group, team: s.team, value: Number(s.value), from: s.from }),
         }))
       )
       const failed = results.filter((r) => !r.res.ok)
@@ -99,6 +131,18 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
       router.refresh()
     })
   }
+
+  // Per key, the newest rule already in force is "current"; later ones are "scheduled"; older ones are "history".
+  const keyOf = (r: TargetRuleRow) => `${r.isOjt ? 'ojt' : r.vintageLabel}|${r.teamName ?? ''}`
+  const currentIds = new Set<string>()
+  const seen = new Set<string>()
+  for (const r of rows) { // rows arrive newest first
+    const k = keyOf(r)
+    if (!seen.has(k) && ymd(r.effectiveFrom) <= thisWeek) { currentIds.add(r.id); seen.add(k) }
+  }
+  const stateOf = (r: TargetRuleRow): 'Scheduled' | 'Current' | 'History' =>
+    ymd(r.effectiveFrom) > thisWeek ? 'Scheduled' : currentIds.has(r.id) ? 'Current' : 'History'
+  const fmt = (v: number) => (kind === 'audit' ? `${v} / week` : `${formatUsd(v)} / week`)
 
   return (
     <div>
@@ -162,7 +206,7 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
           <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Not yet saved ({staged.length})</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {staged.map((s) => (
-              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', flexWrap: 'wrap' }}>
                 <span style={{ minWidth: '90px' }}>{s.groupLabel}</span>
                 <span style={{ minWidth: '110px', color: 'var(--text-muted)' }}>{s.team ?? 'All teams'}</span>
                 <input
@@ -172,6 +216,14 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
                   onChange={(e) => updateStagedValue(s.key, e.target.value)}
                 />
                 <span style={{ color: 'var(--text-muted)' }}>{kind === 'audit' ? '/ week' : 'USD / week'}</span>
+                <select
+                  value={s.from}
+                  onChange={(e) => setStaged((prev) => prev.map((x) => (x.key === s.key ? { ...x, from: e.target.value as 'current' | 'next' } : x)))}
+                  style={{ ...field, width: 'auto', fontSize: '12px', padding: '4px 8px' }}
+                >
+                  <option value="next">Next sales week</option>
+                  <option value="current">This sales week</option>
+                </select>
                 <button type="button" onClick={() => removeStaged(s.key)} aria-label="Remove"
                   style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--alert)', cursor: 'pointer', fontSize: '13px' }}>
                   Remove
@@ -187,6 +239,40 @@ export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; sl
       )}
 
       {msg && <div role={msg.ok ? 'status' : 'alert'} style={{ fontSize: '13px', marginTop: '10px', color: msg.ok ? 'var(--status-green)' : 'var(--alert)' }}>{msg.text}</div>}
+
+      <div style={{ marginTop: '16px' }}>
+        {rows.length === 0 ? (
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No targets set yet.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+              <thead><tr><th style={th}>Vintage</th><th style={th}>Team</th><th style={th}>Target</th><th style={th}>From week</th><th style={th} /><th style={th} /></tr></thead>
+              <tbody>
+                {rows.map((r) => {
+                  const state = stateOf(r)
+                  return (
+                    <tr key={r.id} style={{ opacity: state === 'History' ? 0.55 : 1 }}>
+                      <td style={td}>{r.isOjt ? 'OJT' : r.vintageLabel}</td>
+                      <td style={td}>{r.teamName ?? 'All teams'}</td>
+                      <td style={td}><b>{fmt(r.value)}</b></td>
+                      <td style={td}>{ymd(r.effectiveFrom)}</td>
+                      <td style={td}>{state}</td>
+                      <td style={td}>
+                        {state !== 'History' && (
+                          <button type="button" onClick={() => editRow(r, state)}
+                            style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: '13px', fontWeight: 600, padding: 0 }}>
+                            Edit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

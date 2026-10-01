@@ -1,9 +1,12 @@
 'use client'
 // ============================================================
 // SHIKHO QA SYSTEM — App Shell
-// Top bar with brand mark, current user, sign out
+// Top bar with brand mark, a user avatar menu (name/email/role, change
+// password, sign out) — matches the CMS's own avatar-menu pattern, per
+// Jamil's reference screenshot (2026-10-02).
 // ============================================================
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { confirmLeave } from '@/lib/ui/unsaved'
@@ -16,6 +19,89 @@ const ROLE_LABELS: Record<string, string> = {
   qa_auditor: 'QA Auditor',
   team_lead: 'Team Lead',
   agent: 'Agent',
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0][0].toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function UserMenu({ name, email, role, onSignOut }: { name: string; email: string; role: string; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Account menu"
+        aria-expanded={open}
+        style={{
+          width: '38px', height: '38px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'var(--accent)', color: 'white', fontSize: '14px', fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {initialsOf(name)}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute', top: 'calc(100% + 10px)', right: 0, zIndex: 50,
+            width: '260px', background: 'var(--paper)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 24px rgba(15,19,34,0.14)', overflow: 'hidden',
+          }}
+        >
+          <div style={{ padding: '16px 18px 14px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>{email}</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--brand)', marginTop: '4px' }}>{role}</div>
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            <Link
+              href="/auth/change-password"
+              role="menuitem"
+              onClick={(e) => {
+                if (!confirmLeave()) { e.preventDefault(); return }
+                setOpen(false)
+              }}
+              style={{
+                display: 'block', padding: '12px 18px', fontSize: '14px', fontWeight: 500,
+                color: 'var(--text-primary)',
+              }}
+            >
+              Change password
+            </Link>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                if (confirmLeave()) onSignOut()
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '12px 18px', fontSize: '14px', fontWeight: 500,
+                color: 'var(--alert)', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer',
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -41,53 +127,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             if (!confirmLeave()) e.preventDefault()
           }}
         >
-          <ShikhoBirdMark height={36} />
+          <ShikhoBirdMark height={48} />
         </Link>
         {!loading && user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {user.profile.name}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {ROLE_LABELS[user.role] || user.role}
-              </div>
-            </div>
-            <Link
-              href="/auth/change-password"
-              onClick={(e) => {
-                if (!confirmLeave()) e.preventDefault()
-              }}
-              style={{
-                padding: '8px 14px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                background: 'var(--surface-1)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              Change password
-            </Link>
-            <button
-              onClick={() => {
-                if (confirmLeave()) signOut()
-              }}
-              style={{
-                padding: '8px 14px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: 'var(--brand)',
-                background: 'var(--brand-light)',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-              }}
-            >
-              Sign out
-            </button>
-          </div>
+          <UserMenu
+            name={user.profile.name}
+            email={user.profile.email}
+            role={ROLE_LABELS[user.role] || user.role}
+            onSignOut={signOut}
+          />
         )}
       </header>
       <main style={{ flex: 1, padding: '24px 20px' }}>{children}</main>
