@@ -75,6 +75,16 @@ export async function startAudit(leadId: string | number, callId: string | numbe
   if (agentError || !agent) throw new Error('Could not load the selected agent.')
   if (!agent.team_name) throw new Error('This agent has no team assigned — set one before auditing them.')
 
+  // A QA Auditor restricted to one team (their own team_name set, e.g. naznin.mitu / TS3P,
+  // confirmed by Jamil 2026-10-02: "give access to TS3P only") can only audit agents on that
+  // team. Super Admin/QA Manager are never restricted this way (team_name is informational
+  // for them elsewhere in this system, §2); a Team Lead already has its own, separate
+  // restriction to their own agents (findCallOwner/decideAuditAgent above). Most QA Auditors
+  // have no team_name set at all and are unaffected by this check.
+  if (user.role === 'qa_auditor' && user.profile.team_name && user.profile.team_name !== agent.team_name) {
+    throw new Error(`You are restricted to auditing ${user.profile.team_name} — this agent is on ${agent.team_name}.`)
+  }
+
   // The team's newest ACTIVE rubric (same rule as before, chosen from the
   // mappings fetched above).
   const mapping = mappings.get(agent.team_name)
