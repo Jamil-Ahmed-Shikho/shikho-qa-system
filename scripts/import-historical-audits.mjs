@@ -11,6 +11,17 @@
 //
 //   node --env-file=.env.local scripts/import-historical-audits.mjs            (dry run, default)
 //   node --env-file=.env.local scripts/import-historical-audits.mjs --live     (writes for real)
+//
+// POST-IMPORT FIX, applied once by hand (not in this script): the source spreadsheet's
+// "Audit time" / "Call Date & time" columns had the wrong YEAR on roughly half the rows
+// (2026 instead of 2025 — confirmed by Jamil, not a parsing bug here), which put ~12,700
+// audits in the future relative to the live system's clock. Corrected with a direct SQL
+// `update audits set submitted_at = submitted_at - interval '1 year', ...` (separately for
+// the submitted_at/created_at pair and the call_started_at/call_ended_at pair, each gated
+// on ITS OWN year = 2026, since a handful of rows had one field wrong and not the other).
+// If this script is ever re-run against a freshly corrected source file, that fix won't be
+// needed again — but if the same mis-year pattern shows up, don't guess which direction to
+// shift without confirming, the way this one was confirmed.
 // ============================================================
 import ExcelJS from 'exceljs'
 import pg from 'pg'
