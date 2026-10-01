@@ -63,13 +63,13 @@ export function ChangePasswordPage() {
             fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase',
             letterSpacing: '0.08em', margin: '10px 0 0',
           }}>
-            Set your password
+            Change your password
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-            You signed in with a temporary password. Choose your own to continue.
+            Choose a new password below.
           </p>
           {error && (
             <div style={{

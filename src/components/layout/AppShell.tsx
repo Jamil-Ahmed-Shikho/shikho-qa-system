@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             if (!confirmLeave()) e.preventDefault()
           }}
         >
-          <ShikhoBirdMark height={28} />
+          <ShikhoBirdMark height={36} />
         </Link>
         {!loading && user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -53,6 +53,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {ROLE_LABELS[user.role] || user.role}
               </div>
             </div>
+            <Link
+              href="/auth/change-password"
+              onClick={(e) => {
+                if (!confirmLeave()) e.preventDefault()
+              }}
+              style={{
+                padding: '8px 14px',
+                fontSize: '13px',
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              Change password
+            </Link>
             <button
               onClick={() => {
                 if (confirmLeave()) signOut()

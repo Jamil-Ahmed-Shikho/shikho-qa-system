@@ -10,70 +10,183 @@ const field: React.CSSProperties = {
   borderColor: 'var(--border)', background: 'var(--surface)', color: 'inherit', width: '100%',
 }
 const label: React.CSSProperties = { display: 'block', fontSize: '12px', fontWeight: 500, margin: '0 0 4px', color: 'var(--text-muted)' }
+const chip: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 10px', fontSize: '13px',
+  borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', userSelect: 'none',
+}
+const chipOn: React.CSSProperties = { background: 'var(--brand-light)', borderColor: 'var(--brand)', color: 'var(--brand)', fontWeight: 600 }
+
+type Staged = {
+  key: string // group|team — identifies the (vintage, team) target, so re-adding the same combo edits it in place
+  group: string
+  groupLabel: string
+  team: string | null
+  value: string
+}
 
 export function TargetRuleForm({ kind, slabLabels, teams }: { kind: RuleKind; slabLabels: string[]; teams: readonly string[] }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [group, setGroup] = useState('')
-  const [team, setTeam] = useState('')
+  const [groups, setGroups] = useState<string[]>([])
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+  const [allTeams, setAllTeams] = useState(false)
   const [value, setValue] = useState('')
   const [from, setFrom] = useState<'current' | 'next'>('next')
+  const [staged, setStaged] = useState<Staged[]>([])
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  useUnsavedGuard(group !== '' || value !== '')
+  useUnsavedGuard(staged.length > 0)
 
-  function submit(e: React.FormEvent) {
+  const groupOptions = [{ value: 'ojt', label: 'OJT' }, ...slabLabels.map((l) => ({ value: l, label: l }))]
+  const groupLabel = (g: string) => (g === 'ojt' ? 'OJT' : g)
+
+  function toggle(list: string[], setList: (v: string[]) => void, v: string) {
+    setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
+  }
+
+  function addToStaged(e: React.FormEvent) {
     e.preventDefault()
     setMsg(null)
     const n = Number(value)
-    if (!group) return setMsg({ ok: false, text: 'Choose OJT or a vintage slab.' })
+    if (groups.length === 0) return setMsg({ ok: false, text: 'Choose at least one vintage (or OJT).' })
+    if (!allTeams && selectedTeams.length === 0) return setMsg({ ok: false, text: 'Choose at least one team, or check "All teams".' })
     if (value.trim() === '' || !Number.isFinite(n) || n < 0) return setMsg({ ok: false, text: 'Enter the target (zero or more).' })
+
+    const teamList: (string | null)[] = allTeams ? [null] : selectedTeams
+    setStaged((prev) => {
+      const next = [...prev]
+      for (const g of groups) {
+        for (const t of teamList) {
+          const key = `${g}|${t ?? ''}`
+          const entry: Staged = { key, group: g, groupLabel: groupLabel(g), team: t, value: String(n) }
+          const idx = next.findIndex((s) => s.key === key)
+          if (idx >= 0) next[idx] = entry
+          else next.push(entry)
+        }
+      }
+      return next
+    })
+    setGroups([]); setSelectedTeams([]); setAllTeams(false); setValue('')
+  }
+
+  function updateStagedValue(key: string, v: string) {
+    setStaged((prev) => prev.map((s) => (s.key === key ? { ...s, value: v } : s)))
+  }
+  function removeStaged(key: string) {
+    setStaged((prev) => prev.filter((s) => s.key !== key))
+  }
+
+  function saveAll() {
+    setMsg(null)
+    const bad = staged.find((s) => s.value.trim() === '' || !Number.isFinite(Number(s.value)) || Number(s.value) < 0)
+    if (bad) return setMsg({ ok: false, text: `"${bad.groupLabel} / ${bad.team ?? 'All teams'}" needs a valid target before saving.` })
+
     start(async () => {
-      const res = await setTargetRuleAction({ kind, group, team: team || null, value: n, from })
-      if (!res.ok) return setMsg({ ok: false, text: res.error })
-      setMsg({ ok: true, text: `Saved — effective from the sales week starting ${res.effectiveFrom.slice(0, 10)}.` })
-      setGroup(''); setValue('')
+      const results = await Promise.all(
+        staged.map(async (s) => ({
+          s,
+          res: await setTargetRuleAction({ kind, group: s.group, team: s.team, value: Number(s.value), from }),
+        }))
+      )
+      const failed = results.filter((r) => !r.res.ok)
+      const succeededKeys = new Set(results.filter((r) => r.res.ok).map((r) => r.s.key))
+      setStaged((prev) => prev.filter((s) => !succeededKeys.has(s.key)))
+      if (failed.length === 0) {
+        setMsg({ ok: true, text: `Saved ${results.length} target${results.length === 1 ? '' : 's'}.` })
+      } else {
+        const first = failed[0].res as { ok: false; error: string }
+        setMsg({ ok: false, text: `${results.length - failed.length} saved, ${failed.length} failed (e.g. "${failed[0].s.groupLabel} / ${failed[0].s.team ?? 'All teams'}": ${first.error}) — fix and try again.` })
+      }
       router.refresh()
     })
   }
 
   return (
-    <form onSubmit={submit} noValidate>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', alignItems: 'end' }}>
+    <div>
+      <form onSubmit={addToStaged} noValidate>
         <div>
-          <label style={label} htmlFor={`g-${kind}`}>Vintage</label>
-          <select id={`g-${kind}`} style={field} value={group} onChange={(e) => setGroup(e.target.value)}>
-            <option value="">Choose…</option>
-            <option value="ojt">OJT</option>
-            {slabLabels.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
+          <label style={label}>Vintage (pick one or more)</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {groupOptions.map((g) => (
+              <label key={g.value} style={{ ...chip, ...(groups.includes(g.value) ? chipOn : {}) }}>
+                <input type="checkbox" checked={groups.includes(g.value)} onChange={() => toggle(groups, setGroups, g.value)} style={{ display: 'none' }} />
+                {g.label}
+              </label>
+            ))}
+          </div>
         </div>
-        <div>
-          <label style={label} htmlFor={`t-${kind}`}>Team</label>
-          <select id={`t-${kind}`} style={field} value={team} onChange={(e) => setTeam(e.target.value)}>
-            <option value="">All teams</option>
-            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+
+        <div style={{ marginTop: '12px' }}>
+          <label style={label}>Team (pick one or more, or all)</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <label style={{ ...chip, ...(allTeams ? chipOn : {}) }}>
+              <input type="checkbox" checked={allTeams} onChange={() => { setAllTeams((v) => !v); setSelectedTeams([]) }} style={{ display: 'none' }} />
+              All teams
+            </label>
+            {teams.map((t) => (
+              <label key={t} style={{ ...chip, ...(selectedTeams.includes(t) ? chipOn : {}), ...(allTeams ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }}>
+                <input type="checkbox" checked={selectedTeams.includes(t)} disabled={allTeams}
+                  onChange={() => toggle(selectedTeams, setSelectedTeams, t)} style={{ display: 'none' }} />
+                {t}
+              </label>
+            ))}
+          </div>
         </div>
-        <div>
-          <label style={label} htmlFor={`v-${kind}`}>{kind === 'audit' ? 'Audits per week' : 'Revenue per week (USD)'}</label>
-          <input id={`v-${kind}`} style={field} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', alignItems: 'end', marginTop: '12px' }}>
+          <div>
+            <label style={label} htmlFor={`v-${kind}`}>{kind === 'audit' ? 'Audits per week' : 'Revenue per week (USD)'}</label>
+            <input id={`v-${kind}`} style={field} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+          </div>
+          <div>
+            <label style={label} htmlFor={`f-${kind}`}>Starts</label>
+            <select id={`f-${kind}`} style={field} value={from} onChange={(e) => setFrom(e.target.value as 'current' | 'next')}>
+              <option value="next">Next sales week (Recommended)</option>
+              <option value="current">This sales week</option>
+            </select>
+          </div>
+          <div>
+            <button type="submit" style={{ padding: '9px 18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+              Add to list
+            </button>
+          </div>
         </div>
-        <div>
-          <label style={label} htmlFor={`f-${kind}`}>Starts</label>
-          <select id={`f-${kind}`} style={field} value={from} onChange={(e) => setFrom(e.target.value as 'current' | 'next')}>
-            <option value="next">Next sales week (Recommended)</option>
-            <option value="current">This sales week</option>
-          </select>
-        </div>
-      </div>
+      </form>
+
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '8px 0 0' }}>
         A team-specific target beats an &quot;All teams&quot; one. Past weeks are never changed — &quot;This sales week&quot; only affects the week in progress.
+        Nothing is saved until you press <b>Save all</b> below, so you can add several, adjust the numbers, and cross-check before committing.
       </p>
-      {msg && <div role={msg.ok ? 'status' : 'alert'} style={{ fontSize: '13px', marginTop: '8px', color: msg.ok ? 'var(--status-green)' : 'var(--alert)' }}>{msg.text}</div>}
-      <button type="submit" disabled={pending}
-        style={{ marginTop: '12px', padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--brand)', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: pending ? 'wait' : 'pointer' }}>
-        {pending ? 'Saving…' : 'Save target'}
-      </button>
-    </form>
+
+      {staged.length > 0 && (
+        <div style={{ marginTop: '16px', padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--surface-0)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>Not yet saved ({staged.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {staged.map((s) => (
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                <span style={{ minWidth: '90px' }}>{s.groupLabel}</span>
+                <span style={{ minWidth: '110px', color: 'var(--text-muted)' }}>{s.team ?? 'All teams'}</span>
+                <input
+                  style={{ ...field, width: '110px' }}
+                  inputMode="decimal"
+                  value={s.value}
+                  onChange={(e) => updateStagedValue(s.key, e.target.value)}
+                />
+                <span style={{ color: 'var(--text-muted)' }}>{kind === 'audit' ? '/ week' : 'USD / week'}</span>
+                <button type="button" onClick={() => removeStaged(s.key)} aria-label="Remove"
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--alert)', cursor: 'pointer', fontSize: '13px' }}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={saveAll} disabled={pending}
+            style={{ marginTop: '12px', padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--brand)', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: pending ? 'wait' : 'pointer' }}>
+            {pending ? 'Saving…' : `Save all (${staged.length})`}
+          </button>
+        </div>
+      )}
+
+      {msg && <div role={msg.ok ? 'status' : 'alert'} style={{ fontSize: '13px', marginTop: '10px', color: msg.ok ? 'var(--status-green)' : 'var(--alert)' }}>{msg.text}</div>}
+    </div>
   )
 }
