@@ -69,6 +69,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="What's stuck, Team Lead/auditor outcomes, and calibration consistency — My view / Team view."
         />
         <NavCard
+          href="/reports/qa-rubric-trends"
+          title="Rubric Fail Trends"
+          description="Which rubric parameters fail most often, and whether each is getting better or worse — My view / Team view."
+        />
+        <NavCard
           href="/pip"
           title="PIP training"
           description="Agents on a performance improvement plan and their training sessions."

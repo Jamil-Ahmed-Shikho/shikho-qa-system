@@ -71,6 +71,11 @@ export default async function AdminDashboardPage() {
           description="What's stuck, Team Lead/auditor outcomes, and how consistently the team scores together."
         />
         <NavCard
+          href="/reports/qa-rubric-trends"
+          title="Rubric Fail Trends"
+          description="Which rubric parameters fail most often, and whether each is getting better or worse."
+        />
+        <NavCard
           href="/admin/review-requests"
           title={waiting ? `Review Requests (${waiting} waiting)` : 'Review Requests'}
           description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."
