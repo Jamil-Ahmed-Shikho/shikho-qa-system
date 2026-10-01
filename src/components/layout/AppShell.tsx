@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { confirmLeave } from '@/lib/ui/unsaved'
 import { ShikhoBirdMark } from '@/components/brand/ShikhoBirdMark'
+import { NotificationBell } from './NotificationBell'
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -153,12 +154,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <style>{`@media (max-width: 480px) { .shikho-portal-subtitle { display: none; } }`}</style>
         {!loading && user && (
-          <UserMenu
-            name={user.profile.name}
-            email={user.profile.email}
-            role={ROLE_LABELS[user.role] || user.role}
-            onSignOut={signOut}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <NotificationBell />
+            <UserMenu
+              name={user.profile.name}
+              email={user.profile.email}
+              role={ROLE_LABELS[user.role] || user.role}
+              onSignOut={signOut}
+            />
+          </div>
         )}
       </header>
       <main style={{ flex: 1, padding: '24px 20px' }}>{children}</main>

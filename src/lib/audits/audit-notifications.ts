@@ -33,8 +33,10 @@ export interface AuditEmailData {
   agentId: string
   agentName: string
   agentEmail: string | null
+  teamLeaderId: string | null
   teamLeaderName: string | null
   teamLeaderEmail: string | null
+  managerId: string | null
   managerName: string | null
   managerEmail: string | null
   auditorName: string
@@ -52,6 +54,7 @@ export interface AuditEmailData {
 }
 
 export interface QaManagerRecipient {
+  id: string
   name: string
   email: string
 }
@@ -86,27 +89,31 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
   const rubric = one(audit.rubric as OneOrMany<{ name: string }>)
   if (!agent || !auditor || !rubric) throw new Error('Audit email data is missing agent, auditor, or rubric.')
 
+  let teamLeaderId: string | null = null
   let teamLeaderName: string | null = null
   let teamLeaderEmail: string | null = null
+  let managerId: string | null = null
   let managerName: string | null = null
   let managerEmail: string | null = null
 
   if (agent.team_leader_id) {
     const { data: tl } = await supabase
       .from('users')
-      .select('name, email, is_active, account_status, manager_id')
+      .select('id, name, email, is_active, account_status, manager_id')
       .eq('id', agent.team_leader_id)
       .maybeSingle()
     if (tl) {
+      teamLeaderId = tl.id
       teamLeaderName = tl.name
       if (hasRealLogin(tl)) teamLeaderEmail = tl.email
       if (tl.manager_id) {
         const { data: mgr } = await supabase
           .from('users')
-          .select('name, email, is_active, account_status')
+          .select('id, name, email, is_active, account_status')
           .eq('id', tl.manager_id)
           .maybeSingle()
         if (mgr) {
+          managerId = mgr.id
           managerName = mgr.name
           if (hasRealLogin(mgr)) managerEmail = mgr.email
         }
@@ -150,8 +157,10 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
     agentId: agent.id,
     agentName: agent.name,
     agentEmail: hasRealLogin(agent) ? agent.email : null,
+    teamLeaderId,
     teamLeaderName,
     teamLeaderEmail,
+    managerId,
     managerName,
     managerEmail,
     auditorName: auditor.name,
@@ -175,10 +184,10 @@ export async function loadQaManagers(): Promise<QaManagerRecipient[]> {
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('users')
-    .select('name, email, is_active, account_status')
+    .select('id, name, email, is_active, account_status')
     .eq('role', 'qa_manager')
   if (error) throw new Error(`Could not load QA Managers for the audit alert: ${error.message}`)
-  return (data ?? []).filter(hasRealLogin).map((u) => ({ name: u.name, email: u.email as string }))
+  return (data ?? []).filter(hasRealLogin).map((u) => ({ id: u.id, name: u.name, email: u.email as string }))
 }
 
 /** This specific audit's own outcome, not the agent's rolling 4-week RYG status — computable the

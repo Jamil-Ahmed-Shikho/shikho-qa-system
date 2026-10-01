@@ -24,6 +24,7 @@ import { parsePayload, type MarksPayload } from './scoring'
 import { loadAuditEmailData, loadQaManagers, qualifiesForRedFatalAlert } from './audit-notifications'
 import { auditResultHtml, auditResultSubject, auditResultText, redFatalAlertHtml, redFatalAlertSubject, redFatalAlertText } from './audit-email-templates'
 import { parseNotifyMode, parseNotifyTestRecipients, runNotifySend, type NotifyTarget } from '@/lib/pip/notification-runner'
+import { createNotifications } from '@/lib/notifications/notifications.service'
 
 export interface SubmitResult {
   score_percent: number
@@ -148,6 +149,38 @@ function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
     try {
       const d = await loadAuditEmailData(auditId)
       if (!d) return
+      const isRedFatal = qualifiesForRedFatalAlert(d)
+      const qaManagers = isRedFatal ? await loadQaManagers() : []
+
+      // In-app notifications (schema_064) — always created, unlike the email below, since there's
+      // no inbox-spam risk to gate: only the recipient themselves ever sees their own row (RLS).
+      const outcome = d.criticalFail ? 'a critical fatal' : d.passed ? `${d.scorePercent}%, Passed` : `${d.scorePercent}%, Failed`
+      await createNotifications([
+        {
+          recipientId: d.agentId,
+          type: 'audit_submitted',
+          title: 'Your audit result is in',
+          body: `${d.auditorName} scored your ${new Date(d.submittedAt).toLocaleDateString('en-GB')} call — ${outcome}.`,
+          link: `/my-audits/${auditId}`,
+          relatedTable: 'audits',
+          relatedId: auditId,
+        },
+        ...(isRedFatal
+          ? [...(d.managerId ? [d.managerId] : []), ...qaManagers.map((m) => m.id)]
+              .filter((id, i, arr) => arr.indexOf(id) === i)
+              .map((recipientId) => ({
+                recipientId,
+                type: 'audit_red_fatal' as const,
+                title: `${d.agentName}'s audit needs attention`,
+                body: d.criticalFail
+                  ? `Critical fatal error — ${d.agentName}, scored by ${d.auditorName}.`
+                  : `Scored ${d.scorePercent}% (below the ${d.passMarkUsed}% pass mark) — ${d.agentName}, scored by ${d.auditorName}.`,
+                link: `/audits/${auditId}`,
+                relatedTable: 'audits',
+                relatedId: auditId,
+              }))
+          : []),
+      ])
 
       const targets: NotifyTarget[] = []
       if (d.agentEmail) {
@@ -156,8 +189,7 @@ function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
           send: () => sendAuditEmail(d.agentEmail as string, d.teamLeaderEmail, auditResultSubject(d), auditResultHtml(d), auditResultText(d)),
         })
       }
-      if (qualifiesForRedFatalAlert(d)) {
-        const qaManagers = await loadQaManagers()
+      if (isRedFatal) {
         const recipients = new Map<string, string>() // email -> name, deduped (a BPO Team Lead's "manager" can itself be a qa_manager)
         if (d.managerEmail && d.managerName) recipients.set(d.managerEmail, d.managerName)
         for (const m of qaManagers) recipients.set(m.email, m.name)

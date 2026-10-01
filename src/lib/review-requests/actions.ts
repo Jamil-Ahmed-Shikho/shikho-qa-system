@@ -12,6 +12,9 @@ import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { writeAuditLogs } from '@/lib/users/audit-log'
 import { validateNote, validateReason } from './validation'
+import { createNotifications } from '@/lib/notifications/notifications.service'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { loadQaManagers } from '@/lib/audits/audit-notifications'
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -24,6 +27,17 @@ function plain(message: string): string {
 
 async function log(actorId: string, action: string, recordId: string | null, after: Record<string, unknown>) {
   await writeAuditLogs([{ actor_id: actorId, action, table_name: 'review_requests', record_id: recordId, after_data: after }])
+}
+
+/** The agent's name on an audit — used only to word a notification; looked up with the service
+ * role since the caller (a Team Lead escalating, or QA deciding who to assign) may not have RLS
+ * visibility into the agent's own row. */
+async function auditAgentName(auditId: string): Promise<string> {
+  const admin = getSupabaseAdmin()
+  const { data } = await admin.from('audits').select('agent:users!audits_agent_id_fkey(name)').eq('id', auditId).maybeSingle()
+  type OneOrMany<T> = T | T[] | null
+  const one = <T,>(v: OneOrMany<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v)
+  return one(data?.agent as OneOrMany<{ name: string }>)?.name ?? 'An agent'
 }
 
 function refresh(auditId: string, reauditId?: string | null) {
@@ -48,9 +62,38 @@ export async function fileReviewRequestAction(auditId: string, reason: string): 
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.rpc('file_review_request', { p_audit_id: auditId, p_reason: reason })
   if (error) return { ok: false, error: plain(error.message) }
-  await log(user.profile.id, `review_request.filed_by_${user.role}`, data as string, { auditId })
+  const id = data as string
+  await log(user.profile.id, `review_request.filed_by_${user.role}`, id, { auditId })
+
+  // In-app notification (schema_064) to whoever it now lands with: the agent's own Team Lead when
+  // the agent filed it themselves, or every QA Manager when a Team Lead/Manager filed it on the
+  // agent's behalf (schema_048: that case skips straight to with_qa_manager, unassigned).
+  if (user.role === 'agent' && user.profile.team_leader_id) {
+    await createNotifications([{
+      recipientId: user.profile.team_leader_id,
+      type: 'review_request_landed',
+      title: 'A review request needs your decision',
+      body: `${user.profile.name} requested a review of their audit — uphold it, or escalate to QA.`,
+      link: `/audits/${auditId}`,
+      relatedTable: 'review_requests',
+      relatedId: id,
+    }])
+  } else if (user.role !== 'agent') {
+    const agentName = await auditAgentName(auditId)
+    const qaManagers = await loadQaManagers()
+    await createNotifications(qaManagers.map((m) => ({
+      recipientId: m.id,
+      type: 'review_request_landed' as const,
+      title: 'A review request is waiting for assignment',
+      body: `${user.profile.name} filed a review request on behalf of ${agentName} — assign it to yourself or an auditor.`,
+      link: `/admin/review-requests`,
+      relatedTable: 'review_requests',
+      relatedId: id,
+    })))
+  }
+
   refresh(auditId)
-  return { ok: true, id: data as string }
+  return { ok: true, id }
 }
 
 /** The Team Lead's own decision — uphold (final) or escalate. */
@@ -64,6 +107,21 @@ export async function teamLeadDecideAction(id: string, auditId: string, decision
   const { error } = await supabase.rpc('team_lead_decide_review_request', { p_id: id, p_decision: decision, p_note: note })
   if (error) return { ok: false, error: plain(error.message) }
   await log(user.profile.id, `review_request.team_lead_${decision}`, id, { auditId })
+
+  if (decision === 'escalate') {
+    const agentName = await auditAgentName(auditId)
+    const qaManagers = await loadQaManagers()
+    await createNotifications(qaManagers.map((m) => ({
+      recipientId: m.id,
+      type: 'review_request_landed' as const,
+      title: 'A review request is waiting for assignment',
+      body: `${user.profile.name} escalated ${agentName}'s review request — assign it to yourself or an auditor.`,
+      link: `/admin/review-requests`,
+      relatedTable: 'review_requests',
+      relatedId: id,
+    })))
+  }
+
   refresh(auditId)
   return { ok: true }
 }
@@ -76,6 +134,20 @@ export async function assignReviewRequestAction(id: string, auditId: string, ass
   const { error } = await supabase.rpc('qa_manager_assign_review_request', { p_id: id, p_assignee: assignee })
   if (error) return { ok: false, error: plain(error.message) }
   await log(user.profile.id, 'review_request.assigned', id, { auditId, assignee })
+
+  if (assignee !== user.profile.id) {
+    const agentName = await auditAgentName(auditId)
+    await createNotifications([{
+      recipientId: assignee,
+      type: 'review_request_landed',
+      title: 'A review request was assigned to you',
+      body: `${user.profile.name} assigned you ${agentName}'s review request — start the re-audit when ready.`,
+      link: `/audits/${auditId}`,
+      relatedTable: 'review_requests',
+      relatedId: id,
+    }])
+  }
+
   refresh(auditId)
   return { ok: true }
 }

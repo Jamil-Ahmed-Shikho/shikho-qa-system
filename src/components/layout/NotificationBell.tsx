@@ -1,0 +1,163 @@
+'use client'
+// ============================================================
+// SHIKHO QA SYSTEM — notification bell (schema_064, 2026-10-02)
+// Polls loadNotificationsAction every 30s and on focus/open. A failed
+// load shows "could not load" in the dropdown rather than a silently
+// empty bell (§14).
+// ============================================================
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { loadNotificationsAction, markAllNotificationsReadAction, markNotificationsReadAction } from '@/lib/notifications/actions'
+import type { NotificationItem } from '@/lib/notifications/notifications.service'
+
+const POLL_MS = 30_000
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.round(hrs / 24)}d ago`
+}
+
+const TYPE_ICON: Record<string, string> = {
+  audit_submitted: 'ti-clipboard-check',
+  audit_red_fatal: 'ti-alert-triangle',
+  calibration_scheduled: 'ti-users',
+  review_request_landed: 'ti-arrow-back-up',
+  coaching_reminder: 'ti-bulb',
+}
+
+export function NotificationBell() {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<NotificationItem[] | null>(null)
+  const [unread, setUnread] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const load = useCallback(async () => {
+    const res = await loadNotificationsAction()
+    if (res.ok) {
+      setItems(res.items)
+      setUnread(res.unread)
+      setError(null)
+    } else {
+      setError(res.error)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, POLL_MS)
+    return () => clearInterval(id)
+  }, [load])
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  async function onOpen() {
+    const next = !open
+    setOpen(next)
+    if (next) await load()
+  }
+
+  async function onItemClick(n: NotificationItem) {
+    if (!n.virtual && !n.readAt) {
+      setItems((prev) => prev && prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)))
+      setUnread((u) => Math.max(0, u - 1))
+      await markNotificationsReadAction([n.id])
+    }
+    if (n.link) {
+      setOpen(false)
+      window.location.href = n.link
+    }
+  }
+
+  async function onMarkAllRead() {
+    setItems((prev) => prev && prev.map((x) => (x.virtual ? x : { ...x, readAt: x.readAt ?? new Date().toISOString() })))
+    setUnread(0)
+    await markAllNotificationsReadAction()
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={onOpen}
+        aria-label="Notifications"
+        aria-expanded={open}
+        style={{
+          position: 'relative', width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--border)',
+          background: 'var(--surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <i className="ti ti-bell" style={{ fontSize: '18px', color: 'var(--text-primary)' }} />
+        {unread > 0 && (
+          <span
+            style={{
+              position: 'absolute', top: '-2px', right: '-2px', minWidth: '16px', height: '16px', padding: '0 3px',
+              borderRadius: '999px', background: 'var(--alert)', color: '#fff', fontSize: '10px', fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+            }}
+          >
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute', top: 'calc(100% + 10px)', right: 0, zIndex: 50,
+            width: '340px', maxWidth: '90vw', maxHeight: '440px', overflowY: 'auto',
+            background: 'var(--paper)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 24px rgba(15,19,34,0.14)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--paper)' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700 }}>Notifications</span>
+            {items && items.some((n) => !n.readAt && !n.virtual) && (
+              <button onClick={onMarkAllRead} style={{ background: 'none', border: 'none', color: 'var(--brand)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          {error ? (
+            <div role="alert" style={{ padding: '18px 16px', fontSize: '13px', color: 'var(--alert)' }}>Could not load notifications — this does not mean there are none.</div>
+          ) : items === null ? (
+            <div style={{ padding: '18px 16px', fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: '18px 16px', fontSize: '13px', color: 'var(--text-muted)' }}>Nothing yet.</div>
+          ) : (
+            items.map((n) => (
+              <div
+                key={n.id}
+                role="menuitem"
+                onClick={() => onItemClick(n)}
+                style={{
+                  display: 'flex', gap: '10px', padding: '12px 16px', cursor: n.link ? 'pointer' : 'default',
+                  borderBottom: '1px solid var(--border)', background: n.readAt || n.virtual ? 'transparent' : 'var(--brand-light)',
+                }}
+              >
+                <i className={`ti ${TYPE_ICON[n.type] ?? 'ti-bell'}`} style={{ fontSize: '16px', color: 'var(--brand)', marginTop: '2px', flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4 }}>{n.body}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{timeAgo(n.createdAt)}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

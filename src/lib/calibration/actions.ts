@@ -15,6 +15,8 @@ import { CrmApiError, getCallById } from '@/lib/crm/client'
 import { crmTimestamp } from '@/lib/crm/time.mjs'
 import { loadCandidates } from './calibration.service'
 import { parseDhakaLocal, validateSession, type SessionInput } from './validation'
+import { createNotifications } from '@/lib/notifications/notifications.service'
+import { formatDhakaDateTime } from '@/lib/dates/format'
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -83,6 +85,22 @@ export async function createSessionAction(input: SessionInput): Promise<ActionRe
     await log(user.profile.id, 'calibration.created', id, {
       kind: input.kind, team: input.teamName, site: input.siteName, scheduled_at: scheduledAt, invited: input.participantIds.length,
     })
+
+    // In-app notification (schema_064) to every OTHER invited participant — not the scheduler, who
+    // already knows (they just did it).
+    const others = input.participantIds.filter((p) => p !== user.profile.id)
+    await createNotifications(
+      others.map((recipientId) => ({
+        recipientId,
+        type: 'calibration_scheduled' as const,
+        title: 'Calibration session scheduled',
+        body: `${user.profile.name} scheduled a calibration session (${input.teamName}, ${input.siteName}) for ${formatDhakaDateTime(scheduledAt)}.`,
+        link: `/calibration/${id}`,
+        relatedTable: 'calibration_sessions',
+        relatedId: id,
+      }))
+    )
+
     refresh(id)
     return { ok: true, id }
   } catch (err) {
