@@ -96,6 +96,11 @@ export default async function AdminDashboardPage() {
           description="Weekly audit and revenue targets by vintage and team. Changes never rewrite past weeks."
         />
         <NavCard
+          href="/admin/holidays"
+          title="Holiday calendar"
+          description="Mark holidays with a note, per site or both — this week's audit targets shrink automatically to match (§9.4)."
+        />
+        <NavCard
           href="/admin/pip"
           title="PIP"
           description="Performance improvement plans: policy, monthly cycles, suggested candidates, approvals."

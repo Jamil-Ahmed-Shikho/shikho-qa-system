@@ -54,6 +54,11 @@ export default async function TargetsAdminPage() {
             </p>
             <TargetRuleForm kind="revenue" slabLabels={rules.slabLabels} teams={TEAM_NAMES} rows={rules.revenue} thisWeek={thisWeek} />
           </section>
+
+          <a href="/admin/holidays" style={{ display: 'block', padding: '14px 18px', borderRadius: 'var(--radius-lg)', background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '2px' }}>Holiday calendar →</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Mark holidays with a note, per site or both — the current week&apos;s targets shrink automatically to match (§9.4).</div>
+          </a>
         </>
       )}
     </div>
