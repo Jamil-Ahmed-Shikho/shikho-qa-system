@@ -76,7 +76,7 @@ export function reportHtml(i: ReportEmailInput): string {
     ? `<p style="margin:0 0 16px;font-size:12px;color:#898EA4">Did not submit a score: ${escapeHtml(i.notSubmitted.join(', '))}</p>`
     : ''
   const link = i.url
-    ? `<a href="${escapeHtml(i.url)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px">Open the session</a>`
+    ? `<a href="${escapeHtml(i.url)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">Open the session</a>`
     : ''
   const body = `
     <p style="margin:0 0 6px"><b>${escapeHtml(i.title)}</b></p>

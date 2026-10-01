@@ -45,19 +45,37 @@ export function escapeHtml(s: string): string {
 const INDIGO = '#304090'
 const FONT = `'Poppins','Hind Siliguri',Arial,sans-serif`
 
+// The shared header is a WHITE band with the real logo image, not a CSS filter on an
+// indigo background — email clients (Outlook especially) strip CSS filters, and a
+// "knockout" white version of the mark isn't published as its own static asset, so a
+// filter-dependent header would silently render wrong in a large share of inboxes.
+// A plain white header with the full-colour mark is also the same pattern the in-app
+// header itself uses (AppShell.tsx) — one consistent look between the app and its mail,
+// not a second "email-only" style. appUrl must be an absolute, publicly reachable URL
+// (NEXT_PUBLIC_APP_URL) since the recipient's mail client — never this server — fetches it.
 export function emailShell(title: string, body: string, width = 480): string {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  const logo = appUrl
+    ? `<img src="${appUrl}/shikho-logo.png" alt="Shikho" width="36" height="36" style="display:block;border:0" />`
+    : ''
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:24px 0;background:#F4F5FA;font-family:${FONT}">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
     <table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width:${width}px;max-width:100%">
-      <tr><td style="background:${INDIGO};padding:24px 32px;border-radius:16px 16px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:19px;font-weight:600;font-family:${FONT}">${title}</h1>
+      <tr><td style="background:#fff;border:1px solid #DFE1EA;border-radius:16px 16px 0 0;padding:20px 32px;border-bottom:3px solid ${INDIGO}">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          ${logo ? `<td style="padding-right:12px;vertical-align:middle">${logo}</td>` : ''}
+          <td style="vertical-align:middle">
+            <div style="font-size:11px;font-weight:600;color:#898EA4;text-transform:uppercase;letter-spacing:.06em;line-height:1.3">Shikho QA · Audit Management System</div>
+            <div style="color:${INDIGO};margin:2px 0 0;font-size:17px;font-weight:700;font-family:${FONT};line-height:1.3">${title}</div>
+          </td>
+        </tr></table>
       </td></tr>
       <tr><td style="background:#fff;border:1px solid #DFE1EA;border-top:none;border-radius:0 0 16px 16px;padding:28px 32px;color:#0F1322;font-size:14px;line-height:1.6">
         ${body}
       </td></tr>
-      <tr><td style="padding:20px 4px 0;text-align:center;font-size:11px;color:#898EA4">Shikho QA Audit Management System · Automated message</td></tr>
+      <tr><td style="padding:20px 4px 0;text-align:center;font-size:11px;color:#898EA4">Shikho QA Audit Management System · Automated message — please do not reply</td></tr>
     </table>
   </td></tr></table>
 </body></html>`
@@ -74,7 +92,7 @@ function credentialsBody(intro: string, email: string, tempPassword: string): st
       <tr><td style="font-size:16px;font-weight:700;letter-spacing:.04em;font-family:Consolas,Menlo,monospace">${escapeHtml(tempPassword)}</td></tr>
     </table>
     <p style="margin:0 0 20px">You will be asked to choose your own password the first time you sign in.</p>
-    ${appUrl ? `<a href="${escapeHtml(appUrl)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600">Sign in</a>` : ''}`
+    ${appUrl ? `<a href="${escapeHtml(appUrl)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:11px 22px;border-radius:999px;font-weight:600">Sign in</a>` : ''}`
 }
 
 async function send(to: string, subject: string, html: string) {
@@ -193,6 +211,19 @@ export async function sendBriefingDigestEmail(to: string, subject: string, html:
   await getTransporter().sendMail({
     from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
     to,
+    subject,
+    html,
+    text,
+  })
+}
+
+// Audit-submitted emails (new, 2026-10-02): the agent's own result (cc'd to their Team
+// Leader) and the Manager/QA-Manager red-fatal alert — content built by audit-email-templates.ts.
+export async function sendAuditEmail(to: string, cc: string | null, subject: string, html: string, text: string) {
+  await getTransporter().sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
+    to,
+    cc: cc ?? undefined,
     subject,
     html,
     text,

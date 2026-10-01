@@ -13,12 +13,17 @@
 // messages in production — CLAUDE.md §14).
 // ============================================================
 
+import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseAdmin, getSupabaseServer } from '@/lib/supabase/server'
 import { writeAuditLogs } from '@/lib/users/audit-log'
+import { sendAuditEmail } from '@/lib/users/mailer'
 import type { AuthUser } from '@/types/database.types'
 import { parsePayload, type MarksPayload } from './scoring'
+import { loadAuditEmailData, loadQaManagers, qualifiesForRedFatalAlert } from './audit-notifications'
+import { auditResultHtml, auditResultSubject, auditResultText, redFatalAlertHtml, redFatalAlertSubject, redFatalAlertText } from './audit-email-templates'
+import { parseNotifyMode, parseNotifyTestRecipients, runNotifySend, type NotifyTarget } from '@/lib/pip/notification-runner'
 
 export interface SubmitResult {
   score_percent: number
@@ -123,5 +128,64 @@ export async function submitScorecard(auditId: string, rawPayload: unknown): Pro
 
   revalidatePath(`/audits/${audit.id}`)
   if (audit.crm_lead_id) revalidatePath(`/audits/leads/${audit.crm_lead_id}`)
+
+  sendAuditEmailsAfterResponse(audit.id, user.profile.id)
   return { ok: true, result }
+}
+
+// Sent AFTER the response (next/server `after`), same reasoning as the Briefings scheduling
+// emails (§5 Part A): the audit is already saved, and waiting on SMTP made the submit screen
+// feel stuck. A failure can no longer be told to the caller, so it's written to audit_log
+// (`audit.email_failed`) and server logs instead of silently vanishing.
+//
+// SAFE BY DEFAULT — AUDIT_EMAIL_MODE (same shape as PIP_NOTIFICATIONS_MODE/BRIEFING_DIGEST_MODE):
+//   off (default)  nothing is sent
+//   test           sends ONLY to recipients in AUDIT_EMAIL_TEST_RECIPIENTS
+//   live           sends to every real recipient — the agent (cc their Team Leader), and, for a
+//                  Red or critical-fatal audit only, their Manager and every QA Manager
+function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
+  after(async () => {
+    try {
+      const d = await loadAuditEmailData(auditId)
+      if (!d) return
+
+      const targets: NotifyTarget[] = []
+      if (d.agentEmail) {
+        targets.push({
+          email: d.agentEmail,
+          send: () => sendAuditEmail(d.agentEmail as string, d.teamLeaderEmail, auditResultSubject(d), auditResultHtml(d), auditResultText(d)),
+        })
+      }
+      if (qualifiesForRedFatalAlert(d)) {
+        const qaManagers = await loadQaManagers()
+        const recipients = new Map<string, string>() // email -> name, deduped (a BPO Team Lead's "manager" can itself be a qa_manager)
+        if (d.managerEmail && d.managerName) recipients.set(d.managerEmail, d.managerName)
+        for (const m of qaManagers) recipients.set(m.email, m.name)
+        for (const [email, name] of recipients) {
+          targets.push({ email, send: () => sendAuditEmail(email, null, redFatalAlertSubject(d), redFatalAlertHtml(name, d), redFatalAlertText(name, d)) })
+        }
+      }
+
+      const mode = parseNotifyMode(process.env.AUDIT_EMAIL_MODE)
+      const result = await runNotifySend(mode, parseNotifyTestRecipients(process.env.AUDIT_EMAIL_TEST_RECIPIENTS), targets)
+      if (result.failed.length) {
+        await writeAuditLogs([{
+          actor_id: actorId,
+          action: 'audit.email_failed',
+          table_name: 'audits',
+          record_id: auditId,
+          after_data: { mode, failed: result.failed },
+        }])
+      }
+    } catch (err) {
+      console.error('Audit-submitted email failed:', err)
+      await writeAuditLogs([{
+        actor_id: actorId,
+        action: 'audit.email_failed',
+        table_name: 'audits',
+        record_id: auditId,
+        after_data: { error: err instanceof Error ? err.message : String(err) },
+      }])
+    }
+  })
 }

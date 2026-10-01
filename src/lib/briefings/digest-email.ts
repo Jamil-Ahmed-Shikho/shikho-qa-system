@@ -47,7 +47,7 @@ export function digestHtml(d: Digest, now: Date = new Date(), appUrl: string | n
   const body = d.groups
     .map((g) => `${g.label ? `<div style="font-size:13px;font-weight:700;color:${INDIGO};margin:0 0 6px">${escapeHtml(g.label)}'s team <span style="font-weight:400;color:#898EA4">(${g.rows.length})</span></div>` : ''}${tableHtml(g.rows)}`)
     .join('')
-  const link = appUrl ? `<a href="${escapeHtml(appUrl)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px">Open your dashboard</a>` : ''
+  const link = appUrl ? `<a href="${escapeHtml(appUrl)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">Open your dashboard</a>` : ''
   const note = `<p style="margin:0 0 ${link ? '18px' : '0'};font-size:12px;color:#898EA4">For your information only — the QA team schedules these sessions and each agent has already been emailed their own time.</p>`
   return emailShell('Coaching sessions ' + whenWord(d, now), intro + body + note + link, 600)
 }

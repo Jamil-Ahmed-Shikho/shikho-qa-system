@@ -44,10 +44,20 @@ export function agentNotificationText(i: AgentEmailInput): string {
   return lines.join('\n')
 }
 
+function appUrl(): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL
+  return base ? base.replace(/\/$/, '') : null
+}
+
+function ctaButton(href: string, text: string): string {
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:#304090;color:#fff;text-decoration:none;padding:11px 24px;border-radius:999px;font-weight:600;font-size:13px">${escapeHtml(text)}</a>`
+}
+
 export function agentNotificationHtml(i: AgentEmailInput): string {
   const downgrade = i.n.incentiveDowngraded
     ? `<p style="margin:16px 0 0;font-size:13px;color:${ALERT}"><b>Your incentive slab has been downgraded</b> due to being on this PIP.</p>`
     : ''
+  const url = appUrl()
   const body = `
     <p style="margin:0 0 16px">Hi ${escapeHtml(i.n.recipient.name)},</p>
     <p style="margin:0 0 16px">You have been placed on a Performance Improvement Plan (PIP) for <b>${escapeHtml(i.label)}</b>.</p>
@@ -58,7 +68,8 @@ export function agentNotificationHtml(i: AgentEmailInput): string {
       <tr><td style="font-size:18px;font-weight:700">${i.achievementUsd === null ? '<span style="font-size:13px;font-weight:400;color:#898EA4">could not be loaded</span>' : fmtUsd(i.achievementUsd)}</td></tr>
     </table>
     ${downgrade}
-    <p style="margin:16px 0 0;font-size:13px;color:#5A5F76">Speak with your Team Leader if you have questions about this.</p>`
+    <p style="margin:16px 0 20px;font-size:13px;color:#5A5F76">Speak with your Team Leader if you have questions about this.</p>
+    ${url ? `<div style="text-align:center">${ctaButton(`${url}/dashboard`, 'View in portal')}</div>` : ''}`
   return emailShell('Performance Improvement Plan', body, 480)
 }
 
@@ -94,10 +105,12 @@ export function staffNotificationHtml(i: StaffEmailInput): string {
         : `<ul style="margin:0;padding-left:18px;font-size:13px">${items}</ul>`
     })
     .join('')
+  const url = appUrl()
   const body = `
     <p style="margin:0 0 16px">Hi ${escapeHtml(i.n.recipient.name)},</p>
     <p style="margin:0 0 8px">A PIP list has been published for <b>${escapeHtml(i.label)}</b>. The following
       ${i.n.total === 1 ? 'person of yours is' : 'people of yours are'} on it:</p>
-    ${list}`
+    ${list}
+    ${url ? `<div style="text-align:center;margin-top:18px">${ctaButton(`${url}/dashboard`, 'View in portal')}</div>` : ''}`
   return emailShell('PIP list published', body, 480)
 }
