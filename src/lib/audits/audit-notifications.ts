@@ -12,6 +12,8 @@
 // ============================================================
 
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { getLeadSummary } from '@/lib/crm/client'
+import { agentVintage, DEFAULT_VINTAGE_SLABS, type VintageSlab } from '@/lib/agents/vintage'
 
 export interface ParameterRow {
   name: string
@@ -33,6 +35,9 @@ export interface AuditEmailData {
   agentId: string
   agentName: string
   agentEmail: string | null
+  agentEmpId: string | null
+  agentTeamName: string | null
+  agentVintageLabel: string | null
   teamLeaderId: string | null
   teamLeaderName: string | null
   teamLeaderEmail: string | null
@@ -42,7 +47,11 @@ export interface AuditEmailData {
   auditorName: string
   rubricName: string
   callStartedAt: string | null
+  callEndedAt: string | null
+  callDestination: string | null
   crmLeadId: string | null
+  distributionList: string | null
+  contactStage: string | null
   submittedAt: string
   scorePercent: number
   passed: boolean
@@ -71,9 +80,9 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
   const { data: audit, error } = await supabase
     .from('audits')
     .select(`
-      id, agent_id, auditor_id, rubric_id, call_started_at, crm_lead_id, submitted_at,
+      id, agent_id, auditor_id, rubric_id, call_started_at, call_ended_at, call_destination, crm_lead_id, submitted_at,
       score_percent, passed, critical_fail, pass_mark_used, overall_feedback,
-      agent:users!audits_agent_id_fkey(id, name, email, is_active, account_status, team_leader_id),
+      agent:users!audits_agent_id_fkey(id, name, email, emp_id, team_name, joining_date, employment_stage, is_active, account_status, team_leader_id),
       auditor:users!audits_auditor_id_fkey(name),
       rubric:rubrics(name)
     `)
@@ -84,10 +93,41 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
 
   type OneOrMany<T> = T | T[] | null
   const one = <T,>(v: OneOrMany<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v)
-  const agent = one(audit.agent as OneOrMany<{ id: string; name: string; email: string | null; is_active: boolean | null; account_status: string | null; team_leader_id: string | null }>)
+  const agent = one(audit.agent as OneOrMany<{
+    id: string; name: string; email: string | null; emp_id: string | null; team_name: string | null
+    joining_date: string | null; employment_stage: string; is_active: boolean | null; account_status: string | null; team_leader_id: string | null
+  }>)
   const auditor = one(audit.auditor as OneOrMany<{ name: string }>)
   const rubric = one(audit.rubric as OneOrMany<{ name: string }>)
   if (!agent || !auditor || !rubric) throw new Error('Audit email data is missing agent, auditor, or rubric.')
+
+  // Vintage is informational here (§6.1) — the current slab set is read with the service role
+  // rather than the session-scoped loadVintageSlabs(), since this runs in a background after()
+  // callback with no real viewer; falling back to the built-in defaults on a read failure is the
+  // same safe behaviour vintage.service.ts itself uses.
+  let slabs: VintageSlab[] = DEFAULT_VINTAGE_SLABS
+  const { data: slabRows } = await supabase.from('vintage_slabs').select('label, min_days, max_days').is('effective_to', null).order('sort_order')
+  if (slabRows && slabRows.length > 0) {
+    slabs = slabRows.map((r) => ({ label: r.label as string, minDays: r.min_days as number | null, maxDays: r.max_days as number | null }))
+  }
+  const vintage = agentVintage({ employment_stage: agent.employment_stage, joining_date: agent.joining_date }, slabs)
+
+  // Distribution list / contact stage come from the CRM (§10) — best-effort: a CRM failure (an
+  // expired token, a timeout) must not break the email, so both are simply left null rather than
+  // thrown. actorId is the auditor's own id, matching buildLogRefId's "trace back to who opened it".
+  let distributionList: string | null = null
+  let contactStage: string | null = null
+  if (audit.crm_lead_id) {
+    try {
+      const lead = await getLeadSummary(audit.crm_lead_id, audit.auditor_id)
+      if (lead) {
+        distributionList = lead.distributionList
+        contactStage = lead.stage
+      }
+    } catch (err) {
+      console.error('Could not load lead summary for audit email:', err)
+    }
+  }
 
   let teamLeaderId: string | null = null
   let teamLeaderName: string | null = null
@@ -157,6 +197,9 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
     agentId: agent.id,
     agentName: agent.name,
     agentEmail: hasRealLogin(agent) ? agent.email : null,
+    agentEmpId: agent.emp_id,
+    agentTeamName: agent.team_name,
+    agentVintageLabel: vintage.label,
     teamLeaderId,
     teamLeaderName,
     teamLeaderEmail,
@@ -166,7 +209,11 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
     auditorName: auditor.name,
     rubricName: rubric.name,
     callStartedAt: audit.call_started_at,
+    callEndedAt: audit.call_ended_at,
+    callDestination: audit.call_destination,
     crmLeadId: audit.crm_lead_id,
+    distributionList,
+    contactStage,
     submittedAt: audit.submitted_at,
     scorePercent: Number(audit.score_percent),
     passed: audit.passed,

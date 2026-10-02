@@ -2,6 +2,13 @@
 // SHIKHO QA SYSTEM — audit-submitted email content (pure: data in, subject/
 // html/text out). Every interpolated name/feedback string is escaped —
 // agent/auditor names and QA feedback are both user-editable free text.
+//
+// Redesigned 2026-10-02 on Jamil's feedback: the first version dropped the
+// identifying context his old (Apps-Script) email always carried — who the
+// agent is, their tenure, their Team Leader, which distribution list the
+// call came from. Brought back as two clean "Call Details" / "Agent
+// Information" cards (same data his old email had, not its look), and the
+// rubric name (meaningless to a Manager) replaced with the agent's team.
 // ============================================================
 
 import { emailShell, escapeHtml } from '@/lib/users/mailer'
@@ -9,10 +16,11 @@ import { formatDhakaDateTime } from '@/lib/dates/format'
 import type { AuditEmailData } from './audit-notifications'
 
 const GREEN = '#1F9D5A'
-const AMBER = '#B07A05'
 const ALERT = '#E03050'
 const MUTED = '#898EA4'
 const SURFACE = '#F4F5FA'
+const INDIGO = '#304090'
+const BORDER = '#E3E6F0'
 
 function scoreColor(d: Pick<AuditEmailData, 'criticalFail' | 'passed'>): string {
   if (d.criticalFail) return ALERT
@@ -29,15 +37,65 @@ function appUrl(path: string): string {
   return base ? `${base}${path}` : path
 }
 
-function detailRow(label: string, value: string): string {
-  return `<tr>
-    <td style="padding:6px 14px 6px 0;font-size:12px;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
-    <td style="padding:6px 0;font-size:13px;font-weight:600;vertical-align:top">${value}</td>
-  </tr>`
+function durationLabel(startIso: string | null, endIso: string | null): string | null {
+  if (!startIso || !endIso) return null
+  const secs = Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000)
+  if (!Number.isFinite(secs) || secs < 0) return null
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${two(h)}:${two(m)}:${two(s)}`
 }
 
 function ctaButton(href: string, text: string): string {
-  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:#304090;color:#fff;text-decoration:none;padding:11px 24px;border-radius:999px;font-weight:600;font-size:13px">${escapeHtml(text)}</a>`
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:11px 24px;border-radius:999px;font-weight:600;font-size:13px">${escapeHtml(text)}</a>`
+}
+
+function leadPill(crmLeadId: string | null): string {
+  if (!crmLeadId) return `<span style="font-size:12.5px;color:${MUTED}">—</span>`
+  return `<a href="https://crm.shikho.com/leads/${escapeHtml(crmLeadId)}" style="display:inline-block;background:#fff;border:1px solid ${INDIGO};color:${INDIGO};text-decoration:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600">Open lead →</a>`
+}
+
+// ── A clean "label | value" card with an uppercase eyebrow title — the same
+// shape used for both info cards, so Call Details and Agent Information
+// always read as one consistent system, not two different designs. ────────
+function infoCard(title: string, rows: { label: string; value: string }[]): string {
+  const filled = rows.filter((r) => r.value !== '')
+  if (filled.length === 0) return ''
+  const rowsHtml = filled
+    .map(
+      (r, i) => `<tr>
+        <td style="padding:${i === 0 ? '0 10px 7px 0' : '7px 10px 7px 0'};font-size:12px;color:${MUTED};white-space:nowrap;vertical-align:top;width:1%">${escapeHtml(r.label)}</td>
+        <td style="padding:${i === 0 ? '0 0 7px' : '7px 0'};font-size:13px;font-weight:600;color:#1A1D29;vertical-align:top">${r.value}</td>
+      </tr>`
+    )
+    .join('')
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${SURFACE};border:1px solid ${BORDER};border-radius:12px;padding:14px 18px;margin-bottom:14px">
+      <tr><td colspan="2" style="padding:0 0 8px;font-size:11px;font-weight:700;color:${INDIGO};text-transform:uppercase;letter-spacing:.06em">${escapeHtml(title)}</td></tr>
+      ${rowsHtml}
+    </table>`
+}
+
+function callDetailsCard(d: AuditEmailData): string {
+  return infoCard('Call details', [
+    { label: 'Phone number', value: d.callDestination ? escapeHtml(d.callDestination) : '' },
+    { label: 'Call date', value: d.callStartedAt ? escapeHtml(formatDhakaDateTime(d.callStartedAt)) : '' },
+    { label: 'Call duration', value: durationLabel(d.callStartedAt, d.callEndedAt) ?? '' },
+    { label: 'Auditor', value: escapeHtml(d.auditorName) },
+    { label: 'Lead', value: d.crmLeadId ? leadPill(d.crmLeadId) : '' },
+  ])
+}
+
+function agentInfoCard(d: AuditEmailData, includeName: boolean): string {
+  return infoCard('Agent information', [
+    ...(includeName ? [{ label: 'Agent name', value: escapeHtml(d.agentName) }] : []),
+    { label: 'Agent ID', value: d.agentEmpId ? escapeHtml(d.agentEmpId) : '' },
+    { label: 'Team', value: d.agentTeamName ? escapeHtml(d.agentTeamName) : '' },
+    { label: 'Team Leader', value: d.teamLeaderName ? escapeHtml(d.teamLeaderName) : '' },
+    { label: 'Vintage', value: d.agentVintageLabel ? escapeHtml(d.agentVintageLabel) : '' },
+    { label: 'Distribution list', value: d.distributionList ? escapeHtml(d.distributionList) : '' },
+    { label: 'Contact stage', value: d.contactStage ? escapeHtml(d.contactStage) : '' },
+  ])
 }
 
 // ── Agent's own result email (To: agent, Cc: Team Leader) ─────────────────────
@@ -70,7 +128,7 @@ export function auditResultHtml(d: AuditEmailData): string {
     .join('')
 
   const fatalsHtml = d.fatals.length
-    ? `<h3 style="margin:24px 0 10px;font-size:14px;font-weight:700;color:${ALERT}">Fatal errors</h3>` +
+    ? `<h3 style="margin:22px 0 10px;font-size:14px;font-weight:700;color:${ALERT}">Fatal errors</h3>` +
       d.fatals
         .map(
           (f) => `<div style="background:#FDEBEE;border:1px solid ${ALERT};border-radius:10px;padding:12px 16px;margin-bottom:8px">
@@ -83,19 +141,15 @@ export function auditResultHtml(d: AuditEmailData): string {
     : ''
 
   const overallFeedback = d.overallFeedback
-    ? `<h3 style="margin:24px 0 8px;font-size:14px;font-weight:700">Overall feedback</h3>
+    ? `<h3 style="margin:22px 0 8px;font-size:14px;font-weight:700">Overall feedback</h3>
        <p style="margin:0;font-size:13px;color:#2A2E3D;background:${SURFACE};border-radius:10px;padding:12px 16px">${escapeHtml(d.overallFeedback)}</p>`
-    : ''
-
-  const leadLink = d.crmLeadId
-    ? `<a href="https://crm.shikho.com/leads/${escapeHtml(d.crmLeadId)}" style="color:#304090;text-decoration:none;font-size:12.5px;font-weight:600">View lead in CRM →</a>`
     : ''
 
   const body = `
     <p style="margin:0 0 16px">Hi ${escapeHtml(d.agentName)},</p>
     <p style="margin:0 0 20px">Your recent call was audited. Here is the result.</p>
 
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:20px">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:18px">
       <tr>
         <td style="vertical-align:middle">
           <div style="font-size:40px;font-weight:700;color:${color};line-height:1">${d.scorePercent}%</div>
@@ -106,14 +160,10 @@ export function auditResultHtml(d: AuditEmailData): string {
       </tr>
     </table>
 
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${SURFACE};border-radius:12px;padding:4px 16px;margin-bottom:20px">
-      ${detailRow('Call date', d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—')}
-      ${detailRow('Audited by', escapeHtml(d.auditorName))}
-      ${detailRow('Rubric', escapeHtml(d.rubricName))}
-    </table>
-    ${leadLink ? `<div style="margin:-12px 0 20px">${leadLink}</div>` : ''}
+    ${callDetailsCard(d)}
+    ${agentInfoCard(d, false)}
 
-    <h3 style="margin:0 0 10px;font-size:14px;font-weight:700">Performance breakdown</h3>
+    <h3 style="margin:4px 0 10px;font-size:14px;font-weight:700">Performance breakdown</h3>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:8px">
       ${paramRows}
     </table>
@@ -125,7 +175,7 @@ export function auditResultHtml(d: AuditEmailData): string {
       ${ctaButton(appUrl(`/my-audits/${d.auditId}`), 'View full result & request a review')}
     </div>`
 
-  return emailShell('New audit result', body, 560)
+  return emailShell('New audit result', body, 580)
 }
 
 export function auditResultText(d: AuditEmailData): string {
@@ -134,11 +184,22 @@ export function auditResultText(d: AuditEmailData): string {
     '',
     `Your recent call was audited. Result: ${d.scorePercent}% — ${resultLabel(d)}`,
     '',
+    'CALL DETAILS',
+    `Phone number: ${d.callDestination ?? '—'}`,
     `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
-    `Audited by: ${d.auditorName}`,
-    `Rubric: ${d.rubricName}`,
+    `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
+    `Auditor: ${d.auditorName}`,
+    ...(d.crmLeadId ? [`Lead: https://crm.shikho.com/leads/${d.crmLeadId}`] : []),
     '',
-    'Performance breakdown:',
+    'AGENT INFORMATION',
+    `Agent ID: ${d.agentEmpId ?? '—'}`,
+    `Team: ${d.agentTeamName ?? '—'}`,
+    `Team Leader: ${d.teamLeaderName ?? '—'}`,
+    `Vintage: ${d.agentVintageLabel ?? '—'}`,
+    `Distribution list: ${d.distributionList ?? '—'}`,
+    `Contact stage: ${d.contactStage ?? '—'}`,
+    '',
+    'PERFORMANCE BREAKDOWN',
   ]
   for (const p of d.parameters) {
     lines.push(`  ${p.passed ? 'PASS' : 'FAIL'}  ${p.name} (${p.pointsAwarded}/${p.points})${!p.passed && p.feedback ? ` — ${p.feedback}` : ''}`)
@@ -179,14 +240,21 @@ export function redFatalAlertHtml(recipientName: string, d: AuditEmailData): str
 
   const body = `
     <p style="margin:0 0 16px">Hi ${escapeHtml(recipientName)},</p>
-    <p style="margin:0 0 20px;color:${ALERT};font-weight:600">${escapeHtml(reason)}</p>
+    <p style="margin:0 0 18px;color:${ALERT};font-weight:600">${escapeHtml(reason)}</p>
 
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${SURFACE};border-radius:12px;padding:4px 16px;margin-bottom:20px">
-      ${detailRow('Agent', escapeHtml(d.agentName))}
-      ${detailRow('Score', `<span style="color:${scoreColor(d)}">${d.scorePercent}%</span>`)}
-      ${detailRow('Call date', d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—')}
-      ${detailRow('Audited by', escapeHtml(d.auditorName))}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:16px">
+      <tr>
+        <td style="vertical-align:middle">
+          <div style="font-size:32px;font-weight:700;color:${scoreColor(d)};line-height:1">${d.scorePercent}%</div>
+        </td>
+        <td style="vertical-align:middle;text-align:right">
+          <span style="display:inline-block;padding:6px 14px;border-radius:999px;font-size:12px;font-weight:700;color:#fff;background:${scoreColor(d)}">${resultLabel(d).toUpperCase()}</span>
+        </td>
+      </tr>
     </table>
+
+    ${agentInfoCard(d, true)}
+    ${callDetailsCard(d)}
 
     ${fatalsHtml}
 
@@ -194,7 +262,7 @@ export function redFatalAlertHtml(recipientName: string, d: AuditEmailData): str
       ${ctaButton(appUrl(`/audits/${d.auditId}`), 'View the audit')}
     </div>`
 
-  return emailShell(d.criticalFail ? 'Critical fatal error' : 'Red audit alert', body, 520)
+  return emailShell(d.criticalFail ? 'Critical fatal error' : 'Red audit alert', body, 560)
 }
 
 export function redFatalAlertText(recipientName: string, d: AuditEmailData): string {
@@ -206,10 +274,23 @@ export function redFatalAlertText(recipientName: string, d: AuditEmailData): str
     '',
     reason,
     '',
-    `Agent: ${d.agentName}`,
     `Score: ${d.scorePercent}%`,
+    '',
+    'AGENT INFORMATION',
+    `Agent name: ${d.agentName}`,
+    `Agent ID: ${d.agentEmpId ?? '—'}`,
+    `Team: ${d.agentTeamName ?? '—'}`,
+    `Team Leader: ${d.teamLeaderName ?? '—'}`,
+    `Vintage: ${d.agentVintageLabel ?? '—'}`,
+    `Distribution list: ${d.distributionList ?? '—'}`,
+    `Contact stage: ${d.contactStage ?? '—'}`,
+    '',
+    'CALL DETAILS',
+    `Phone number: ${d.callDestination ?? '—'}`,
     `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
-    `Audited by: ${d.auditorName}`,
+    `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
+    `Auditor: ${d.auditorName}`,
+    ...(d.crmLeadId ? [`Lead: https://crm.shikho.com/leads/${d.crmLeadId}`] : []),
   ]
   for (const f of d.fatals.filter((f) => f.severity === 'critical')) {
     lines.push('', f.description + (f.feedback ? ` — ${f.feedback}` : ''))
