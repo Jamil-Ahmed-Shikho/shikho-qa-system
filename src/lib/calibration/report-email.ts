@@ -6,11 +6,11 @@
 // them may already see every score once the session is closed.
 // ============================================================
 
-import { emailShell, escapeHtml } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
 import type { VarianceReport } from './variance'
 
-const INDIGO = '#304090'
-const CORAL = '#E03050'
+const INDIGO = BRAND.indigo
+const CORAL = BRAND.coral
 
 export interface ReportEmailInput {
   title: string
@@ -28,7 +28,7 @@ export interface ReportEmailInput {
 const sign = (n: number) => (n > 0 ? `+${n}` : String(n))
 
 export function reportSubject(i: ReportEmailInput): string {
-  return `Calibration report: ${i.title} (${i.whenLabel})`
+  return subjectLine(`Calibration report: ${i.title} (${i.whenLabel})`)
 }
 
 export function reportText(i: ReportEmailInput): string {
@@ -87,5 +87,5 @@ export function reportHtml(i: ReportEmailInput): string {
     </table>
     <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where the group disagreed</p>
     ${disagreement}${missing}${link}`
-  return emailShell('Calibration report', body, 560)
+  return emailShell('Calibration report', `${i.title} · ${i.whenLabel}`, 'indigo', body, 560)
 }

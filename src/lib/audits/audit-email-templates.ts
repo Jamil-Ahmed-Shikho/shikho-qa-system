@@ -11,15 +11,17 @@
 // rubric name (meaningless to a Manager) replaced with the agent's team.
 // ============================================================
 
-import { emailShell, escapeHtml } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml, subjectLine, type EmailAccent } from '@/lib/users/mailer'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import type { AuditEmailData } from './audit-notifications'
 
-const GREEN = '#1F9D5A'
-const ALERT = '#E03050'
-const MUTED = '#898EA4'
-const SURFACE = '#F4F5FA'
-const INDIGO = '#304090'
+// One shared palette (BRAND, mailer.ts) — these are just short local aliases, not a
+// second set of colors.
+const GREEN = BRAND.green
+const ALERT = BRAND.coral
+const MUTED = BRAND.footerMuted
+const SURFACE = BRAND.surface
+const INDIGO = BRAND.indigo
 const BORDER = '#E3E6F0'
 
 function scoreColor(d: Pick<AuditEmailData, 'criticalFail' | 'passed'>): string {
@@ -44,6 +46,11 @@ function durationLabel(startIso: string | null, endIso: string | null): string |
   const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60
   const two = (n: number) => String(n).padStart(2, '0')
   return `${two(h)}:${two(m)}:${two(s)}`
+}
+
+function scoreAccent(d: Pick<AuditEmailData, 'criticalFail' | 'passed'>): EmailAccent {
+  if (d.criticalFail) return 'coral'
+  return d.passed ? 'green' : 'coral'
 }
 
 function ctaButton(href: string, text: string): string {
@@ -101,7 +108,7 @@ function agentInfoCard(d: AuditEmailData, includeName: boolean): string {
 // ── Agent's own result email (To: agent, Cc: Team Leader) ─────────────────────
 
 export function auditResultSubject(d: AuditEmailData): string {
-  return `Your audit result: ${d.scorePercent}% — ${resultLabel(d)}`
+  return subjectLine(`Your audit result: ${d.scorePercent}% — ${resultLabel(d)}`)
 }
 
 export function auditResultHtml(d: AuditEmailData): string {
@@ -175,7 +182,7 @@ export function auditResultHtml(d: AuditEmailData): string {
       ${ctaButton(appUrl(`/my-audits/${d.auditId}`), 'View full result & request a review')}
     </div>`
 
-  return emailShell('New audit result', body, 580)
+  return emailShell('New audit result', `${resultLabel(d)} · ${d.agentTeamName ?? 'Shikho'}`, scoreAccent(d), body, 580)
 }
 
 export function auditResultText(d: AuditEmailData): string {
@@ -216,9 +223,11 @@ export function auditResultText(d: AuditEmailData): string {
 // ── Manager / QA Manager alert (Red or critical-fatal audits only) ────────────
 
 export function redFatalAlertSubject(d: AuditEmailData): string {
-  return d.criticalFail
-    ? `Critical fatal error — ${d.agentName}'s audit (${d.scorePercent}%)`
-    : `Red audit alert — ${d.agentName} scored ${d.scorePercent}%`
+  return subjectLine(
+    d.criticalFail
+      ? `Critical fatal error — ${d.agentName}'s audit (${d.scorePercent}%)`
+      : `Red audit alert — ${d.agentName} scored ${d.scorePercent}%`
+  )
 }
 
 export function redFatalAlertHtml(recipientName: string, d: AuditEmailData): string {
@@ -262,7 +271,13 @@ export function redFatalAlertHtml(recipientName: string, d: AuditEmailData): str
       ${ctaButton(appUrl(`/audits/${d.auditId}`), 'View the audit')}
     </div>`
 
-  return emailShell(d.criticalFail ? 'Critical fatal error' : 'Red audit alert', body, 560)
+  return emailShell(
+    d.criticalFail ? 'Critical fatal error' : 'Red audit alert',
+    `${d.agentName} · ${d.agentTeamName ?? 'Shikho'}`,
+    d.criticalFail ? 'coral' : 'sunrise',
+    body,
+    560
+  )
 }
 
 export function redFatalAlertText(recipientName: string, d: AuditEmailData): string {

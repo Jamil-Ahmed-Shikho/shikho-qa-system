@@ -5,10 +5,10 @@
 // which is admin-editable free text).
 // ============================================================
 
-import { emailShell, escapeHtml } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
 import type { AgentNotification, StaffNotification } from './notifications'
 
-const ALERT = '#E03050'
+const ALERT = BRAND.coral
 
 export interface CyclePeriod {
   /** Already formatted for display, e.g. "12 Jan 2027 – 1 Feb 2027". */
@@ -27,7 +27,7 @@ export interface AgentEmailInput extends CyclePeriod {
 }
 
 export function agentNotificationSubject(): string {
-  return 'You have been placed on a Performance Improvement Plan (PIP)'
+  return subjectLine('You have been placed on a Performance Improvement Plan (PIP)')
 }
 
 export function agentNotificationText(i: AgentEmailInput): string {
@@ -50,7 +50,7 @@ function appUrl(): string | null {
 }
 
 function ctaButton(href: string, text: string): string {
-  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:#304090;color:#fff;text-decoration:none;padding:11px 24px;border-radius:999px;font-weight:600;font-size:13px">${escapeHtml(text)}</a>`
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:${BRAND.indigo};color:#fff;text-decoration:none;padding:11px 24px;border-radius:999px;font-weight:600;font-size:13px">${escapeHtml(text)}</a>`
 }
 
 export function agentNotificationHtml(i: AgentEmailInput): string {
@@ -70,7 +70,7 @@ export function agentNotificationHtml(i: AgentEmailInput): string {
     ${downgrade}
     <p style="margin:16px 0 20px;font-size:13px;color:#5A5F76">Speak with your Team Leader if you have questions about this.</p>
     ${url ? `<div style="text-align:center">${ctaButton(`${url}/dashboard`, 'View in portal')}</div>` : ''}`
-  return emailShell('Performance Improvement Plan', body, 480)
+  return emailShell('Performance Improvement Plan', i.label, 'sunrise', body, 480)
 }
 
 // ── Team Lead / Manager email ────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export interface StaffEmailInput extends CyclePeriod {
 }
 
 export function staffNotificationSubject(i: StaffEmailInput): string {
-  return `PIP list published — ${i.n.total} of your ${i.n.total === 1 ? 'people is' : 'people are'} on it`
+  return subjectLine(`PIP list published — ${i.n.total} of your ${i.n.total === 1 ? 'people is' : 'people are'} on it`)
 }
 
 export function staffNotificationText(i: StaffEmailInput): string {
@@ -112,5 +112,5 @@ export function staffNotificationHtml(i: StaffEmailInput): string {
       ${i.n.total === 1 ? 'person of yours is' : 'people of yours are'} on it:</p>
     ${list}
     ${url ? `<div style="text-align:center;margin-top:18px">${ctaButton(`${url}/dashboard`, 'View in portal')}</div>` : ''}`
-  return emailShell('PIP list published', body, 480)
+  return emailShell('PIP list published', i.label, 'indigo', body, 480)
 }

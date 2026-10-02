@@ -5,12 +5,12 @@
 // names come from user-editable profiles.
 // ============================================================
 
-import { emailShell, escapeHtml } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
 import { relativeDayLabel } from './rules'
 import type { Digest, DigestRow } from './digest'
 
-const INDIGO = '#304090'
-const CORAL = '#E03050'
+const INDIGO = BRAND.indigo
+const CORAL = BRAND.coral
 
 function whenWord(d: Digest, now: Date): string {
   // "tomorrow" normally; "today" if the job ran late enough (after midnight Dhaka) that the day has begun.
@@ -21,7 +21,7 @@ function whenWord(d: Digest, now: Date): string {
 export function digestSubject(d: Digest, now: Date = new Date()): string {
   const n = d.total
   const who = d.recipient.role === 'manager' ? (n === 1 ? 'agent in your teams' : 'agents in your teams') : (n === 1 ? 'of your agents' : 'of your agents')
-  return `Coaching sessions ${whenWord(d, now)} (${d.dayLabel}): ${n} ${who}`
+  return subjectLine(`Coaching sessions ${whenWord(d, now)} (${d.dayLabel}): ${n} ${who}`)
 }
 
 function rowHtml(r: DigestRow): string {
@@ -49,7 +49,7 @@ export function digestHtml(d: Digest, now: Date = new Date(), appUrl: string | n
     .join('')
   const link = appUrl ? `<a href="${escapeHtml(appUrl)}" style="display:inline-block;background:${INDIGO};color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">Open your dashboard</a>` : ''
   const note = `<p style="margin:0 0 ${link ? '18px' : '0'};font-size:12px;color:#898EA4">For your information only — the QA team schedules these sessions and each agent has already been emailed their own time.</p>`
-  return emailShell('Coaching sessions ' + whenWord(d, now), intro + body + note + link, 600)
+  return emailShell('Coaching sessions ' + whenWord(d, now), `${d.dayLabel} · ${d.total} session${d.total === 1 ? '' : 's'}`, 'indigo', intro + body + note + link, 600)
 }
 
 export function digestText(d: Digest, now: Date = new Date()): string {
