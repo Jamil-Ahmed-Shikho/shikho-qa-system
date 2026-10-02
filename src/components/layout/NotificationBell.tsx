@@ -29,6 +29,28 @@ const TYPE_ICON: Record<string, string> = {
   coaching_reminder: 'ti-bulb',
 }
 
+// Inline SVG, not the Tabler webfont glyph — the header bell must render even if the
+// webfont CDN (layout.tsx) is slow, blocked, or offline, which otherwise leaves this
+// button looking like an empty circle with nothing clickable inside it.
+function BellIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+      <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+    </svg>
+  )
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<NotificationItem[] | null>(null)
@@ -88,16 +110,24 @@ export function NotificationBell() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
+      <style>{`
+        .shikho-bell-btn { transition: background-color .12s ease, border-color .12s ease; }
+        .shikho-bell-btn:hover { background: var(--brand-light); border-color: var(--border-strong); }
+        .shikho-bell-btn:active { background: var(--surface-2); }
+        .shikho-bell-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+      `}</style>
       <button
+        className="shikho-bell-btn"
         onClick={onOpen}
         aria-label="Notifications"
         aria-expanded={open}
         style={{
           position: 'relative', width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--border)',
           background: 'var(--surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-primary)',
         }}
       >
-        <i className="ti ti-bell" style={{ fontSize: '18px', color: 'var(--text-primary)' }} />
+        <BellIcon />
         {unread > 0 && (
           <span
             style={{
