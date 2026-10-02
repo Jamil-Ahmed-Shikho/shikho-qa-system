@@ -107,18 +107,44 @@ const baseAuditData: Omit<AuditEmailData, 'scorePercent' | 'passed' | 'criticalF
   passMarkUsed: 70,
 }
 
+// The full, real 16-parameter Telesales Scorecard (names/categories/points pulled from
+// the live rubric, 2026-10-02) — a sample must show the whole breakdown a real recipient
+// gets, not a shortened stand-in.
 const paramsPassing = [
-  { name: 'Call Opening', categoryName: 'Opening', points: 2, pointsAwarded: 2, passed: true, feedback: null },
-  { name: 'Rapport Building', categoryName: 'Opening', points: 7, pointsAwarded: 7, passed: true, feedback: null },
-  { name: 'Features & Benefits', categoryName: 'Pitch', points: 12, pointsAwarded: 12, passed: true, feedback: null },
-  { name: 'Price Demonstration', categoryName: 'Pitch', points: 8, pointsAwarded: 8, passed: true, feedback: null },
-  { name: 'Handling Objection & Overcome the barriers', categoryName: 'Pitch', points: 10, pointsAwarded: 10, passed: true, feedback: null },
+  { name: 'Call Opening', categoryName: 'Call opening and Rapport Building', points: 2, pointsAwarded: 2, passed: true, feedback: null },
+  { name: 'Rapport Building', categoryName: 'Call opening and Rapport Building', points: 7, pointsAwarded: 7, passed: true, feedback: null },
+  { name: 'Pitch Personalization Based on Lead Behavior', categoryName: 'Lead Relevance', points: 8, pointsAwarded: 8, passed: true, feedback: null },
+  { name: 'Features & Benefits', categoryName: 'Product and Benefits', points: 12, pointsAwarded: 12, passed: true, feedback: null },
+  { name: 'Price Demonstration', categoryName: 'Product and Benefits', points: 8, pointsAwarded: 8, passed: true, feedback: null },
+  { name: 'Handling Objection & Overcome the barriers', categoryName: 'Negotiation and Rebuttals', points: 10, pointsAwarded: 10, passed: true, feedback: null },
+  { name: 'Generate Interest and Create Urgency', categoryName: 'Negotiation and Rebuttals', points: 8, pointsAwarded: 8, passed: true, feedback: null },
+  { name: 'Call Comprehension', categoryName: 'Call Comprehension & Sales Closing', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'Sales Closing (Conv. Summarization & Ask for sale)', categoryName: 'Call Comprehension & Sales Closing', points: 7, pointsAwarded: 7, passed: true, feedback: null },
+  { name: 'Soft Skill & Demonstrating Empathy', categoryName: 'Professionalism & Call Courtesy', points: 10, pointsAwarded: 10, passed: true, feedback: null },
+  { name: 'Speech quality, Communication & Effective Listening', categoryName: 'Professionalism & Call Courtesy', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'Lead Stage Update Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'CRM Profile Management Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 3, pointsAwarded: 3, passed: true, feedback: null },
+  { name: 'CRM Task & Follow-Up Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'Documentation & Notes Quality', categoryName: 'Utilize CRM Features Effectively', points: 3, pointsAwarded: 3, passed: true, feedback: null },
+  { name: 'Call Closing & Wrap-up', categoryName: 'Call Closing & Wrap-up', points: 2, pointsAwarded: 2, passed: true, feedback: null },
 ]
 const paramsWithFailures = [
-  { name: 'Call Opening', categoryName: 'Opening', points: 2, pointsAwarded: 2, passed: true, feedback: null },
-  { name: 'Features & Benefits', categoryName: 'Pitch', points: 12, pointsAwarded: 0, passed: false, feedback: 'Did not clearly explain the course structure or weekly class routine.' },
-  { name: 'Sales Closing (Conv. Summarization & Ask for sale)', categoryName: 'Closing', points: 10, pointsAwarded: 0, passed: false, feedback: 'Did not summarize the call or ask directly for the sale.' },
-  { name: 'CRM Task & Follow-Up Accuracy', categoryName: 'Documentation', points: 5, pointsAwarded: 0, passed: false, feedback: 'No follow-up task created in CRM after the call.' },
+  { name: 'Call Opening', categoryName: 'Call opening and Rapport Building', points: 2, pointsAwarded: 2, passed: true, feedback: null },
+  { name: 'Rapport Building', categoryName: 'Call opening and Rapport Building', points: 7, pointsAwarded: 7, passed: true, feedback: null },
+  { name: 'Pitch Personalization Based on Lead Behavior', categoryName: 'Lead Relevance', points: 8, pointsAwarded: 0, passed: false, feedback: 'Did not tailor the pitch to what the lead had already shown interest in.' },
+  { name: 'Features & Benefits', categoryName: 'Product and Benefits', points: 12, pointsAwarded: 0, passed: false, feedback: 'Did not clearly explain the course structure or weekly class routine.' },
+  { name: 'Price Demonstration', categoryName: 'Product and Benefits', points: 8, pointsAwarded: 8, passed: true, feedback: null },
+  { name: 'Handling Objection & Overcome the barriers', categoryName: 'Negotiation and Rebuttals', points: 10, pointsAwarded: 0, passed: false, feedback: 'Did not address the price objection before moving on.' },
+  { name: 'Generate Interest and Create Urgency', categoryName: 'Negotiation and Rebuttals', points: 8, pointsAwarded: 8, passed: true, feedback: null },
+  { name: 'Call Comprehension', categoryName: 'Call Comprehension & Sales Closing', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'Sales Closing (Conv. Summarization & Ask for sale)', categoryName: 'Call Comprehension & Sales Closing', points: 7, pointsAwarded: 0, passed: false, feedback: 'Did not summarize the call or ask directly for the sale.' },
+  { name: 'Soft Skill & Demonstrating Empathy', categoryName: 'Professionalism & Call Courtesy', points: 10, pointsAwarded: 0, passed: false, feedback: 'Sounded rushed and did not acknowledge the guardian’s concerns.' },
+  { name: 'Speech quality, Communication & Effective Listening', categoryName: 'Professionalism & Call Courtesy', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'Lead Stage Update Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 5, pointsAwarded: 5, passed: true, feedback: null },
+  { name: 'CRM Profile Management Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 3, pointsAwarded: 3, passed: true, feedback: null },
+  { name: 'CRM Task & Follow-Up Accuracy', categoryName: 'Utilize CRM Features Effectively', points: 5, pointsAwarded: 0, passed: false, feedback: 'No follow-up task created in CRM after the call.' },
+  { name: 'Documentation & Notes Quality', categoryName: 'Utilize CRM Features Effectively', points: 3, pointsAwarded: 3, passed: true, feedback: null },
+  { name: 'Call Closing & Wrap-up', categoryName: 'Call Closing & Wrap-up', points: 2, pointsAwarded: 2, passed: true, feedback: null },
 ]
 
 async function main() {
@@ -209,10 +235,10 @@ async function main() {
   function reportSubjectSample() { return subjectLine('Calibration report: Weekly Telesales Calibration (Mon 5 Oct, 11:00 AM)') }
 
   // 8-10. Audit result — passed / failed / critical fatal
-  const passedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 92, passed: true, criticalFail: false, overallFeedback: 'Strong call overall — confident pitch and good objection handling.', parameters: paramsPassing, fatals: [] }
+  const passedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 100, passed: true, criticalFail: false, overallFeedback: 'Strong call overall — confident pitch and good objection handling.', parameters: paramsPassing, fatals: [] }
   await send('Audit result — passed', auditSubject(passedAudit), auditResultHtml(passedAudit), auditResultText(passedAudit))
 
-  const failedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 58, passed: false, criticalFail: false, overallFeedback: 'Several core pitch and closing steps were missed — needs coaching on sales closing.', parameters: paramsWithFailures, fatals: [] }
+  const failedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 53, passed: false, criticalFail: false, overallFeedback: 'Several core pitch and closing steps were missed — needs coaching on sales closing.', parameters: paramsWithFailures, fatals: [] }
   await send('Audit result — failed', auditSubject(failedAudit), auditResultHtml(failedAudit), auditResultText(failedAudit))
 
   const criticalAudit: AuditEmailData = {

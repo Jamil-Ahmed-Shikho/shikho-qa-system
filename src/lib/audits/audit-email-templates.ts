@@ -94,7 +94,7 @@ function callDetailsCard(d: AuditEmailData): string {
 }
 
 function agentInfoCard(d: AuditEmailData, includeName: boolean): string {
-  return infoCard('Agent information', [
+  return infoCard('Employee information', [
     ...(includeName ? [{ label: 'Agent name', value: escapeHtml(d.agentName) }] : []),
     { label: 'Agent ID', value: d.agentEmpId ? escapeHtml(d.agentEmpId) : '' },
     { label: 'Team', value: d.agentTeamName ? escapeHtml(d.agentTeamName) : '' },
@@ -178,8 +178,9 @@ export function auditResultHtml(d: AuditEmailData): string {
     ${fatalsHtml}
     ${overallFeedback}
 
-    <div style="margin-top:26px;text-align:center">
-      ${ctaButton(appUrl(`/my-audits/${d.auditId}`), 'View full result & request a review')}
+    <p style="margin:24px 0 12px;font-size:12.5px;color:${MUTED};text-align:center">If you think any score here isn't correct, you can request a review from the full result page.</p>
+    <div style="text-align:center">
+      ${ctaButton(appUrl(`/my-audits/${d.auditId}`), 'View full result')}
     </div>`
 
   return emailShell('New audit result', `${resultLabel(d)} · ${d.agentTeamName ?? 'Shikho'}`, scoreAccent(d), body, 580)
@@ -198,7 +199,7 @@ export function auditResultText(d: AuditEmailData): string {
     `Auditor: ${d.auditorName}`,
     ...(d.crmLeadId ? [`Lead: https://crm.shikho.com/leads/${d.crmLeadId}`] : []),
     '',
-    'AGENT INFORMATION',
+    'EMPLOYEE INFORMATION',
     `Agent ID: ${d.agentEmpId ?? '—'}`,
     `Team: ${d.agentTeamName ?? '—'}`,
     `Team Leader: ${d.teamLeaderName ?? '—'}`,
@@ -216,6 +217,7 @@ export function auditResultText(d: AuditEmailData): string {
     for (const f of d.fatals) lines.push(`  [${f.severity.toUpperCase()}] ${f.description}${f.feedback ? ` — ${f.feedback}` : ''}`)
   }
   if (d.overallFeedback) lines.push('', 'Overall feedback:', d.overallFeedback)
+  lines.push('', "If you think any score here isn't correct, you can request a review from the full result page.")
   lines.push('', `View full result: ${appUrl(`/my-audits/${d.auditId}`)}`)
   return lines.join('\n')
 }
@@ -291,7 +293,7 @@ export function redFatalAlertText(recipientName: string, d: AuditEmailData): str
     '',
     `Score: ${d.scorePercent}%`,
     '',
-    'AGENT INFORMATION',
+    'EMPLOYEE INFORMATION',
     `Agent name: ${d.agentName}`,
     `Agent ID: ${d.agentEmpId ?? '—'}`,
     `Team: ${d.agentTeamName ?? '—'}`,
