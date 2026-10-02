@@ -24,7 +24,7 @@ process.env.NEXT_PUBLIC_APP_URL = 'https://shikho-qa-system.vercel.app'
 
 import nodemailer from 'nodemailer'
 import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
-import { auditResultHtml, auditResultText, redFatalAlertHtml, redFatalAlertText } from '@/lib/audits/audit-email-templates'
+import { auditResultHtml, auditResultText } from '@/lib/audits/audit-email-templates'
 import type { AuditEmailData } from '@/lib/audits/audit-notifications'
 import { digestHtml, digestText } from '@/lib/briefings/digest-email'
 import type { Digest } from '@/lib/briefings/digest'
@@ -259,19 +259,11 @@ async function main() {
     const label = d.criticalFail ? 'Critical fatal error' : d.passed ? 'Passed' : 'Did not pass'
     return subjectLine(`Your audit result: ${d.scorePercent}% — ${label}`)
   }
+  // NOTE: as of 2026-10-03 there is no separate Manager/QA-Manager alert template — the two
+  // emails above (failed / critical fatal) ARE what the Manager and every QA Manager see too,
+  // via Cc on this exact send, not a second email (scoring-actions.ts decides the Cc list).
 
-  // 11-12. Manager / QA Manager alert — red (non-critical) / critical fatal
-  await send('Manager alert — red (below pass mark)', redFatalAlertSubjectSample(failedAudit),
-    redFatalAlertHtml('Example Manager', failedAudit), redFatalAlertText('Example Manager', failedAudit))
-  await send('Manager alert — critical fatal', redFatalAlertSubjectSample(criticalAudit),
-    redFatalAlertHtml('Example Manager', criticalAudit), redFatalAlertText('Example Manager', criticalAudit))
-  function redFatalAlertSubjectSample(d: AuditEmailData) {
-    return d.criticalFail
-      ? subjectLine(`Critical fatal error — ${d.agentName}'s audit (${d.scorePercent}%)`)
-      : subjectLine(`Red audit alert — ${d.agentName} scored ${d.scorePercent}%`)
-  }
-
-  // 13. PIP — agent notification
+  // 11. PIP — agent notification
   const agentNotif: AgentNotification = {
     recipient: { id: 'a1', name: 'Example Agent', email: TO },
     targetRevenue: 300, incentiveDowngraded: true,
@@ -281,7 +273,7 @@ async function main() {
     agentNotificationText({ n: agentNotif, achievementUsd: 142.5, label: '12 Oct 2026 – 1 Nov 2026' }))
   function agentNotificationSubjectSample() { return subjectLine('You have been placed on a Performance Improvement Plan (PIP)') }
 
-  // 14. PIP — staff (Team Lead / Manager) summary
+  // 12. PIP — staff (Team Lead / Manager) summary
   const staffNotif: StaffNotification = {
     recipient: { id: 's1', name: 'Example Team Leader', email: TO, role: 'team_lead' },
     groups: [{ teamLeadName: null, agentNames: ['Example Agent One', 'Example Agent Two'] }],

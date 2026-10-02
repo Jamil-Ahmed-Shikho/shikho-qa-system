@@ -256,13 +256,15 @@ export async function sendBriefingDigestEmail(to: string, subject: string, html:
   })
 }
 
-// Audit-submitted emails (new, 2026-10-02): the agent's own result (cc'd to their Team
-// Leader) and the Manager/QA-Manager red-fatal alert — content built by audit-email-templates.ts.
-export async function sendAuditEmail(to: string, cc: string | null, subject: string, html: string, text: string) {
+// Audit-submitted email (2026-10-02, Cc list extended 2026-10-03): one email per audit,
+// To: the agent, Cc: their Team Leader always, plus the Manager and every QA Manager too
+// when the audit didn't pass (scoring-actions.ts decides the Cc list; this just sends it).
+export async function sendAuditEmail(to: string, cc: string | string[] | null, subject: string, html: string, text: string) {
+  const ccValue = Array.isArray(cc) ? (cc.length ? cc : undefined) : (cc ?? undefined)
   await getTransporter().sendMail({
     from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
     to,
-    cc: cc ?? undefined,
+    cc: ccValue,
     subject,
     html,
     text,

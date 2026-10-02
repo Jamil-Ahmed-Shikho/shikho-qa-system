@@ -6,9 +6,19 @@
 // Redesigned 2026-10-02 on Jamil's feedback: the first version dropped the
 // identifying context his old (Apps-Script) email always carried — who the
 // agent is, their tenure, their Team Leader, which distribution list the
-// call came from. Brought back as two clean "Call Details" / "Agent
+// call came from. Brought back as two clean "Call Details" / "Employee
 // Information" cards (same data his old email had, not its look), and the
 // rubric name (meaningless to a Manager) replaced with the agent's team.
+//
+// ONE SINGLE EMAIL per audit (2026-10-03, on Jamil's explicit request) —
+// the separate "Manager / QA Manager alert" template this file used to also
+// export is gone; a non-passing audit's Manager and every QA Manager are now
+// just added to the SAME email's Cc list (scoring-actions.ts), not sent a
+// second, differently-worded email. Nothing here needed to change for that —
+// the full breakdown this template already renders (call details, employee
+// information, every parameter, fatals, overall feedback) is exactly what a
+// Cc'd Manager/QA Manager should see too, addressed to the agent as "Hi
+// {name}" the same way a Team Lead Cc has always been.
 // ============================================================
 
 import { BRAND, emailShell, escapeHtml, subjectLine, type EmailAccent } from '@/lib/users/mailer'
@@ -105,7 +115,8 @@ function agentInfoCard(d: AuditEmailData, includeName: boolean): string {
   ])
 }
 
-// ── Agent's own result email (To: agent, Cc: Team Leader) ─────────────────────
+// ── Audit result email (To: agent, Cc: Team Leader always, Cc: Manager + QA
+// Managers too when the audit didn't pass — see qualifiesForRedFatalAlert) ──
 
 export function auditResultSubject(d: AuditEmailData): string {
   return subjectLine(`Your audit result: ${d.scorePercent}% — ${resultLabel(d)}`)
@@ -219,99 +230,5 @@ export function auditResultText(d: AuditEmailData): string {
   if (d.overallFeedback) lines.push('', 'Overall feedback:', d.overallFeedback)
   lines.push('', "If you think any score here isn't correct, you can request a review from the full result page.")
   lines.push('', `View full result: ${appUrl(`/my-audits/${d.auditId}`)}`)
-  return lines.join('\n')
-}
-
-// ── Manager / QA Manager alert (Red or critical-fatal audits only) ────────────
-
-export function redFatalAlertSubject(d: AuditEmailData): string {
-  return subjectLine(
-    d.criticalFail
-      ? `Critical fatal error — ${d.agentName}'s audit (${d.scorePercent}%)`
-      : `Red audit alert — ${d.agentName} scored ${d.scorePercent}%`
-  )
-}
-
-export function redFatalAlertHtml(recipientName: string, d: AuditEmailData): string {
-  const reason = d.criticalFail
-    ? 'This audit was flagged with a critical fatal error.'
-    : `This audit scored below the pass mark (${d.scorePercent}%, pass mark ${d.passMarkUsed}%).`
-
-  const fatalsHtml = d.fatals.filter((f) => f.severity === 'critical').length
-    ? d.fatals
-        .filter((f) => f.severity === 'critical')
-        .map(
-          (f) => `<div style="background:#FDEBEE;border:1px solid ${ALERT};border-radius:10px;padding:12px 16px;margin-bottom:8px">
-            <div style="font-size:13px;font-weight:600;margin:0 0 2px">${escapeHtml(f.description)}</div>
-            ${f.feedback ? `<div style="font-size:12.5px;color:#5A5F76">${escapeHtml(f.feedback)}</div>` : ''}
-          </div>`
-        )
-        .join('')
-    : ''
-
-  const body = `
-    <p style="margin:0 0 16px">Hi ${escapeHtml(recipientName)},</p>
-    <p style="margin:0 0 18px;color:${ALERT};font-weight:600">${escapeHtml(reason)}</p>
-
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:16px">
-      <tr>
-        <td style="vertical-align:middle">
-          <div style="font-size:32px;font-weight:700;color:${scoreColor(d)};line-height:1">${d.scorePercent}%</div>
-        </td>
-        <td style="vertical-align:middle;text-align:right">
-          <span style="display:inline-block;padding:6px 14px;border-radius:999px;font-size:12px;font-weight:700;color:#fff;background:${scoreColor(d)}">${resultLabel(d).toUpperCase()}</span>
-        </td>
-      </tr>
-    </table>
-
-    ${agentInfoCard(d, true)}
-    ${callDetailsCard(d)}
-
-    ${fatalsHtml}
-
-    <div style="margin-top:22px;text-align:center">
-      ${ctaButton(appUrl(`/audits/${d.auditId}`), 'View the audit')}
-    </div>`
-
-  return emailShell(
-    d.criticalFail ? 'Critical fatal error' : 'Red audit alert',
-    `${d.agentName} · ${d.agentTeamName ?? 'Shikho'}`,
-    d.criticalFail ? 'coral' : 'sunrise',
-    body,
-    560
-  )
-}
-
-export function redFatalAlertText(recipientName: string, d: AuditEmailData): string {
-  const reason = d.criticalFail
-    ? 'This audit was flagged with a critical fatal error.'
-    : `This audit scored below the pass mark (${d.scorePercent}%, pass mark ${d.passMarkUsed}%).`
-  const lines = [
-    `Hi ${recipientName},`,
-    '',
-    reason,
-    '',
-    `Score: ${d.scorePercent}%`,
-    '',
-    'EMPLOYEE INFORMATION',
-    `Agent name: ${d.agentName}`,
-    `Agent ID: ${d.agentEmpId ?? '—'}`,
-    `Team: ${d.agentTeamName ?? '—'}`,
-    `Team Leader: ${d.teamLeaderName ?? '—'}`,
-    `Vintage: ${d.agentVintageLabel ?? '—'}`,
-    `Distribution list: ${d.distributionList ?? '—'}`,
-    `Contact stage: ${d.contactStage ?? '—'}`,
-    '',
-    'CALL DETAILS',
-    `Phone number: ${d.callDestination ?? '—'}`,
-    `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
-    `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
-    `Auditor: ${d.auditorName}`,
-    ...(d.crmLeadId ? [`Lead: https://crm.shikho.com/leads/${d.crmLeadId}`] : []),
-  ]
-  for (const f of d.fatals.filter((f) => f.severity === 'critical')) {
-    lines.push('', f.description + (f.feedback ? ` — ${f.feedback}` : ''))
-  }
-  lines.push('', `View the audit: ${appUrl(`/audits/${d.auditId}`)}`)
   return lines.join('\n')
 }

@@ -22,7 +22,7 @@ import { sendAuditEmail } from '@/lib/users/mailer'
 import type { AuthUser } from '@/types/database.types'
 import { parsePayload, type MarksPayload } from './scoring'
 import { loadAuditEmailData, loadQaManagers, qualifiesForRedFatalAlert } from './audit-notifications'
-import { auditResultHtml, auditResultSubject, auditResultText, redFatalAlertHtml, redFatalAlertSubject, redFatalAlertText } from './audit-email-templates'
+import { auditResultHtml, auditResultSubject, auditResultText } from './audit-email-templates'
 import { parseNotifyMode, parseNotifyTestRecipients, runNotifySend, type NotifyTarget } from '@/lib/pip/notification-runner'
 import { createNotifications } from '@/lib/notifications/notifications.service'
 
@@ -142,8 +142,10 @@ export async function submitScorecard(auditId: string, rawPayload: unknown): Pro
 // SAFE BY DEFAULT — AUDIT_EMAIL_MODE (same shape as PIP_NOTIFICATIONS_MODE/BRIEFING_DIGEST_MODE):
 //   off (default)  nothing is sent
 //   test           sends ONLY to recipients in AUDIT_EMAIL_TEST_RECIPIENTS
-//   live           sends to every real recipient — the agent (cc their Team Leader), and, for a
-//                  Red or critical-fatal audit only, their Manager and every QA Manager
+//   live           sends ONE email per audit — To: the agent, Cc: their Team Leader always, and
+//                  Cc: the Manager + every QA Manager too when the audit didn't pass (schema_064's
+//                  separate in-app "audit_red_fatal" notification for them is unchanged — it's
+//                  per-recipient rows via RLS, not an email, so there's nothing to merge there)
 function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
   after(async () => {
     try {
@@ -182,20 +184,32 @@ function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
           : []),
       ])
 
+      // ONE email per audit (2026-10-03, Jamil's explicit request — previously the Manager/QA
+      // Managers got a second, separately-worded email). To: the agent; Cc: their Team Leader
+      // always, plus the Manager and every QA Manager too when the audit didn't pass — deduped
+      // (a BPO Team Lead's "manager" can itself be a qa_manager, §2) and never the agent's own
+      // address even if it somehow collided.
       const targets: NotifyTarget[] = []
       if (d.agentEmail) {
+        const agentEmailLower = d.agentEmail.trim().toLowerCase()
+        const ccEmails: string[] = []
+        const seenCc = new Set<string>()
+        const addCc = (email: string | null) => {
+          if (!email) return
+          const key = email.trim().toLowerCase()
+          if (key === agentEmailLower || seenCc.has(key)) return
+          seenCc.add(key)
+          ccEmails.push(email)
+        }
+        addCc(d.teamLeaderEmail)
+        if (isRedFatal) {
+          addCc(d.managerEmail)
+          for (const m of qaManagers) addCc(m.email)
+        }
         targets.push({
           email: d.agentEmail,
-          send: () => sendAuditEmail(d.agentEmail as string, d.teamLeaderEmail, auditResultSubject(d), auditResultHtml(d), auditResultText(d)),
+          send: () => sendAuditEmail(d.agentEmail as string, ccEmails, auditResultSubject(d), auditResultHtml(d), auditResultText(d)),
         })
-      }
-      if (isRedFatal) {
-        const recipients = new Map<string, string>() // email -> name, deduped (a BPO Team Lead's "manager" can itself be a qa_manager)
-        if (d.managerEmail && d.managerName) recipients.set(d.managerEmail, d.managerName)
-        for (const m of qaManagers) recipients.set(m.email, m.name)
-        for (const [email, name] of recipients) {
-          targets.push({ email, send: () => sendAuditEmail(email, null, redFatalAlertSubject(d), redFatalAlertHtml(name, d), redFatalAlertText(name, d)) })
-        }
       }
 
       const mode = parseNotifyMode(process.env.AUDIT_EMAIL_MODE)
