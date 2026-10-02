@@ -39,11 +39,18 @@ if (!TO || !TO.includes('@')) {
   process.exit(1)
 }
 
+// Same timeouts as mailer.ts's own transporter — without them a flaky connection hangs
+// indefinitely instead of failing fast (found when a resend stalled after 2 sends).
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
+  pool: true,
+  maxConnections: 3,
   auth: { user: process.env.GMAIL_SMTP_USER, pass: process.env.GMAIL_SMTP_APP_PASSWORD },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 })
 
 async function send(label: string, subject: string, html: string, text?: string) {
@@ -288,6 +295,7 @@ async function main() {
   }
 
   console.log('\nAll sample emails sent.')
+  transporter.close()
 }
 
 main().catch((err) => { console.error(err); process.exit(1) })
