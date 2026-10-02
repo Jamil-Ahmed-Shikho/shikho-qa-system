@@ -197,8 +197,8 @@ async function main() {
     emailShell('Coaching session cancelled', 'With Example Auditor', 'sunrise',
       `<p style="margin:0">Hi Example Agent, your scheduled coaching session with <b>Example Auditor</b> has been cancelled. A new time may be booked later.</p>`))
 
-  // 6. Briefings daily digest (Team Lead)
-  const digest: Digest = {
+  // 6a. Briefings daily digest — Team Lead's own (no Team Leader column)
+  const tlDigest: Digest = {
     recipient: { id: 'x', name: 'Example Team Leader', email: TO, role: 'team_lead' },
     ymd: '2026-10-05',
     dayLabel: 'Mon 5 Oct',
@@ -206,14 +206,33 @@ async function main() {
     groups: [{
       label: null,
       rows: [
-        { briefingId: 'b1', agentName: 'Example Agent One', time: '11:15 AM', scheduledAt: iso(1, 11, 15), conductorName: 'Example Auditor', urgent: true },
-        { briefingId: 'b2', agentName: 'Example Agent Two', time: '2:00 PM', scheduledAt: iso(1, 14, 0), conductorName: 'Example Auditor', urgent: false },
+        { briefingId: 'b1', agentName: 'Example Agent One', teamLeaderName: 'Example Team Leader', time: '11:15 AM', scheduledAt: iso(1, 11, 15), conductorName: 'Example Auditor', urgent: true },
+        { briefingId: 'b2', agentName: 'Example Agent Two', teamLeaderName: 'Example Team Leader', time: '2:00 PM', scheduledAt: iso(1, 14, 0), conductorName: 'Example Auditor', urgent: false },
       ],
     }],
   }
-  await send('Briefing daily digest', digestSubjectSample(digest), digestHtml(digest), digestText(digest))
+  await send('Briefing daily digest — Team Lead', digestSubjectSample(tlDigest), digestHtml(tlDigest), digestText(tlDigest))
+
+  // 6b. Briefings daily digest — Manager's own (2026-10-03: same email, now with a Team
+  // Leader column beside each agent, since a Manager's list spans several Team Leads' people).
+  const managerDigest: Digest = {
+    recipient: { id: 'y', name: 'Example Manager', email: TO, role: 'manager' },
+    ymd: '2026-10-05',
+    dayLabel: 'Mon 5 Oct',
+    total: 3,
+    groups: [{
+      label: null,
+      rows: [
+        { briefingId: 'b1', agentName: 'Example Agent One', teamLeaderName: 'Example Team Leader A', time: '11:15 AM', scheduledAt: iso(1, 11, 15), conductorName: 'Example Auditor', urgent: true },
+        { briefingId: 'b3', agentName: 'Example Agent Three', teamLeaderName: 'Example Team Leader B', time: '12:30 PM', scheduledAt: iso(1, 12, 30), conductorName: 'Example Auditor', urgent: false },
+        { briefingId: 'b2', agentName: 'Example Agent Two', teamLeaderName: 'Example Team Leader A', time: '2:00 PM', scheduledAt: iso(1, 14, 0), conductorName: 'Example Auditor', urgent: false },
+      ],
+    }],
+  }
+  await send('Briefing daily digest — Manager', digestSubjectSample(managerDigest), digestHtml(managerDigest), digestText(managerDigest))
   function digestSubjectSample(d: Digest) {
-    return subjectLine(`Coaching sessions tomorrow (${d.dayLabel}): ${d.total} of your agents`)
+    const who = d.recipient.role === 'manager' ? (d.total === 1 ? 'agent in your teams' : 'agents in your teams') : 'of your agents'
+    return subjectLine(`Coaching sessions tomorrow (${d.dayLabel}): ${d.total} ${who}`)
   }
 
   // 7. Calibration report

@@ -45,6 +45,8 @@ export interface DigestSession {
 export interface DigestRow {
   briefingId: string
   agentName: string
+  /** The agent's own Team Lead, shown beside their name on a Manager's digest only (2026-10-03) — null on a Team Lead's own digest, where it would just repeat their own name. */
+  teamLeaderName: string | null
   time: string
   scheduledAt: string
   conductorName: string | null
@@ -52,7 +54,7 @@ export interface DigestRow {
 }
 
 export interface DigestGroup {
-  /** The Team Lead's name for a Manager's digest (one group per Team Lead); null for a Team Lead's own. */
+  /** Unused since 2026-10-03 (always null) — a Manager's digest used to be split into one block per Team Lead with this as the block's heading; now it's one flat list with the Team Leader shown per row instead (DigestRow.teamLeaderName). Kept so Digest's shape doesn't change for digest-runner.ts and the preview scripts. */
   label: string | null
   rows: DigestRow[]
 }
@@ -157,32 +159,28 @@ export function buildDigests(users: DigestUser[], sessions: DigestSession[], day
     const mine = live.filter((s) => scope.has(s.agentId))
     if (mine.length === 0) continue
 
-    const toRow = (s: DigestSession): DigestRow => ({
-      briefingId: s.briefingId,
-      agentName: byId.get(s.agentId)!.name,
-      time: formatSlotTime(new Date(s.scheduledAt)),
-      scheduledAt: s.scheduledAt,
-      conductorName: s.conductorName,
-      urgent: s.urgent,
-    })
+    // Team Leader name per row, for a Manager's digest (shown beside the agent's name in the
+    // email, 2026-10-03) — resolved for every row regardless of recipient role; simplest, and
+    // harmless on a Team Lead's own digest, where it's just never rendered.
+    const toRow = (s: DigestSession): DigestRow => {
+      const agent = byId.get(s.agentId)!
+      const lead = agent.team_leader_id ? byId.get(agent.team_leader_id) : undefined
+      return {
+        briefingId: s.briefingId,
+        agentName: agent.name,
+        teamLeaderName: lead?.name ?? null,
+        time: formatSlotTime(new Date(s.scheduledAt)),
+        scheduledAt: s.scheduledAt,
+        conductorName: s.conductorName,
+        urgent: s.urgent,
+      }
+    }
     const order = (a: DigestRow, b: DigestRow) =>
       new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime() || a.agentName.localeCompare(b.agentName)
 
-    let groups: DigestGroup[]
-    if (r.role === 'team_lead') {
-      groups = [{ label: null, rows: mine.map(toRow).sort(order) }]
-    } else {
-      // A Manager sees their chain grouped by Team Lead, in Team Lead name order.
-      const perLead = new Map<string, DigestSession[]>()
-      for (const s of mine) {
-        const lead = byId.get(byId.get(s.agentId)!.team_leader_id ?? '')
-        const key = lead?.name ?? '(no Team Leader)'
-        perLead.set(key, [...(perLead.get(key) ?? []), s])
-      }
-      groups = [...perLead.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([label, ss]) => ({ label, rows: ss.map(toRow).sort(order) }))
-    }
+    // One flat list for both roles (2026-10-03) — a Manager's digest used to be split into a
+    // block per Team Lead; now it's a single list with the Team Leader shown per row instead.
+    const groups: DigestGroup[] = [{ label: null, rows: mine.map(toRow).sort(order) }]
 
     digests.push({
       recipient: { id: r.id, name: r.name, email: r.email, role: r.role as 'team_lead' | 'manager' },
