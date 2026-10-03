@@ -40,21 +40,24 @@ export async function loadAgentRevenue(agentId: string, now: Date = new Date()):
   const lastWeekStart = previousSalesWeekStartDate(now)
   const thisWeekStart = salesWeekStart(now)
 
-  const [weekRow, lastUsd, thisUsd] = await Promise.all([
-    // Only to know whether that week was actually computed for this agent (see the field's comment) — the amount is NOT taken from here (it is BDT).
-    supabase.from('agent_weekly_sales').select('week_start').eq('agent_id', agentId).eq('week_start', lastWeekStart).maybeSingle(),
+  const [weekComputed, lastUsd, thisUsd] = await Promise.all([
+    // Whether the WEEK ITSELF has been rolled up yet — a global fact, not "does this
+    // particular agent have a row", which a mid-week joiner (excluded from
+    // agent_weekly_sales by §6.3's own whole-week eligibility rule) would always fail
+    // even once the week is long since computed and their own revenue is real (schema_065).
+    supabase.rpc('revenue_week_computed', { p_week_start: lastWeekStart }),
     supabase.rpc('agent_revenue_usd', { p_agent_id: agentId, p_from: dhakaMidnight(lastWeekStart).toISOString(), p_to: thisWeekStart.toISOString() }),
     supabase.rpc('agent_revenue_usd', { p_agent_id: agentId, p_from: thisWeekStart.toISOString(), p_to: null }),
   ])
   for (const res of [lastUsd, thisUsd]) {
     if (res.error && /agent_revenue_usd/.test(res.error.message) && /(does not exist|schema cache|could not find)/i.test(res.error.message)) throw new RevenueNeedsMigrationError()
   }
-  if (weekRow.error) throw new Error(`Could not read last week's revenue: ${weekRow.error.message}`)
+  if (weekComputed.error) throw new Error(`Could not read last week's revenue: ${weekComputed.error.message}`)
   if (lastUsd.error) throw new Error(`Could not read last week's revenue: ${lastUsd.error.message}`)
   if (thisUsd.error) throw new Error(`Could not read this week's revenue: ${thisUsd.error.message}`)
 
   return {
-    lastWeek: { weekStart: lastWeekStart, totalUsd: weekRow.data ? Number(lastUsd.data) : null },
+    lastWeek: { weekStart: lastWeekStart, totalUsd: weekComputed.data ? Number(lastUsd.data) : null },
     currentWeek: { weekStart: salesWeekStartDate(now), totalUsd: Number(thisUsd.data) },
   }
 }
