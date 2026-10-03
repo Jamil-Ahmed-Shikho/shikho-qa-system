@@ -27,6 +27,11 @@ export interface OjtCandidate {
   ojtCallsThisWeek: number
   ojtTarget: number | null
   reTrainingCallDone: boolean | null
+  lastAuditedAt: string | null
+  lastCoachedAt: string | null
+  lastWeekUsd: number | null
+  thisWeekUsd: number | null
+  lastWeekComputed: boolean
 }
 
 export interface OjtHistoryRow {
@@ -76,6 +81,11 @@ export async function loadOjtCandidates(view: 'mine' | 'team' = 'team'): Promise
     ojtCallsThisWeek: Number(r.ojt_calls_this_week),
     ojtTarget: num(r.ojt_target),
     reTrainingCallDone: r.re_training_call_done,
+    lastAuditedAt: r.last_audited_at,
+    lastCoachedAt: r.last_coached_at,
+    lastWeekUsd: num(r.last_week_usd),
+    thisWeekUsd: num(r.this_week_usd),
+    lastWeekComputed: Boolean(r.last_week_computed),
   }))
 }
 

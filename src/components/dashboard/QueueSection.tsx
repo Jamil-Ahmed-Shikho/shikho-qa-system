@@ -82,7 +82,9 @@ function Row({ r }: { r: RankedRow }) {
 // "target" is a flat 1 call across a fixed 3-day window (§7), not a weekly count, so they
 // don't fit the Done/Target column or the RYG-driven priority order at all — but shown at
 // the BOTTOM of the same table, flagged, rather than invisible (the gap that prompted this).
-// No weekly-sales/revenue columns here by design — not the point of this row, keeps it simple.
+// Last Audited/Last Coached/Last Week/This Week are real facts (schema_068, 2026-10-03,
+// Jamil caught a real audit — Ajyeann's — hidden behind a hardcoded "—") — same subqueries
+// qa_agent_queue() already uses per row, not a lesser version of that data.
 function ReTrainingRow({ c, rowNumber }: { c: OjtCandidate; rowNumber: number }) {
   const ended = c.reTrainingDaysLeft !== null && c.reTrainingDaysLeft <= 0
   const flagColor = ended ? 'var(--alert)' : 'var(--highlight)'
@@ -102,10 +104,12 @@ function ReTrainingRow({ c, rowNumber }: { c: OjtCandidate; rowNumber: number })
       <td style={td}>
         {c.reTrainingCallDone ? <span style={{ color: 'var(--status-green)' }}>1 call done</span> : <span style={{ color: 'var(--text-muted)' }}>No call yet</span>}
       </td>
-      <td style={td}>—</td>
-      <td style={td}>—</td>
-      <td style={td}>—</td>
-      <td style={td}>—</td>
+      <td style={td}>{fmtDay(c.lastAuditedAt)}</td>
+      <td style={td}>{fmtDay(c.lastCoachedAt)}</td>
+      <td style={td} title={c.lastWeekComputed ? undefined : 'Last week has not been computed yet'}>
+        {c.lastWeekComputed ? formatUsd(c.lastWeekUsd) : '—'}
+      </td>
+      <td style={td}>{formatUsd(c.thisWeekUsd)}</td>
       <td style={td}>
         <Link href={`/audits/agent/${encodeURIComponent(c.agentId)}`}
           style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 500, color: '#fff', background: 'var(--brand)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' }}>
