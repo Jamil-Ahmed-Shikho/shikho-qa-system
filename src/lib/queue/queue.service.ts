@@ -6,7 +6,6 @@
 // ============================================================
 
 import { getSupabaseServer } from '@/lib/supabase/server'
-import { salesWeekStartDate } from '@/lib/dates/sales-week'
 import { loadVintageSlabs } from '@/lib/agents/vintage.service'
 import { runWeeklyTargetCompute } from './targets-runner'
 import type { QueueRow } from './priority'
@@ -27,15 +26,16 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 export async function loadQueue(view: QueueView): Promise<QueueRow[]> {
   const supabase = await getSupabaseServer()
 
-  // Make sure THIS week's targets exist (idempotent; cheap). A failure here must not hide the queue —
-  // agents simply show "target not set".
-  const week = salesWeekStartDate(new Date())
-  const have = await supabase.from('agent_weekly_audit_target').select('id').eq('week_start', week).limit(1)
-  if (have.error) throw new Error(have.error.message)
-  if ((have.data ?? []).length === 0) {
-    const r = await runWeeklyTargetCompute()
-    if (!r.ok) console.error('compute_weekly_audit_targets failed:', r.error)
-  }
+  // Recompute THIS week's targets on every load (idempotent; cheap — schema_034's own comment).
+  // 2026-10-03: this used to run only when NO row existed yet for the week, so an admin's
+  // same-week target-rule edit (schema_035's own documented intent: "an admin's rule change
+  // dated 'current' still applies within the week in progress") silently sat unreflected on
+  // this screen until the next day's cron, since compute_weekly_audit_targets() was simply never
+  // called again once the week had any rows at all. The function only ever touches base_target on
+  // an update (the +1 bonus, once decided for the week, is untouched — schema_035), so running it
+  // unconditionally is safe and matches what was already documented as the intended behaviour.
+  const r = await runWeeklyTargetCompute()
+  if (!r.ok) console.error('compute_weekly_audit_targets failed:', r.error)
 
   const { data, error } = await supabase.rpc('qa_agent_queue', { p_view: view })
   if (error) throw new Error(error.message)
