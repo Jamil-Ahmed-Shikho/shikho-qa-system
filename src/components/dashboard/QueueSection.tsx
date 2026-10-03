@@ -53,7 +53,9 @@ function Row({ r }: { r: RankedRow }) {
     <tr>
       <td style={td}>{r.rank}</td>
       <td style={td}>
-        <b>{r.name}</b>
+        <Link href={`/audits/agent/${encodeURIComponent(r.agentId)}/profile`} style={{ color: 'inherit', textDecoration: 'none' }}>
+          <b style={{ color: 'var(--brand)' }}>{r.name}</b>
+        </Link>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'} · {r.stage === 'ojt' ? 'OJT' : (r.vintageLabel ?? 'vintage n/a')}</div>
         <div style={{ fontSize: '11px', color: tone, fontWeight: 600 }}>{r.topReason}</div>
       </td>
