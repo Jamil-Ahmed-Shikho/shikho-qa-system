@@ -52,10 +52,12 @@ export function isMissingOjtSchema(err: unknown): boolean {
 type Row = Record<string, any>
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
-/** Everyone currently in OJT or re-training, within the viewer's scope. Throws on a failed read. */
-export async function loadOjtCandidates(): Promise<OjtCandidate[]> {
+/** Everyone currently in OJT or re-training, within the viewer's scope.
+ * view: 'mine' restricts a QA Auditor to their own assigned agents (quality_auditor_id);
+ * ignored for every other role, same convention as qa_agent_queue() (schema_067). Throws on a failed read. */
+export async function loadOjtCandidates(view: 'mine' | 'team' = 'team'): Promise<OjtCandidate[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.rpc('ojt_candidates')
+  const { data, error } = await supabase.rpc('ojt_candidates', { p_view: view })
   if (error) throw new Error(error.message)
   return ((data ?? []) as Row[]).map((r) => ({
     agentId: r.agent_id,
