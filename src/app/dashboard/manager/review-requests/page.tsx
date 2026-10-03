@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { BackLink } from '@/components/common/BackLink'
 import { isMissingReviewRequestSchema, loadManagerFileableAudits, type ManagerFileableAudit } from '@/lib/review-requests/review-requests.service'
 import { FileReviewRequestForm } from '@/components/review-requests/ReviewRequestForms'
@@ -46,7 +47,13 @@ export default async function ManagerReviewRequestsPage() {
             <tbody>
               {audits.map((a) => (
                 <tr key={a.id}>
-                  <td style={td}><b>{a.agentName ?? 'Unknown agent'}</b></td>
+                  <td style={td}>
+                    {a.agentName ? (
+                      <Link href={`/dashboard/manager/agent/${a.agentId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{a.agentName}</Link>
+                    ) : (
+                      <b>Unknown agent</b>
+                    )}
+                  </td>
                   <td style={td}>
                     {a.scorePercent === null ? '—' : `${a.scorePercent}%`}
                     {a.criticalFail ? ' · critical fatal' : a.passed === false ? ' · did not pass' : ''}

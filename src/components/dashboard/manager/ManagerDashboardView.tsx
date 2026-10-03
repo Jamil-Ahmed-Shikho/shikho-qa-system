@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { ChannelGroup, ManagerRollup, Metrics, TeamLeadGroup } from '@/lib/manager/rollup'
 
 const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`)
@@ -155,7 +156,7 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
                   {group.agents.map((a) => (
                     <tr key={a.agent_id} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={{ ...subTd, paddingLeft: '36px' }}>
-                        <div style={{ fontWeight: 600 }}>{a.agent_name}</div>
+                        <Link href={`/dashboard/manager/agent/${a.agent_id}`} style={{ fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>{a.agent_name}</Link>
                         <div style={{ color: 'var(--text-muted)' }}>{a.agent_email}</div>
                       </td>
                       <td style={subTd}>{[a.team_name, a.site_name].filter(Boolean).join(' · ') || '—'}</td>
@@ -217,7 +218,7 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
                   {group.agents.map((a) => (
                     <tr key={a.agent_id} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={{ ...subTd, paddingLeft: '36px' }}>
-                        <div style={{ fontWeight: 600 }}>{a.agent_name}</div>
+                        <Link href={`/dashboard/manager/agent/${a.agent_id}`} style={{ fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>{a.agent_name}</Link>
                         <div style={{ color: 'var(--text-muted)' }}>{a.agent_email}</div>
                       </td>
                       <td style={subTd}>{[a.team_name, a.site_name].filter(Boolean).join(' · ') || '—'}</td>

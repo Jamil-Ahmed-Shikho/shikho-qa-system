@@ -77,7 +77,13 @@ export default async function ReviewRequestsAdminPage({ searchParams }: { search
             <tbody>
               {requests.map((r) => (
                 <tr key={r.id}>
-                  <td style={td}><b>{r.agentName ?? 'Unknown agent'}</b></td>
+                  <td style={td}>
+                    {r.agentName ? (
+                      <Link href={`/audits/agent/${r.agentId}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link>
+                    ) : (
+                      <b>Unknown agent</b>
+                    )}
+                  </td>
                   <td style={td}>
                     <Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>
                       {r.auditScore === null ? 'Open audit' : `${r.auditScore}%`}{r.auditCriticalFail ? ' · critical fatal' : r.auditPassed === false ? ' · did not pass' : ''}

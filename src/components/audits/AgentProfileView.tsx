@@ -22,7 +22,18 @@ const card: React.CSSProperties = { background: 'var(--paper)', border: '1px sol
  * "what to work on") that either don't apply to a viewer auditing someone else or point at
  * agent-only pages (`/my-audits/*`) this viewer can't open.
  */
-export function AgentProfileView({ data, historyHref }: { data: AgentDashboard; historyHref: string }) {
+export function AgentProfileView({
+  data,
+  historyHref,
+  auditLinksEnabled = true,
+}: {
+  data: AgentDashboard
+  historyHref: string
+  /** False for a Manager viewer, who can't open `/audits/{id}` (middleware doesn't route them
+   * there — a Manager doesn't audit calls, §9's own standing rule) — the trend chart's dots still
+   * show the score, just without a dead link pointing at a page the viewer will be redirected away from. */
+  auditLinksEnabled?: boolean
+}) {
   const { ryg, thisWeek, lastWeek, mtdAvgScore, scoreTrend, revenue, revenueFailed } = data
   const rygMeta = RYG_META[ryg.status]
   const heroScore = mtdAvgScore ?? ryg.avgAuditScore ?? thisWeek.avgScore ?? lastWeek.avgScore
@@ -83,7 +94,7 @@ export function AgentProfileView({ data, historyHref }: { data: AgentDashboard; 
             <TrendBadge trend={scoreTrend} />
           </div>
 
-          {scoreTrend.length > 1 ? <TrendChart trend={scoreTrend} /> : (
+          {scoreTrend.length > 1 ? <TrendChart trend={scoreTrend} linksEnabled={auditLinksEnabled} /> : (
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '10px 0 0' }}>
               Score: <b style={{ color: 'var(--text-primary)' }}>{scoreTrend[0].scorePercent}%</b> on {shortDate(scoreTrend[0].submittedAt)}. One more audit and the trend will show here.
             </p>
@@ -140,7 +151,7 @@ function TrendBadge({ trend }: { trend: { scorePercent: number }[] }) {
 
 /** Same plain-SVG chart as the agent's own dashboard — each point links to `/audits/{id}` (the
  * QA/TL view) instead of `/my-audits/{id}` (agent-only), since this page is for a QA viewer. */
-function TrendChart({ trend }: { trend: { auditId: string; submittedAt: string; scorePercent: number; passed: boolean | null; criticalFail: boolean }[] }) {
+function TrendChart({ trend, linksEnabled }: { trend: { auditId: string; submittedAt: string; scorePercent: number; passed: boolean | null; criticalFail: boolean }[]; linksEnabled: boolean }) {
   const W = 760, H = 320
   const marginLeft = 32, marginRight = 10, marginTop = 28, marginBottom = 52
   const plotLeft = marginLeft, plotRight = W - marginRight
@@ -180,23 +191,30 @@ function TrendChart({ trend }: { trend: { auditId: string; submittedAt: string; 
 
       <path d={path} fill="none" stroke="url(#agentProfileTrendLine)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
 
-      {points.map((p, i) => (
-        <a key={i} href={`/audits/${p.auditId}`} aria-label={`Audit from ${shortDate(p.submittedAt)}, score ${p.scorePercent}%`}>
-          <circle cx={p.cx} cy={p.cy} r={16} fill="transparent" />
-          <text x={p.cx} y={p.cy - 12} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--text-primary)">{p.scorePercent}%</text>
-          <circle cx={p.cx} cy={p.cy} r={5.5} fill={dotColor(p)} stroke="var(--paper)" strokeWidth={2} />
-          <text
-            x={p.cx}
-            y={plotBottom + 18}
-            textAnchor="end"
-            fontSize={11}
-            fill="var(--text-muted)"
-            transform={`rotate(-38 ${p.cx} ${plotBottom + 18})`}
-          >
-            {shortDate(p.submittedAt)}
-          </text>
-        </a>
-      ))}
+      {points.map((p, i) => {
+        const inner = (
+          <>
+            <circle cx={p.cx} cy={p.cy} r={16} fill="transparent" />
+            <text x={p.cx} y={p.cy - 12} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--text-primary)">{p.scorePercent}%</text>
+            <circle cx={p.cx} cy={p.cy} r={5.5} fill={dotColor(p)} stroke="var(--paper)" strokeWidth={2} />
+            <text
+              x={p.cx}
+              y={plotBottom + 18}
+              textAnchor="end"
+              fontSize={11}
+              fill="var(--text-muted)"
+              transform={`rotate(-38 ${p.cx} ${plotBottom + 18})`}
+            >
+              {shortDate(p.submittedAt)}
+            </text>
+          </>
+        )
+        return linksEnabled ? (
+          <a key={i} href={`/audits/${p.auditId}`} aria-label={`Audit from ${shortDate(p.submittedAt)}, score ${p.scorePercent}%`}>{inner}</a>
+        ) : (
+          <g key={i} aria-label={`Audit from ${shortDate(p.submittedAt)}, score ${p.scorePercent}%`}>{inner}</g>
+        )
+      })}
     </svg>
   )
 }

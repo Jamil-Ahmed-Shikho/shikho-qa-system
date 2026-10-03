@@ -26,6 +26,7 @@ export interface TeamLeadAgentRow {
 
 export interface FatalIncidentRow {
   auditId: string
+  agentId: string
   agentName: string
   auditorName: string | null
   submittedAt: string
@@ -50,6 +51,7 @@ export interface PipLiveRow {
 
 export interface OpenReviewRequestRow {
   requestId: string
+  agentId: string
   agentName: string
   status: 'with_team_lead' | 'with_qa_manager'
   daysOpen: number
@@ -57,6 +59,7 @@ export interface OpenReviewRequestRow {
 
 export interface RecentAuditRow {
   auditId: string
+  agentId: string
   agentName: string
   scorePercent: number
   criticalFail: boolean
@@ -153,7 +156,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     })
 
   const fatalIncidents: FatalIncidentRow[] = (fatalsRes.data ?? []).map((f) => ({
-    auditId: f.id, agentName: rosterById.get(f.agent_id)?.name ?? 'Unknown', auditorName: f.auditor_id ? auditorNames.get(f.auditor_id) ?? null : null, submittedAt: f.submitted_at,
+    auditId: f.id, agentId: f.agent_id, agentName: rosterById.get(f.agent_id)?.name ?? 'Unknown', auditorName: f.auditor_id ? auditorNames.get(f.auditor_id) ?? null : null, submittedAt: f.submitted_at,
   }))
 
   const zeroSellers: ZeroSellerRow[] = (zeroSellerRes.data ?? [])
@@ -162,13 +165,13 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
 
   const openReviewRequests: OpenReviewRequestRow[] = (reviewRes.data ?? [])
     .map((r) => ({
-      requestId: r.id, agentName: rosterById.get(r.agent_id)?.name ?? 'Unknown', status: r.status as 'with_team_lead' | 'with_qa_manager',
+      requestId: r.id, agentId: r.agent_id, agentName: rosterById.get(r.agent_id)?.name ?? 'Unknown', status: r.status as 'with_team_lead' | 'with_qa_manager',
       daysOpen: Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86_400_000),
     }))
     .sort((a, b) => b.daysOpen - a.daysOpen)
 
   const recentAudits: RecentAuditRow[] = (recentRes.data ?? []).map((a) => ({
-    auditId: a.id, agentName: rosterById.get(a.agent_id)?.name ?? 'Unknown', scorePercent: a.score_percent, criticalFail: a.critical_fail, submittedAt: a.submitted_at,
+    auditId: a.id, agentId: a.agent_id, agentName: rosterById.get(a.agent_id)?.name ?? 'Unknown', scorePercent: a.score_percent, criticalFail: a.critical_fail, submittedAt: a.submitted_at,
   }))
 
   // PIP: only the cycle covering today, only this team's approved candidates.

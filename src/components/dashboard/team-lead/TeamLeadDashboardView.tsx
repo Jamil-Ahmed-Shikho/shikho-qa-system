@@ -1,6 +1,15 @@
+import Link from 'next/link'
 import { formatUsd } from '@/lib/money/usd'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import type { TeamLeadDashboard } from '@/lib/team-lead/team-lead-dashboard.service'
+
+/** Every agent name on this dashboard links to their profile (/audits/agent/[agentId]/profile,
+ * already reachable for team_lead — same page a QA Auditor opens from QueueSection's "Who to
+ * audit next," §9 Part 2) — a Claude-made call, extending that 2026-10-03 feature here too since
+ * it was a plain oversight that this dashboard never got it in the first place, not a decision to leave it out. */
+function AgentLink({ id, name }: { id: string; name: string }) {
+  return <Link href={`/audits/agent/${id}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
+}
 
 const card: React.CSSProperties = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px', marginBottom: '24px' }
 const sectionTitle: React.CSSProperties = { fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }
@@ -39,7 +48,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <tbody>
                 {notGreen.map((a) => (
                   <tr key={a.agentId}>
-                    <td style={td}><b>{a.name}</b></td>
+                    <td style={td}><AgentLink id={a.agentId} name={a.name} /></td>
                     <td style={td} title={a.vintage.detail ?? undefined}>{a.vintage.label}</td>
                     <td style={td}>{a.rygStatus ? <span style={{ color: RYG_COLOR[a.rygStatus], fontWeight: 600 }}>{RYG_LABEL[a.rygStatus]}</span> : '—'}</td>
                     <td style={td}>{a.avgAuditScore !== null ? `${a.avgAuditScore}%` : '—'}</td>
@@ -60,7 +69,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <thead><tr><th style={th}>Agent</th><th style={th}>Auditor</th><th style={th}>Submitted</th></tr></thead>
               <tbody>
                 {data.fatalIncidents.map((f) => (
-                  <tr key={f.auditId}><td style={td}><b>{f.agentName}</b></td><td style={td}>{f.auditorName ?? '—'}</td><td style={td}>{formatDhakaDateTime(f.submittedAt)}</td></tr>
+                  <tr key={f.auditId}><td style={td}><AgentLink id={f.agentId} name={f.agentName} /></td><td style={td}>{f.auditorName ?? '—'}</td><td style={td}>{formatDhakaDateTime(f.submittedAt)}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -77,7 +86,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <thead><tr><th style={th}>Agent</th><th style={th}>Streak (weeks)</th><th style={th}>Last sale</th></tr></thead>
               <tbody>
                 {data.zeroSellers.map((z) => (
-                  <tr key={z.agentId}><td style={td}><b>{z.agentName}</b></td><td style={td}>{z.currentStreakWeeks}</td><td style={td}>{z.lastSaleDate ?? 'None on record'}</td></tr>
+                  <tr key={z.agentId}><td style={td}><AgentLink id={z.agentId} name={z.agentName} /></td><td style={td}>{z.currentStreakWeeks}</td><td style={td}>{z.lastSaleDate ?? 'None on record'}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -95,7 +104,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <tbody>
                 {data.pipLive.map((p) => (
                   <tr key={p.agentId}>
-                    <td style={td}><b>{p.agentName}</b></td>
+                    <td style={td}><AgentLink id={p.agentId} name={p.agentName} /></td>
                     <td style={td}>{formatUsd(p.targetUsd)}</td>
                     <td style={td}>{formatUsd(p.achievedUsd)}</td>
                     <td style={td}>{p.daysLeft}</td>
@@ -117,7 +126,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <thead><tr><th style={th}>Agent</th><th style={th}>Status</th><th style={th}>Days open</th></tr></thead>
               <tbody>
                 {data.openReviewRequests.map((r) => (
-                  <tr key={r.requestId}><td style={td}><b>{r.agentName}</b></td><td style={td}>{STATUS_LABEL[r.status]}</td><td style={td}><span style={{ fontWeight: r.daysOpen >= 5 ? 700 : 400, color: r.daysOpen >= 5 ? 'var(--alert)' : 'inherit' }}>{r.daysOpen}</span></td></tr>
+                  <tr key={r.requestId}><td style={td}><AgentLink id={r.agentId} name={r.agentName} /></td><td style={td}>{STATUS_LABEL[r.status]}</td><td style={td}><span style={{ fontWeight: r.daysOpen >= 5 ? 700 : 400, color: r.daysOpen >= 5 ? 'var(--alert)' : 'inherit' }}>{r.daysOpen}</span></td></tr>
                 ))}
               </tbody>
             </table>
@@ -135,7 +144,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
               <tbody>
                 {data.recentAudits.map((a) => (
                   <tr key={a.auditId}>
-                    <td style={td}><b>{a.agentName}</b></td>
+                    <td style={td}><AgentLink id={a.agentId} name={a.agentName} /></td>
                     <td style={td}>
                       <span style={{ color: a.criticalFail ? 'var(--alert)' : 'inherit', fontWeight: a.criticalFail ? 700 : 400 }}>
                         {a.scorePercent}%{a.criticalFail ? ' — critical fatal' : ''}

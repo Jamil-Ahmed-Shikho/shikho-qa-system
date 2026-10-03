@@ -38,7 +38,7 @@ export async function PendingReauditsSection() {
             <tbody>
               {items.map((r) => (
                 <tr key={r.auditId}>
-                  <td style={td}><b>{r.agentName}</b></td>
+                  <td style={td}><Link href={`/audits/agent/${r.agentId}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link></td>
                   <td style={td}>
                     <Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>
                       {r.scorePercent === null ? 'Open audit' : `${r.scorePercent}%`}{r.criticalFail ? ' · critical fatal' : ''}
