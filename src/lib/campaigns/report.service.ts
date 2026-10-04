@@ -57,6 +57,7 @@ export interface ReportOption {
   label: string
   count: number
   archived: boolean
+  isMistake: boolean
 }
 
 export interface ReportCheck {
@@ -142,7 +143,7 @@ export async function loadCampaignReport(campaignId: string, filters: ReportFilt
   }
 
   const [campaign, rows, countRes] = await Promise.all([
-    supabase.from('campaigns').select('id, name, is_archived, campaign_check_types!campaign_check_types_campaign_id_fkey(id, name, sort_order, is_archived, campaign_check_values!campaign_check_values_check_type_id_fkey(id, label, sort_order, is_archived))').eq('id', campaignId).maybeSingle(),
+    supabase.from('campaigns').select('id, name, is_archived, campaign_check_types!campaign_check_types_campaign_id_fkey(id, name, sort_order, is_archived, campaign_check_values!campaign_check_values_check_type_id_fkey(id, label, sort_order, is_archived, is_mistake))').eq('id', campaignId).maybeSingle(),
     supabase.rpc('campaign_report', rpcArgs),
     supabase.rpc('campaign_report_audit_count', rpcArgs),
   ])
@@ -152,7 +153,7 @@ export async function loadCampaignReport(campaignId: string, filters: ReportFilt
   if (countRes.error) { console.error('loadCampaignReport (count) failed:', countRes.error.code, countRes.error.message); throw new Error('Could not load the report. Please reload the page.') }
   if (!campaign.data) return null
 
-  type RawCheck = { id: string; name: string; sort_order: number; is_archived: boolean; campaign_check_values: { id: string; label: string; sort_order: number; is_archived: boolean }[] | null }
+  type RawCheck = { id: string; name: string; sort_order: number; is_archived: boolean; campaign_check_values: { id: string; label: string; sort_order: number; is_archived: boolean; is_mistake: boolean }[] | null }
   type Row = { check_type_id: string; value_id: string; answer_count: number | string }
   const counts = new Map<string, number>()
   for (const r of (rows.data ?? []) as Row[]) counts.set(`${r.check_type_id}:${r.value_id}`, Number(r.answer_count))
@@ -164,7 +165,7 @@ export async function loadCampaignReport(campaignId: string, filters: ReportFilt
   const checks: ReportCheck[] = checkTypes.map((t) => {
     const options: ReportOption[] = [...(t.campaign_check_values ?? [])]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map((v) => ({ valueId: v.id, label: v.label, archived: v.is_archived, count: counts.get(`${t.id}:${v.id}`) ?? 0 }))
+      .map((v) => ({ valueId: v.id, label: v.label, archived: v.is_archived, isMistake: v.is_mistake, count: counts.get(`${t.id}:${v.id}`) ?? 0 }))
     return { checkTypeId: t.id, name: t.name, archived: t.is_archived, total: options.reduce((n, o) => n + o.count, 0), options }
   })
 
@@ -174,4 +175,91 @@ export async function loadCampaignReport(campaignId: string, filters: ReportFilt
     auditCount: Number(countRes.data ?? 0),
     checks,
   }
+}
+
+// ── Mistake tracking (schema_077, 2026-10-04) ────────────────
+// Who picked a mistake-tagged answer, their Team Leader, and how many times
+// — both within the report's current filters and lifetime — so the report
+// can answer "who should I take care of", not just "what did everyone
+// answer". See campaign_mistake_breakdown()'s own comment for the exact
+// counting rules.
+
+export interface MistakeOption {
+  valueId: string
+  checkName: string
+  label: string
+}
+
+/** Every option in this report currently tagged as a mistake — the source list for the "count as a mistake" checklist filter. */
+export function listMistakeOptions(report: CampaignReportResult): MistakeOption[] {
+  const out: MistakeOption[] = []
+  for (const check of report.checks) {
+    for (const o of check.options) {
+      if (o.isMistake) out.push({ valueId: o.valueId, checkName: check.name, label: o.label })
+    }
+  }
+  return out
+}
+
+export interface MistakeRow {
+  agentId: string
+  agentName: string
+  teamLeaderName: string | null
+  mistakeCount: number
+  lifetimeCount: number
+  lastMistakeAt: string | null
+  lastAuditId: string | null
+  lastCheckName: string | null
+  lastValueLabel: string | null
+}
+
+/**
+ * The agent breakdown, scoped exactly like loadCampaignReport() (same role/
+ * chain rules, same filters) plus which specific mistake-tagged options to
+ * count this run. `valueIds` null = every mistake-tagged option in this
+ * campaign (the checklist's "nothing explicitly chosen yet" default); an
+ * explicit (possibly empty) array is used as-is.
+ */
+export async function loadCampaignMistakeBreakdown(
+  campaignId: string,
+  filters: ReportFilters,
+  valueIds: string[] | null
+): Promise<MistakeRow[]> {
+  const user = await requireReportAccess()
+  const supabase = await getSupabaseServer()
+
+  const managerId = canNarrowByManager(user.role) ? (filters.managerId || null) : null
+  const { data, error } = await supabase.rpc('campaign_mistake_breakdown', {
+    p_campaign_id: campaignId,
+    p_manager_id: managerId,
+    p_team_name: filters.team || null,
+    p_site_name: filters.site || null,
+    p_agent_id: filters.agentId || null,
+    p_auditor_id: filters.auditorId || null,
+    p_from: filters.from ? filters.from + 'T00:00:00Z' : null,
+    p_to: filters.to ? toExclusiveUpperBound(filters.to) : null,
+    p_value_ids: valueIds,
+  })
+  if (error) {
+    console.error('loadCampaignMistakeBreakdown failed:', error.code, error.message)
+    throw new Error('Could not load the mistake breakdown. Please reload the page.')
+  }
+
+  type Row = {
+    agent_id: string; agent_name: string; team_leader_name: string | null
+    mistake_count: number | string; lifetime_count: number | string
+    last_mistake_at: string | null; last_audit_id: string | null
+    last_check_name: string | null; last_value_label: string | null
+  }
+  return ((data ?? []) as Row[]).map((r) => ({
+    agentId: r.agent_id,
+    agentName: r.agent_name,
+    teamLeaderName: r.team_leader_name,
+    mistakeCount: Number(r.mistake_count),
+    lifetimeCount: Number(r.lifetime_count),
+    lastMistakeAt: r.last_mistake_at,
+    lastAuditId: r.last_audit_id,
+    lastCheckName: r.last_check_name,
+    lastValueLabel: r.last_value_label,
+  }))
 }

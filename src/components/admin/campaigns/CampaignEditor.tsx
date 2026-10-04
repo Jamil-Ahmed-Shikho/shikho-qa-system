@@ -25,6 +25,7 @@ import {
   setCampaignArchivedAction,
   setCheckTypeArchivedAction,
   setOptionArchivedAction,
+  setOptionMistakeAction,
   updateCheckTypeAction,
   updateOptionAction,
 } from '@/lib/campaigns/actions'
@@ -214,6 +215,7 @@ function CheckCard({
   const [name, setName] = useState(check.name)
   const [description, setDescription] = useState(check.description ?? '')
   const [newOption, setNewOption] = useState('')
+  const [newOptionIsMistake, setNewOptionIsMistake] = useState(false)
   useUnsavedGuard(newOption.trim() !== '' || (editing && (name !== check.name || description !== (check.description ?? ''))))
 
   const u = usage.checks[check.id] ?? NO_USE
@@ -230,7 +232,7 @@ function CheckCard({
 
   async function addOption(e: React.FormEvent) {
     e.preventDefault()
-    if (await run(() => createOptionAction(check.id, campaignId, newOption))) setNewOption('')
+    if (await run(() => createOptionAction(check.id, campaignId, newOption, newOptionIsMistake))) { setNewOption(''); setNewOptionIsMistake(false) }
   }
 
   async function saveCheck(e: React.FormEvent) {
@@ -335,13 +337,17 @@ function CheckCard({
           />
         ))}
 
-        <form onSubmit={addOption} style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+        <form onSubmit={addOption} style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             aria-label={`New option for ${check.name}`} style={{ ...inputStyle, flex: 1, minWidth: '180px' }}
             value={newOption} maxLength={CAMPAIGN_LIMITS.option} disabled={atCap}
             placeholder={atCap ? `Already ${OPTION_LIMITS.max} active options — archive one to add another` : 'Add an option, e.g. “Yes — in the opening”'}
             onChange={(e) => setNewOption(e.target.value)}
           />
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: atCap ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={newOptionIsMistake} disabled={atCap} onChange={(e) => setNewOptionIsMistake(e.target.checked)} />
+            Mark as mistake
+          </label>
           <button type="submit" disabled={busy || atCap || !newOption.trim()} style={{ ...primaryBtn, padding: '8px 16px', fontSize: '13px', ...(busy || atCap || !newOption.trim() ? disabledStyle : {}) }}>
             Add option
           </button>
@@ -391,6 +397,7 @@ function OptionRow({
           <span style={{ fontSize: '14px', overflowWrap: 'anywhere' }}>
             {option.label}
             {option.is_archived && <span style={{ marginLeft: '8px' }}><Chip bg="var(--surface-1)" color="var(--text-muted)">Archived</Chip></span>}
+            {option.is_mistake && <span style={{ marginLeft: '8px' }}><Chip bg="var(--alert-light)" color="var(--alert)">Mistake</Chip></span>}
             {usage.submitted > 0 && <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>used in {usage.submitted}</span>}
           </span>
         )}
@@ -399,6 +406,14 @@ function OptionRow({
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <IconBtn label={`Move ${option.label} up`} disabled={busy || !canMoveUp} onClick={() => onMove(-1)}>↑</IconBtn>
           <IconBtn label={`Move ${option.label} down`} disabled={busy || !canMoveDown} onClick={() => onMove(1)}>↓</IconBtn>
+          <button
+            style={ghostBtn}
+            disabled={busy}
+            title={option.is_mistake ? 'No longer flag this answer as a mistake' : 'Flag this answer as a mistake in the Campaign Report'}
+            onClick={() => run(() => setOptionMistakeAction(option.id, campaignId, !option.is_mistake))}
+          >
+            {option.is_mistake ? 'Unmark mistake' : 'Mark as mistake'}
+          </button>
           <button
             style={{ ...ghostBtn, ...(textLocked ? disabledStyle : {}) }}
             disabled={busy || textLocked}

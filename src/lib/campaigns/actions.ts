@@ -197,13 +197,13 @@ export async function reorderCheckTypesAction(campaignId: string, orderedIds: st
 
 // ── options (the closed answer list) ────────────────────────
 
-export async function createOptionAction(checkTypeId: string, campaignId: string, label: string): Promise<{ ok: true; id: string } | Fail> {
+export async function createOptionAction(checkTypeId: string, campaignId: string, label: string, isMistake: boolean = false): Promise<{ ok: true; id: string } | Fail> {
   const g = await requireAdmin(); if ('error' in g) return g
   if (!isUuid(checkTypeId) || !isUuid(campaignId)) return { ok: false, error: 'Unknown check.' }
   const parsed = validateOptionLabel(label); if (!parsed.ok) return parsed
 
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.from('campaign_check_values').insert({ check_type_id: checkTypeId, label: parsed.value }).select('*').single()
+  const { data, error } = await supabase.from('campaign_check_values').insert({ check_type_id: checkTypeId, label: parsed.value, is_mistake: isMistake === true }).select('*').single()
   if (error) return { ok: false, error: friendly(error) }
 
   await log(g.actor, 'campaign_option.created', 'campaign_check_values', data.id, null, data)
@@ -224,6 +224,23 @@ export async function updateOptionAction(id: string, campaignId: string, label: 
   if (!data?.length) return { ok: false, error: 'That option no longer exists.' }
 
   await log(g.actor, 'campaign_option.updated', 'campaign_check_values', id, before, data[0])
+  refresh(campaignId)
+  return { ok: true }
+}
+
+/** Tag/untag an option as a mistake worth flagging in the Campaign Report's agent breakdown (schema_077).
+ * A separate action from rename/archive — this is its own independent judgment call, not tied to editing
+ * the option's text or its lifecycle state. */
+export async function setOptionMistakeAction(id: string, campaignId: string, isMistake: boolean): Promise<Ok | Fail> {
+  const g = await requireAdmin(); if ('error' in g) return g
+  if (!isUuid(id) || !isUuid(campaignId)) return { ok: false, error: 'Unknown option.' }
+
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.from('campaign_check_values').update({ is_mistake: isMistake === true }).eq('id', id).select('id')
+  if (error) return { ok: false, error: friendly(error) }
+  if (!data?.length) return { ok: false, error: 'That option no longer exists.' }
+
+  await log(g.actor, isMistake ? 'campaign_option.marked_mistake' : 'campaign_option.unmarked_mistake', 'campaign_check_values', id, { is_mistake: !isMistake }, { is_mistake: isMistake })
   refresh(campaignId)
   return { ok: true }
 }

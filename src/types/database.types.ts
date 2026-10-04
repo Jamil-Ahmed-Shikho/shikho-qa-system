@@ -213,6 +213,8 @@ export interface CampaignCheckValue {
   label: string
   sort_order: number
   is_archived: boolean
+  /** Picking this answer is a mistake worth flagging in the Campaign Report's agent breakdown (schema_077). Admin-set, defaults to false. */
+  is_mistake: boolean
   created_at: string
   updated_at: string
 }

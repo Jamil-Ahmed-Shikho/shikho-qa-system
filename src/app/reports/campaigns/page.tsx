@@ -3,8 +3,10 @@ import { BackLink } from '@/components/common/BackLink'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import {
   canNarrowByManager,
+  listMistakeOptions,
   listReportCampaigns,
   listReportManagers,
+  loadCampaignMistakeBreakdown,
   loadCampaignReport,
   loadReportParticipants,
   type ReportFilters,
@@ -12,8 +14,9 @@ import {
 import { SITE_NAMES } from '@/lib/users/constants'
 import { TEAM_NAMES } from '@/types/database.types'
 import { CampaignReportView, selectStyle } from '@/components/reports/CampaignReportView'
+import { MistakeBreakdownTable, MistakeFilterFields } from '@/components/reports/CampaignMistakeSection'
 
-type SP = Record<string, string | undefined>
+type SP = Record<string, string | undefined> & { mistakeValues?: string | string[] }
 
 export default async function CampaignReportPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams
@@ -52,6 +55,22 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
     loadReportParticipants(selectedId, filters.managerId ?? null),
     loadCampaignReport(selectedId, filters),
   ])
+
+  // "Count as a mistake" checklist: null = nothing explicit yet (default to every mistake-
+  // tagged option); an explicit (possibly empty) array once the form has been submitted at
+  // least once — see MistakeFilterFields' own hidden marker for why a marker is needed at all.
+  const mistakeOptions = report ? listMistakeOptions(report) : []
+  const selectedValueIds: string[] | null = sp.mistakeFilterTouched === '1'
+    ? (Array.isArray(sp.mistakeValues) ? sp.mistakeValues : sp.mistakeValues ? [sp.mistakeValues] : [])
+    : null
+  const mistakeRows = report && mistakeOptions.length > 0
+    ? await loadCampaignMistakeBreakdown(selectedId, filters, selectedValueIds)
+    : []
+
+  // A Manager can't open /audits/{id} or /audits/agent/{id}/profile (§9 Part 2 — "a Manager
+  // doesn't audit calls"); everyone else allowed on this report can.
+  const isManager = user?.role === 'manager'
+  const agentProfileHref = (agentId: string) => (isManager ? `/dashboard/manager/agent/${agentId}` : `/audits/agent/${agentId}/profile`)
 
   return (
     <div>
@@ -119,13 +138,14 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
         <Field label="Submitted to">
           <input type="date" name="to" defaultValue={sp.to ?? ''} style={selectStyle} />
         </Field>
+        <MistakeFilterFields options={mistakeOptions} selectedValueIds={selectedValueIds} />
         <button type="submit" style={{
           padding: '9px 18px', fontSize: '13px', fontWeight: 600, color: 'white', background: 'var(--brand)',
           border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
         }}>
           Apply filters
         </button>
-        {(sp.manager || sp.team || sp.site || sp.agent || sp.auditor || sp.from || sp.to) && (
+        {(sp.manager || sp.team || sp.site || sp.agent || sp.auditor || sp.from || sp.to || sp.mistakeFilterTouched) && (
           <Link
             href={`/reports/campaigns?campaign=${selectedId}`}
             style={{ fontSize: '12px', color: 'var(--text-muted)', textDecoration: 'none', padding: '9px 4px' }}
@@ -135,7 +155,17 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
         )}
       </form>
 
-      {report ? <CampaignReportView report={report} /> : (
+      {report ? (
+        <>
+          <CampaignReportView report={report} />
+          <MistakeBreakdownTable
+            options={mistakeOptions}
+            rows={mistakeRows}
+            agentProfileHref={agentProfileHref}
+            auditLinksEnabled={!isManager}
+          />
+        </>
+      ) : (
         <div style={{ background: 'var(--alert-light)', border: '1px solid var(--alert)', borderRadius: 'var(--radius-md)', padding: '16px', color: 'var(--alert)', fontSize: '13px' }}>
           That campaign no longer exists.
         </div>
