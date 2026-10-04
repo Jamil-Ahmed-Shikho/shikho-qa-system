@@ -23,6 +23,9 @@ export interface QueueRow {
   siteName: string | null
   stage: string
   vintageLabel: string | null
+  /** Carried through so a Manager caller (whose scope spans several Team Leads) can group rows
+   *  client-side, the same way manager_agent_stats() rows already do (rollup.ts). */
+  teamLeaderId: string | null
   hasTarget: boolean
   baseTarget: number | null
   bonusApplied: boolean
@@ -36,6 +39,9 @@ export interface QueueRow {
   thisWeekUsd: number | null
   lastWeekComputed: boolean
   lastWeekRevenueTargetUsd: number | null
+  /** Average score_percent over submitted audits in that sales week — null when there were none. */
+  lastWeekAvgScore: number | null
+  thisWeekAvgScore: number | null
   /** 'unrated' (schema_037, Q5): an eligible agent with no audit in the RYG window — a distinct neutral status,
    *  never a colour. null means no RYG row at all (an OJT/re-training agent — RYG never applies to them, Q7 —
    *  or the status job simply hasn't run yet for a new active agent). */

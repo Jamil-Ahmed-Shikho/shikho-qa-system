@@ -32,6 +32,8 @@ export interface OjtCandidate {
   lastWeekUsd: number | null
   thisWeekUsd: number | null
   lastWeekComputed: boolean
+  lastWeekAvgScore: number | null
+  thisWeekAvgScore: number | null
 }
 
 export interface OjtHistoryRow {
@@ -86,6 +88,8 @@ export async function loadOjtCandidates(view: 'mine' | 'team' = 'team'): Promise
     lastWeekUsd: num(r.last_week_usd),
     thisWeekUsd: num(r.this_week_usd),
     lastWeekComputed: Boolean(r.last_week_computed),
+    lastWeekAvgScore: num(r.last_week_avg_score),
+    thisWeekAvgScore: num(r.this_week_avg_score),
   }))
 }
 

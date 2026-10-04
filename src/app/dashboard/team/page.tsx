@@ -6,6 +6,7 @@ import { NavCard } from '@/components/dashboard/NavCard'
 import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/dates/sales-week'
 import { loadTeamLeadDashboard } from '@/lib/team-lead/team-lead-dashboard.service'
 import { TeamLeadDashboardView } from '@/components/dashboard/team-lead/TeamLeadDashboardView'
+import { TeamLeadAgentPerformanceSection } from '@/components/dashboard/team-lead/TeamLeadAgentPerformanceSection'
 
 export default async function TeamDashboardPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const user = await getAuthUser()
@@ -50,7 +51,7 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
         <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px', marginBottom: '20px' }}>Your team's stats could not be loaded right now. Try again shortly.</div>
       ) : null}
 
-      {dashboard && <TeamLeadDashboardView data={dashboard} />}
+      {dashboard && <TeamLeadDashboardView data={dashboard} agentPerformance={<TeamLeadAgentPerformanceSection />} />}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: isTeamLead ? '8px' : 0 }}>
         <NavCard

@@ -19,13 +19,9 @@ const td: React.CSSProperties = { fontSize: '13px', padding: '9px 10px', borderB
 const tile: React.CSSProperties = { background: 'var(--surface-1)', borderRadius: 'var(--radius-sm)', padding: '10px 16px', minWidth: '110px', textAlign: 'center' }
 const empty: React.CSSProperties = { fontSize: '13px', color: 'var(--text-muted)' }
 
-const RYG_COLOR: Record<string, string> = { red: 'var(--alert)', yellow: 'var(--highlight)', green: 'var(--status-green)', unrated: 'var(--text-muted)' }
-const RYG_LABEL: Record<string, string> = { red: 'Red', yellow: 'Yellow', green: 'Green', unrated: 'Unrated' }
 const STATUS_LABEL: Record<string, string> = { with_team_lead: 'With you', with_qa_manager: 'With QA Manager' }
 
-export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
-  const notGreen = data.agents.filter((a) => a.rygStatus !== 'green')
-
+export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLeadDashboard; agentPerformance?: React.ReactNode }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
@@ -36,29 +32,7 @@ export function TeamLeadDashboardView({ data }: { data: TeamLeadDashboard }) {
         <div style={tile}><div style={{ fontSize: '22px', fontWeight: 700 }}>{data.passRate !== null ? `${data.passRate}%` : '—'}</div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Pass rate</div></div>
       </div>
 
-      <div style={card}>
-        <h2 style={sectionTitle}>Agent RYG &amp; Vintage</h2>
-        <p style={sectionNote}>Green agents are counted but not listed, to keep this focused on who needs attention.</p>
-        {notGreen.length === 0 ? (
-          <p style={empty}>Everyone on your team is Green.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Vintage</th><th style={th}>Status</th><th style={th}>Avg score (4wk)</th></tr></thead>
-              <tbody>
-                {notGreen.map((a) => (
-                  <tr key={a.agentId}>
-                    <td style={td}><AgentLink id={a.agentId} name={a.name} /></td>
-                    <td style={td} title={a.vintage.detail ?? undefined}>{a.vintage.label}</td>
-                    <td style={td}>{a.rygStatus ? <span style={{ color: RYG_COLOR[a.rygStatus], fontWeight: 600 }}>{RYG_LABEL[a.rygStatus]}</span> : '—'}</td>
-                    <td style={td}>{a.avgAuditScore !== null ? `${a.avgAuditScore}%` : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {agentPerformance}
 
       <div style={card}>
         <h2 style={sectionTitle}>Fatal incidents</h2>
