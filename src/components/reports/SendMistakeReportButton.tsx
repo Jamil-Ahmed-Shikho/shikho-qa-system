@@ -9,16 +9,17 @@ export function SendMistakeReportButton({ campaignId, filters, valueIds }: { cam
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   function send() {
-    if (!window.confirm('Email this report (as currently filtered) to the site leadership groups, Cc’d to every Manager, QA Manager and Super Admin?')) return
+    if (!window.confirm('Email this full report (the answer breakdown plus "Who to take care of") to the relevant leadership for the agents flagged below — the Dhaka/Jashore Telesales groups or each agent’s own Team Lead/Manager, as applicable, Cc’d to QA leadership?')) return
     setMessage(null)
     start(async () => {
       const res = await sendMistakeReportAction(campaignId, filters, valueIds)
       if (!res.ok) return setMessage({ ok: false, text: res.error })
+      const ccTail = res.cc.length ? ` Cc: ${res.cc.join(', ')}.` : ''
       setMessage({
         ok: true,
         text: res.mode === 'test'
           ? `TEST MODE: sent to the configured test address(es) only — ${res.sentTo.join(', ')}.`
-          : `Sent to ${res.sentTo.join(', ')}.`,
+          : `Sent to ${res.sentTo.join(', ')}.${ccTail}`,
       })
     })
   }
