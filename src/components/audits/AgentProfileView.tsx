@@ -15,12 +15,15 @@ const card: React.CSSProperties = { background: 'var(--paper)', border: '1px sol
 
 /**
  * A QA-facing read of an agent's own dashboard data (§11's AgentDashboardView, trimmed) — for a QA
- * Auditor/Team Lead deciding who to audit or coach next, per Jamil's request (2026-10-03): same
- * stats (avg score, this/last week, this month, revenue last/this week, last 10 audits, a link to
- * every audit), just addressed neutrally (the agent's name as a header, not "Hi {name}") and
- * without the agent-only sections (coaching outcome, review-request status, critical-fatal banner,
- * "what to work on") that either don't apply to a viewer auditing someone else or point at
- * agent-only pages (`/my-audits/*`) this viewer can't open.
+ * Auditor/Team Lead/Manager deciding who to audit or coach next, per Jamil's request (2026-10-03):
+ * same stats (avg score, this/last week, this month, revenue last/this week, last 10 audits, a link
+ * to every audit), just addressed neutrally (the agent's name as a header, not "Hi {name}") and
+ * without the agent-only sections (coaching outcome, review-request status, critical-fatal banner)
+ * that either don't apply to a viewer auditing someone else or point at agent-only pages
+ * (`/my-audits/*`) this viewer can't open. **"What to work on" was added 2026-10-04** on Jamil's own
+ * follow-up ("this will help them to understand agent's improvement area very easily") — it reuses
+ * `topFailedParameters`, already computed by `loadAgentDashboard()` for the agent's own dashboard, so
+ * this needed no new query, just rendering what was already being fetched and discarded here.
  */
 export function AgentProfileView({
   data,
@@ -34,7 +37,7 @@ export function AgentProfileView({
    * show the score, just without a dead link pointing at a page the viewer will be redirected away from. */
   auditLinksEnabled?: boolean
 }) {
-  const { ryg, thisWeek, lastWeek, mtdAvgScore, scoreTrend, revenue, revenueFailed } = data
+  const { ryg, thisWeek, lastWeek, mtdAvgScore, scoreTrend, revenue, revenueFailed, topFailedParameters } = data
   const rygMeta = RYG_META[ryg.status]
   const heroScore = mtdAvgScore ?? ryg.avgAuditScore ?? thisWeek.avgScore ?? lastWeek.avgScore
 
@@ -112,12 +115,40 @@ export function AgentProfileView({
           <style>{`.shikho-see-all-btn:hover { background: #253470; }`}</style>
         </div>
       )}
+
+      {/* What to work on — same focus-area ranking the agent sees on their own dashboard */}
+      {topFailedParameters.length > 0 && (
+        <div style={card}>
+          <SectionTitle>What to work on</SectionTitle>
+          <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '0 0 14px' }}>The rubric items that have cost {data.agentName} the most points in the last 90 days.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {topFailedParameters.map((p) => (
+              <BarRow key={p.parameterId} label={p.name} value={p.failCount} max={topFailedParameters[0].failCount} display={`${p.failCount}×`} gradient="linear-gradient(90deg, var(--highlight), var(--alert))" />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 12px', fontFamily: 'var(--font-display)' }}>{children}</h2>
+}
+
+/** Same bar-chart row AgentDashboardView.tsx uses for its own "What to work on" — duplicated rather
+ * than imported (§14's own lesson: a small piece of UI a new caller needs, not a shared helper to widen). */
+function BarRow({ label, value, max, display, gradient }: { label: string; value: number; max: number; display: string; gradient: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 160px) 1fr auto', gap: '10px', alignItems: 'center' }}>
+      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{label}</span>
+      <div style={{ height: '14px', background: 'var(--surface-1)', borderRadius: 'var(--radius-pill)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: gradient, borderRadius: 'var(--radius-pill)', transition: 'width 220ms cubic-bezier(.22,.61,.36,1)' }} />
+      </div>
+      <span style={{ fontSize: '12.5px', fontWeight: 600, minWidth: '36px', textAlign: 'right' }}>{display}</span>
+    </div>
+  )
 }
 
 function StatTile({ label, value, sub, accent, small }: { label: string; value: string; sub: string; accent: string; small?: boolean }) {
