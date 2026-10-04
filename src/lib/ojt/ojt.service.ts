@@ -16,6 +16,7 @@ export interface OjtCandidate {
   email: string
   teamName: string | null
   siteName: string | null
+  teamLeaderId: string | null
   teamLeaderName: string | null
   trainerName: string | null
   stage: OjtStage
@@ -72,6 +73,7 @@ export async function loadOjtCandidates(view: 'mine' | 'team' = 'team'): Promise
     email: r.email,
     teamName: r.team_name,
     siteName: r.site_name,
+    teamLeaderId: r.team_leader_id,
     teamLeaderName: r.team_leader_name,
     trainerName: r.trainer_name,
     stage: r.employment_stage,

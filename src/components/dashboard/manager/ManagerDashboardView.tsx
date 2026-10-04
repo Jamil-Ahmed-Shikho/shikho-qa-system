@@ -136,7 +136,7 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
       {isOpen && (
         <tr>
           <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
-            <AgentQueueTable ranked={group.rankedAgents} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." />
+            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." />
           </td>
         </tr>
       )}
@@ -164,7 +164,7 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
       {isOpen && (
         <tr>
           <td colSpan={8} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
-            <AgentQueueTable ranked={group.rankedAgents} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." />
+            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." />
           </td>
         </tr>
       )}

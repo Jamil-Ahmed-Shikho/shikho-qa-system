@@ -17,6 +17,7 @@
 // ============================================================
 
 import { rankQueue, type QueueRow, type RankedRow } from '../queue/priority'
+import type { OjtCandidate } from '../ojt/ojt.service'
 
 export interface TeamLeadInfo {
   id: string
@@ -64,6 +65,10 @@ export interface TeamLeadGroup {
    *  live queue row (e.g. re-training — not carried by qa_agent_queue(), §7) simply has no entry
    *  here; they still count in `agents`/`metrics` above. */
   rankedAgents: RankedRow[]
+  /** This group's own re-training agents (ojt_candidates(), §7) — appended below rankedAgents
+   *  in AgentQueueTable, same as QA's and the Team Lead's own queue (2026-10-04, Jamil: "show
+   *  re-training to Team lead and manager also as like QA"). */
+  reTraining: OjtCandidate[]
 }
 
 /** Same agent rows, regrouped by team/channel instead of by Team Lead — a Manager's chain can span more
@@ -74,6 +79,7 @@ export interface ChannelGroup {
   agents: AgentStatRow[]
   metrics: Metrics
   rankedAgents: RankedRow[]
+  reTraining: OjtCandidate[]
 }
 
 export interface ManagerRollup {
@@ -107,7 +113,12 @@ export function computeMetrics(agents: AgentStatRow[]): Metrics {
   }
 }
 
-export function buildRollup(teamLeads: TeamLeadInfo[], rows: AgentStatRow[], queueRows: QueueRow[] = []): ManagerRollup {
+export function buildRollup(
+  teamLeads: TeamLeadInfo[],
+  rows: AgentStatRow[],
+  queueRows: QueueRow[] = [],
+  reTrainingRows: OjtCandidate[] = []
+): ManagerRollup {
   // Deactivated / discontinued agents only appear if they were audited
   // in the period (so historical numbers still reconcile).
   const visible = rows.filter((a) => isCurrentAgent(a) || a.audits_completed > 0)
@@ -116,8 +127,10 @@ export function buildRollup(teamLeads: TeamLeadInfo[], rows: AgentStatRow[], que
   // by the CALLER's own session — an admin browsing a specific manager's chain gets every agent
   // company-wide back from it, not just that manager's. Restricting to `visibleIds` (the chain
   // manager_agent_stats() actually returned for THIS manager) is what makes it correct regardless
-  // of who's viewing.
+  // of who's viewing. ojt_candidates() has the identical scoping subtlety (schema_038/072), so
+  // re-training rows are restricted the same way.
   const queueById = new Map(queueRows.filter((q) => visibleIds.has(q.agentId)).map((q) => [q.agentId, q]))
+  const reTraining = reTrainingRows.filter((c) => c.stage === 're_training' && visibleIds.has(c.agentId))
 
   const byTeamLead = new Map<string, AgentStatRow[]>()
   const knownTeamLeads = new Set(teamLeads.map((t) => t.id))
@@ -132,6 +145,19 @@ export function buildRollup(teamLeads: TeamLeadInfo[], rows: AgentStatRow[], que
     }
   }
 
+  const byReTrainingName = (a: OjtCandidate, b: OjtCandidate) => a.name.localeCompare(b.name)
+  const byTeamLeadReTraining = new Map<string, OjtCandidate[]>()
+  const otherReTraining: OjtCandidate[] = []
+  for (const c of reTraining) {
+    if (c.teamLeaderId && knownTeamLeads.has(c.teamLeaderId)) {
+      const list = byTeamLeadReTraining.get(c.teamLeaderId) ?? []
+      list.push(c)
+      byTeamLeadReTraining.set(c.teamLeaderId, list)
+    } else {
+      otherReTraining.push(c)
+    }
+  }
+
   const byName = (a: AgentStatRow, b: AgentStatRow) => a.agent_name.localeCompare(b.agent_name)
   const rankFor = (agents: AgentStatRow[]): RankedRow[] =>
     rankQueue(agents.map((a) => queueById.get(a.agent_id)).filter((q): q is QueueRow => q !== undefined))
@@ -141,22 +167,29 @@ export function buildRollup(teamLeads: TeamLeadInfo[], rows: AgentStatRow[], que
     // A deactivated Team Lead only shows if agents still hang off them.
     .filter(({ tl, agents }) => tl.is_active || agents.length > 0)
     .sort((a, b) => a.tl.name.localeCompare(b.tl.name))
-    .map(({ tl, agents }) => ({ teamLead: tl, agents, metrics: computeMetrics(agents), rankedAgents: rankFor(agents) }))
+    .map(({ tl, agents }) => ({
+      teamLead: tl,
+      agents,
+      metrics: computeMetrics(agents),
+      rankedAgents: rankFor(agents),
+      reTraining: (byTeamLeadReTraining.get(tl.id) ?? []).sort(byReTrainingName),
+    }))
 
-  if (other.length > 0) {
+  if (other.length > 0 || otherReTraining.length > 0) {
     other.sort(byName)
-    groups.push({ teamLead: null, agents: other, metrics: computeMetrics(other), rankedAgents: rankFor(other) })
+    otherReTraining.sort(byReTrainingName)
+    groups.push({ teamLead: null, agents: other, metrics: computeMetrics(other), rankedAgents: rankFor(other), reTraining: otherReTraining })
   }
 
   return {
     overview: computeMetrics(visible),
     activeTeamLeads: teamLeads.filter((t) => t.is_active).length,
     groups,
-    channelGroups: buildChannelRollup(visible, queueById),
+    channelGroups: buildChannelRollup(visible, queueById, reTraining),
   }
 }
 
-function buildChannelRollup(visible: AgentStatRow[], queueById: Map<string, QueueRow>): ChannelGroup[] {
+function buildChannelRollup(visible: AgentStatRow[], queueById: Map<string, QueueRow>, reTraining: OjtCandidate[]): ChannelGroup[] {
   const byChannel = new Map<string, AgentStatRow[]>()
   for (const agent of visible) {
     const channel = agent.employment_stage === 'ojt' ? 'OJT' : agent.team_name ?? 'No team'
@@ -164,12 +197,22 @@ function buildChannelRollup(visible: AgentStatRow[], queueById: Map<string, Queu
     list.push(agent)
     byChannel.set(channel, list)
   }
+  const byChannelReTraining = new Map<string, OjtCandidate[]>()
+  for (const c of reTraining) {
+    const channel = c.teamName ?? 'No team'
+    const list = byChannelReTraining.get(channel) ?? []
+    list.push(c)
+    byChannelReTraining.set(channel, list)
+  }
   const byName = (a: AgentStatRow, b: AgentStatRow) => a.agent_name.localeCompare(b.agent_name)
-  return [...byChannel.entries()]
-    .map(([channel, agents]) => {
-      const sorted = agents.sort(byName)
+  const byReTrainingName = (a: OjtCandidate, b: OjtCandidate) => a.name.localeCompare(b.name)
+  const channels = new Set([...byChannel.keys(), ...byChannelReTraining.keys()])
+  return [...channels]
+    .map((channel) => {
+      const sorted = (byChannel.get(channel) ?? []).sort(byName)
       const ranked = rankQueue(sorted.map((a) => queueById.get(a.agent_id)).filter((q): q is QueueRow => q !== undefined))
-      return { channel, agents: sorted, metrics: computeMetrics(sorted), rankedAgents: ranked }
+      const reTrain = (byChannelReTraining.get(channel) ?? []).sort(byReTrainingName)
+      return { channel, agents: sorted, metrics: computeMetrics(sorted), rankedAgents: ranked, reTraining: reTrain }
     })
     .sort((a, b) => a.channel.localeCompare(b.channel))
 }

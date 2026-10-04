@@ -11,6 +11,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { describeRange, periodRange, type Period } from '@/lib/dates/sales-week'
 import { loadQueue } from '@/lib/queue/queue.service'
+import { loadOjtCandidates, isMissingOjtSchema, type OjtCandidate } from '@/lib/ojt/ojt.service'
 import { buildRollup, type AgentStatRow, type ManagerRollup, type TeamLeadInfo } from './rollup'
 
 export interface ManagerOption {
@@ -97,10 +98,20 @@ export async function getManagerDashboard(
     console.error('getManagerDashboard: loadQueue failed:', err)
   }
 
+  // ojt_candidates() (schema_072) — same "right now", same-session scoping as loadQueue() above;
+  // re-training agents never appear in qa_agent_queue() (§7), so this is what lets the drill-down
+  // show them too (2026-10-04, Jamil: "show re-training to Team lead and manager also as like QA").
+  let reTrainingRows: OjtCandidate[] = []
+  try {
+    reTrainingRows = await loadOjtCandidates('team')
+  } catch (err) {
+    if (!isMissingOjtSchema(err)) console.error('getManagerDashboard: loadOjtCandidates failed:', err)
+  }
+
   return {
     ok: true,
     managerName: manager.name,
     rangeLabel: describeRange(range),
-    rollup: buildRollup((teamLeads ?? []) as TeamLeadInfo[], agentRows, queueRows),
+    rollup: buildRollup((teamLeads ?? []) as TeamLeadInfo[], agentRows, queueRows, reTrainingRows),
   }
 }
