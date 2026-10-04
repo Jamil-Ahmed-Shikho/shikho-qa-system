@@ -271,6 +271,21 @@ export async function sendAuditEmail(to: string, cc: string | string[] | null, s
   })
 }
 
+// Campaign Mistake Report (2026-10-04) — ONE broadcast email, not one per recipient (unlike
+// every other report/digest in this file): To: the site leadership group mailboxes, Cc: every
+// real Manager/QA Manager/Super Admin. Jamil's own call — the report itself already scopes each
+// viewer to their own agents when they're signed in, so the email doesn't need to be personalized.
+export async function sendCampaignMistakeReportEmail(to: string[], cc: string[], subject: string, html: string, text: string) {
+  await getTransporter().sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
+    to,
+    cc: cc.length ? cc : undefined,
+    subject,
+    html,
+    text,
+  })
+}
+
 // PIP publish notifications (§6.4, Section C, Stage 7): one email per published agent
 // (their own period/target/achievement/downgrade note) and one per Team Lead/Manager
 // (only their own people's names) — content built by pip/notification-email.ts.

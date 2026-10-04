@@ -15,6 +15,7 @@ import { SITE_NAMES } from '@/lib/users/constants'
 import { TEAM_NAMES } from '@/types/database.types'
 import { CampaignReportView, selectStyle } from '@/components/reports/CampaignReportView'
 import { MistakeBreakdownTable, MistakeFilterFields } from '@/components/reports/CampaignMistakeSection'
+import { SendMistakeReportButton } from '@/components/reports/SendMistakeReportButton'
 
 type SP = Record<string, string | undefined> & { mistakeValues?: string | string[] }
 
@@ -164,6 +165,9 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
             agentProfileHref={agentProfileHref}
             auditLinksEnabled={!isManager}
           />
+          {mistakeOptions.length > 0 && user && ['super_admin', 'qa_manager'].includes(user.role) && (
+            <SendMistakeReportButton campaignId={selectedId} filters={filters} valueIds={selectedValueIds} />
+          )}
         </>
       ) : (
         <div style={{ background: 'var(--alert-light)', border: '1px solid var(--alert)', borderRadius: 'var(--radius-md)', padding: '16px', color: 'var(--alert)', fontSize: '13px' }}>
