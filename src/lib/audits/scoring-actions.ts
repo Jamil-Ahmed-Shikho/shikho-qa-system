@@ -21,7 +21,7 @@ import { writeAuditLogs } from '@/lib/users/audit-log'
 import { sendAuditEmail } from '@/lib/users/mailer'
 import type { AuthUser } from '@/types/database.types'
 import { parsePayload, type MarksPayload } from './scoring'
-import { loadAuditEmailData, loadQaManagers, qualifiesForRedFatalAlert } from './audit-notifications'
+import { loadAuditEmailData, loadAuditAlertStaff, qualifiesForRedFatalAlert } from './audit-notifications'
 import { auditResultHtml, auditResultSubject, auditResultText } from './audit-email-templates'
 import { parseNotifyMode, parseNotifyTestRecipients, runNotifySend, type NotifyTarget } from '@/lib/pip/notification-runner'
 import { createNotifications } from '@/lib/notifications/notifications.service'
@@ -142,17 +142,36 @@ export async function submitScorecard(auditId: string, rawPayload: unknown): Pro
 // SAFE BY DEFAULT — AUDIT_EMAIL_MODE (same shape as PIP_NOTIFICATIONS_MODE/BRIEFING_DIGEST_MODE):
 //   off (default)  nothing is sent
 //   test           sends ONLY to recipients in AUDIT_EMAIL_TEST_RECIPIENTS
-//   live           sends ONE email per audit — To: the agent, Cc: their Team Leader always, and
-//                  Cc: the Manager + every QA Manager too when the audit didn't pass (schema_064's
-//                  separate in-app "audit_red_fatal" notification for them is unchanged — it's
-//                  per-recipient rows via RLS, not an email, so there's nothing to merge there)
+//   live           sends ONE email per audit — To: the agent, Cc: their Team Leader AND the QA
+//                  team group mailbox always (2026-10-04: Jamil asked for QAT to be cc'd on every
+//                  submission, not just a failed one), and Cc: the Manager + every QA Manager AND
+//                  Super Admin ("Admin") too when the audit didn't pass — confirmed the same day
+//                  ("QA manager, Respective Team's Manager and Admin will get emails for Failed
+//                  audit, Critical error, red marked audits only"). schema_064's separate in-app
+//                  "audit_red_fatal" notification for Manager/QA-staff is unchanged — it's
+//                  per-recipient rows via RLS, not an email, so there's nothing to merge there.
+//
+// Root cause of "why hasn't any TS3P (or anyone's) audit email actually gone out," found
+// 2026-10-04: AUDIT_EMAIL_MODE was never set on Vercel at all — it has sat at its safe default
+// (off) in production since the first deploy, so no real audit submission anywhere, on any team,
+// has ever actually sent one. The "test sample email" Jamil saw working earlier was a one-off
+// manual SMTP send from this dev session, not evidence the live cron/submit path was wired to
+// fire for real. Flipped to `live` on Vercel the same day, once this file's Cc changes above
+// landed — see CLAUDE.md.
+//
+// The QA-team mailbox is a fixed, real, shared inbox (not a `users` row), so it's never derived
+// from a test account's own chain the way every other recipient here is — AUDIT_EMAIL_QA_TEAM_CC
+// lets it be overridden (to a disposable test address) for local verification without risking a
+// real send to the group inbox; unset, it defaults to the real address.
+const QA_TEAM_CC_EMAIL = (process.env.AUDIT_EMAIL_QA_TEAM_CC ?? '').trim() || 'qat@shikho.com'
+
 function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
   after(async () => {
     try {
       const d = await loadAuditEmailData(auditId)
       if (!d) return
       const isRedFatal = qualifiesForRedFatalAlert(d)
-      const qaManagers = isRedFatal ? await loadQaManagers() : []
+      const qaManagers = isRedFatal ? await loadAuditAlertStaff() : []
 
       // In-app notifications (schema_064) — always created, unlike the email below, since there's
       // no inbox-spam risk to gate: only the recipient themselves ever sees their own row (RLS).
@@ -202,6 +221,7 @@ function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
           ccEmails.push(email)
         }
         addCc(d.teamLeaderEmail)
+        addCc(QA_TEAM_CC_EMAIL)
         if (isRedFatal) {
           addCc(d.managerEmail)
           for (const m of qaManagers) addCc(m.email)

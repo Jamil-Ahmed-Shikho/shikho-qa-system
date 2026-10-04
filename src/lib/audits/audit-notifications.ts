@@ -225,8 +225,11 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
   }
 }
 
-/** Every QA Manager with a real login — the alert's org-wide "QA manager" recipients. Super Admin is
- * deliberately NOT included: Jamil asked for "QA manager", a specific role, not everyone with admin rights. */
+/** Every QA Manager with a real login — used by Review Requests (review-requests/actions.ts) to
+ * notify whoever a request might land with. Deliberately scoped to the one role, not widened here
+ * even though the audit alert below now also wants Super Admin — §14's own lesson: this helper has
+ * another caller that was never asked to start notifying Super Admin too, so that's a separate
+ * function (loadAuditAlertStaff), not a broadening of this one. */
 export async function loadQaManagers(): Promise<QaManagerRecipient[]> {
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
@@ -234,6 +237,21 @@ export async function loadQaManagers(): Promise<QaManagerRecipient[]> {
     .select('id, name, email, is_active, account_status')
     .eq('role', 'qa_manager')
   if (error) throw new Error(`Could not load QA Managers for the audit alert: ${error.message}`)
+  return (data ?? []).filter(hasRealLogin).map((u) => ({ id: u.id, name: u.name, email: u.email as string }))
+}
+
+/** QA Manager + Super Admin ("Admin") with a real login — the Red/Critical-fatal/Failed audit
+ * alert's recipients, confirmed by Jamil 2026-10-04: "QA manager, Respective Team's Manager and
+ * Admin will get emails for Failed audit, Critical error, red marked audits only." Used only by
+ * the audit-submission alert (scoring-actions.ts) — see loadQaManagers() above for why this is its
+ * own function rather than that one widened. */
+export async function loadAuditAlertStaff(): Promise<QaManagerRecipient[]> {
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, email, is_active, account_status')
+    .in('role', ['qa_manager', 'super_admin'])
+  if (error) throw new Error(`Could not load QA Manager/Admin staff for the audit alert: ${error.message}`)
   return (data ?? []).filter(hasRealLogin).map((u) => ({ id: u.id, name: u.name, email: u.email as string }))
 }
 
