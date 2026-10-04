@@ -1,13 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth/auth.service'
-import { PERIOD_OPTIONS, parsePeriod, periodRange } from '@/lib/dates/sales-week'
+import { PERIOD_OPTIONS, parsePeriod } from '@/lib/dates/sales-week'
 import { getManagerDashboard, listManagerOptions } from '@/lib/manager/dashboard.service'
 import { ManagerDashboardView } from '@/components/dashboard/manager/ManagerDashboardView'
 import { BriefingsSection } from '@/components/dashboard/BriefingsSection'
 import { ManagerPicker } from '@/components/dashboard/manager/ManagerPicker'
-import { loadManagerTlCheckCounts, type ManagerTlCheckCount } from '@/lib/team-lead-checks/team-lead-checks.service'
-import { isMissingTlCheckSchema } from '@/lib/team-lead-checks/definitions.service'
 
 export default async function ManagerDashboardPage({
   searchParams,
@@ -31,18 +29,6 @@ export default async function ManagerDashboardPage({
     : requested ?? (user.role === 'qa_manager' ? user.profile.id : options[0]?.id)
 
   const result = managerId ? await getManagerDashboard(managerId, period) : null
-
-  let tlCheckCounts: ManagerTlCheckCount[] = []
-  let tlCheckFailure: unknown = null
-  if (managerId) {
-    const range = periodRange(period)
-    try {
-      tlCheckCounts = await loadManagerTlCheckCounts(managerId, range.from, range.to)
-    } catch (err) {
-      tlCheckFailure = err
-      if (!isMissingTlCheckSchema(err)) console.error(err)
-    }
-  }
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
@@ -122,23 +108,6 @@ export default async function ManagerDashboardPage({
       )}
 
       {result?.ok && <ManagerDashboardView rollup={result.rollup} managerName={result.managerName} />}
-
-      {result?.ok && !isMissingTlCheckSchema(tlCheckFailure) && tlCheckCounts.length > 0 && (
-        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px', marginTop: '20px' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }}>Team Leader Checks</h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 12px' }}>
-            How many quick checks each Team Lead has logged this period — a count only, not the details.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            {tlCheckCounts.map((c) => (
-              <div key={c.teamLeadId} style={{ background: 'var(--surface-1)', borderRadius: 'var(--radius-sm)', padding: '10px 16px', minWidth: '140px' }}>
-                <div style={{ fontSize: '20px', fontWeight: 700 }}>{c.checksCount}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.teamLeadName}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* A Manager's own chain (the database scopes it). Not shown to an admin browsing another manager: the sessions table has no per-manager filter, so it would show everyone's under that manager's name. */}
       {isManager && <BriefingsSection audience="scope" canOpenAudit={false} />}

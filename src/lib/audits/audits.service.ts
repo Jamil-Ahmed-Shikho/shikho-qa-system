@@ -11,6 +11,9 @@ export interface CallStatusEntry {
   status: CallAuditStatus
   auditId: string
   auditorName: string | null
+  /** Phase 3 (schema_073): which kind of row this call's status comes from — 'audit' for every
+   *  existing caller/row (the column defaults to it), 'sample_check' for a logged Sample Check. */
+  checkMode: 'audit' | 'sample_check'
 }
 
 export async function getCallStatusMap(
@@ -25,7 +28,7 @@ export async function getCallStatusMap(
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase
     .from('audits')
-    .select('id, crm_call_id, auditor_id, status, auditor:users!audits_auditor_id_fkey(name)')
+    .select('id, crm_call_id, auditor_id, status, check_mode, auditor:users!audits_auditor_id_fkey(name)')
     .in('crm_call_id', crmCallIds)
 
   if (error) throw new Error(error.message)
@@ -38,7 +41,7 @@ export async function getCallStatusMap(
     } else {
       status = 'audited'
     }
-    result.set(row.crm_call_id as string, { status, auditId: row.id, auditorName })
+    result.set(row.crm_call_id as string, { status, auditId: row.id, auditorName, checkMode: row.check_mode as 'audit' | 'sample_check' })
   }
 
   return result

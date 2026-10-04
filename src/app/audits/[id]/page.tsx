@@ -22,6 +22,9 @@ import { formatDhakaDateTime } from '@/lib/dates/format'
 import { ScheduleCoaching } from '@/components/audits/ScheduleCoaching'
 import { Scorecard } from '@/components/audits/Scorecard'
 import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
+import { loadSampleCheck } from '@/lib/audits/sample-check.service'
+import { SampleCheckForm } from '@/components/audits/SampleCheckForm'
+import { SampleCheckSummary } from '@/components/audits/SampleCheckSummary'
 
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -55,6 +58,11 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   const vintage = agentVintage({ employment_stage: agent?.employment_stage ?? 'active', joining_date: agent?.joining_date ?? null }, vintageSlabs)
   const auditor = audit.auditor as unknown as { name: string; email: string }
 
+  // Phase 3 (schema_073): a Sample Check has no rubric, no CAPA flag, no Review Request
+  // (both are about a SCORE, which a Sample Check never has) and no coaching-schedule prompt
+  // (§5, confirmed design) — those sections are skipped entirely below, not shown empty.
+  const isSampleCheck = audit.check_mode === 'sample_check'
+
   // (This page used to fetch the call from the CRM just to read a nested
   // `lead` object — but the CRM's call objects no longer carry one, so that
   // request always came back empty and added a network round trip to every
@@ -67,7 +75,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   // scheduler sees, before clicking anything, whether a session is already
   // booked and when the last one was. null = it could not be loaded (shown
   // as such — never as "no history", which would invite a double-booking).
-  const canSchedule = !!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)
+  const canSchedule = !isSampleCheck && !!user && ['qa_auditor', 'qa_manager', 'super_admin'].includes(user.role)
   const historyPromise: Promise<CoachingHistoryItem[] | null> =
     canSchedule && audit.status !== 'draft'
       ? loadAgentCoachingHistory(audit.agent_id).catch((err) => {
@@ -113,17 +121,16 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
     }
   )
 
-  // CAPA and the Review Request state each fail independently: a failed read is shown as such
-  // (Review Request) or hidden with a log line (CAPA), never mistaken for "none". If the relevant
-  // schema hasn't been applied yet, both quietly show nothing.
-  const capaPromise: Promise<CapaInfo | null> = loadCapaInfo({
+  // CAPA, Review Requests and revisions are all about a SCORE — none of them apply to a Sample
+  // Check, so they're skipped entirely (not loaded, not rendered) rather than shown empty.
+  const capaPromise: Promise<CapaInfo | null> = isSampleCheck ? Promise.resolve(null) : loadCapaInfo({
     id: audit.id, agent_id: audit.agent_id, status: audit.status, re_audit_of: audit.re_audit_of ?? null, capa_status: audit.capa_status ?? null,
   }).catch((err) => {
     if (!isMissingCapaSchema(err)) console.error(err)
     return null
   })
   const requestPromise: Promise<{ request: ReviewRequestView | null; failed: boolean }> =
-    audit.status === 'draft'
+    isSampleCheck || audit.status === 'draft'
       ? Promise.resolve({ request: null, failed: false })
       : loadReviewRequestForAudit(audit.id).then(
           (request) => ({ request, failed: false }),
@@ -136,18 +143,20 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
   // If this audit has been REVISED (Q16 — a Review Request's approved re-audit), the revision's
   // own figures are the effective ones to show; the original row itself is never edited (§4).
-  const effectivePromise = loadEffectiveResult({
+  const effectivePromise = isSampleCheck ? Promise.resolve(null) : loadEffectiveResult({
     score_percent: audit.score_percent, passed: audit.passed, critical_fail: audit.critical_fail,
     pass_mark_used: audit.pass_mark_used, submitted_at: audit.submitted_at, overall_feedback: audit.overall_feedback,
     rubric_id: audit.rubric_id, superseded_by: audit.superseded_by ?? null,
   }).catch((err) => { console.error(err); return null })
 
-  // Loaded together with the coaching history rather than one after the other.
-  const [scorecardForOriginal, coachingHistory, leadInfo, revenueInfo, capa, requestInfo, effective] = await Promise.all([
-    loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
+  // Loaded together with the coaching history rather than one after the other. A Sample Check
+  // has no rubric scorecard at all — loadSampleCheck() loads only its Special Check campaigns.
+  const [scorecardForOriginal, sampleCheck, coachingHistory, leadInfo, revenueInfo, capa, requestInfo, effective] = await Promise.all([
+    isSampleCheck ? Promise.resolve(null) : loadScorecard(audit.id, audit.rubric_id, audit.overall_feedback, {
       agentTeam: agent?.team_name ?? null,
       isDraft: audit.status === 'draft',
     }),
+    isSampleCheck ? loadSampleCheck(audit.id, audit.overall_feedback, { agentTeam: agent?.team_name ?? null, isDraft: audit.status === 'draft' }) : Promise.resolve(null),
     historyPromise,
     leadPromise,
     revenuePromise,
@@ -185,6 +194,11 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
             {`Lead #${audit.crm_lead_id}`}
           </h1>
+          {isSampleCheck && (
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Sample Check — no rubric score
+            </span>
+          )}
         </div>
         <span style={{
           fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: 'var(--radius-pill)',
@@ -267,10 +281,25 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       )}
 
       <h2 style={{ fontSize: '17px', fontWeight: 600, margin: '0 0 12px' }}>
-        {audit.status === 'draft' ? 'Scorecard' : 'Result'}
+        {isSampleCheck
+          ? (audit.status === 'draft' ? 'Sample Check' : 'Sample Check result')
+          : (audit.status === 'draft' ? 'Scorecard' : 'Result')}
       </h2>
 
-      {!scorecard ? (
+      {isSampleCheck ? (
+        audit.status !== 'draft' ? (
+          <SampleCheckSummary special={sampleCheck?.special ?? []} saved={sampleCheck?.saved ?? { overall_feedback: audit.overall_feedback ?? '', campaigns: [] }} submittedAt={audit.submitted_at} />
+        ) : isOwner ? (
+          <SampleCheckForm auditId={audit.id} campaigns={sampleCheck?.special ?? []} savedPayload={sampleCheck?.saved ?? { overall_feedback: '', campaigns: [] }} agentTeam={agent?.team_name ?? null} />
+        ) : (
+          <div style={{
+            background: 'var(--surface-1)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius-md)',
+            padding: '20px', color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px',
+          }}>
+            Sample Check in progress — only {auditor?.name} can log it.
+          </div>
+        )
+      ) : !scorecard ? (
         <div style={{
           background: 'var(--alert-light)', border: '1px solid var(--alert)', borderRadius: 'var(--radius-md)',
           padding: '16px', fontSize: '13px', color: 'var(--alert)', marginBottom: '20px',
@@ -310,12 +339,12 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {audit.status !== 'draft' && requestInfo.failed && (
+      {!isSampleCheck && audit.status !== 'draft' && requestInfo.failed && (
         <div role="alert" style={{ fontSize: '13px', color: 'var(--alert)', marginBottom: '20px' }}>
           The Review Request status could not be loaded right now. This does not mean there is none — reload to check before filing one.
         </div>
       )}
-      {audit.status !== 'draft' && !requestInfo.failed && user && (
+      {!isSampleCheck && audit.status !== 'draft' && !requestInfo.failed && user && (
         <ReviewRequestPanel
           auditId={audit.id}
           auditStatus={audit.status}
@@ -334,7 +363,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {audit.status !== 'draft' && (
+      {!isSampleCheck && audit.status !== 'draft' && (
         <ScheduleCoaching
           auditId={audit.id}
           canSchedule={canSchedule}

@@ -55,11 +55,6 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: isTeamLead ? '8px' : 0 }}>
         <NavCard
-          href="/tl-checks"
-          title="Team Leader Checks"
-          description="Log a quick check on your own agents' calls — no scoring, never affects their real audit score."
-        />
-        <NavCard
           href="/calibration"
           title="Calibration sessions"
           description="Calibration sessions you have been invited to."

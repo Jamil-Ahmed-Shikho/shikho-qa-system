@@ -81,11 +81,6 @@ export default async function AdminDashboardPage() {
           description="Audits agents (or their Team Lead/Manager) have requested a review of: assign, re-audit and decide."
         />
         <NavCard
-          href="/admin/team-lead-checks"
-          title="Team Leader Checks"
-          description="Manage the lightweight checks Team Leads can log on their own agents' calls, and see every check logged."
-        />
-        <NavCard
           href="/admin/ojt"
           title="OJT Management"
           description="Everyone in OJT or re-training: certify, re-train, not certify or discontinue, with a full history."

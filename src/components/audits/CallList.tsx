@@ -108,20 +108,22 @@ function CallRowItem({
   const durationSec = started && ended ? Math.max(0, Math.round((ended.getTime() - started.getTime()) / 1000)) : 0
   const duration = `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
 
-  function handleStart() {
+  const [startingMode, setStartingMode] = useState<'audit' | 'sample_check' | null>(null)
+  function handleStart(mode: 'audit' | 'sample_check') {
     if (!selectedAgentId) {
       setError('Select the agent this call belongs to first.')
       return
     }
     setError(null)
     setStarting(true) // immediate visual response, before any server work
+    setStartingMode(mode)
     startTransition(async () => {
       try {
-        const auditId = await startAudit(leadId, call.id, selectedAgentId)
+        const auditId = await startAudit(leadId, call.id, selectedAgentId, mode)
         router.push(`/audits/${auditId}`) // the audit page shows its own loading state (loading.tsx)
       } catch (err) {
         setStarting(false)
-        setError(err instanceof Error ? err.message : 'Could not start the audit.')
+        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Sample Check.' : 'Could not start the audit.')
       }
     })
   }
@@ -159,7 +161,8 @@ function CallRowItem({
           fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: 'var(--radius-pill)',
           background: badge.bg, color: badge.color,
         }}>
-          {badge.label}{status?.auditorName && statusKey !== 'in_progress_mine' ? ` · ${status.auditorName}` : ''}
+          {statusKey === 'audited' && status?.checkMode === 'sample_check' ? 'Sample-checked' : badge.label}
+          {status?.auditorName && statusKey !== 'in_progress_mine' ? ` · ${status.auditorName}` : ''}
         </span>
       </div>
 
@@ -215,22 +218,39 @@ function CallRowItem({
             </a>
           )}
           {statusKey === 'available' && !locked && (
-            <button
-              onClick={handleStart}
-              disabled={starting || pending || !selectedAgentId}
-              aria-busy={starting || pending}
-              title={!selectedAgentId ? 'Select the agent this call belongs to first' : undefined}
-              style={{
-                padding: '8px 16px', fontSize: '13px', fontWeight: 500,
-                // While starting, stay the brand colour (busy, not disabled-looking).
-                color: starting || pending ? 'white' : !selectedAgentId ? 'var(--text-muted)' : 'white',
-                background: starting || pending ? 'var(--brand)' : !selectedAgentId ? 'var(--surface-1)' : 'var(--brand)',
-                border: 'none', borderRadius: 'var(--radius-sm)',
-                cursor: starting || pending ? 'progress' : !selectedAgentId ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {starting || pending ? 'Starting audit…' : 'Start Audit'}
-            </button>
+            <>
+              <button
+                onClick={() => handleStart('audit')}
+                disabled={starting || pending || !selectedAgentId}
+                aria-busy={starting || pending}
+                title={!selectedAgentId ? 'Select the agent this call belongs to first' : undefined}
+                style={{
+                  padding: '8px 16px', fontSize: '13px', fontWeight: 500,
+                  // While starting, stay the brand colour (busy, not disabled-looking).
+                  color: starting || pending ? 'white' : !selectedAgentId ? 'var(--text-muted)' : 'white',
+                  background: starting || pending ? 'var(--brand)' : !selectedAgentId ? 'var(--surface-1)' : 'var(--brand)',
+                  border: 'none', borderRadius: 'var(--radius-sm)',
+                  cursor: starting || pending ? 'progress' : !selectedAgentId ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {starting && startingMode === 'audit' ? 'Starting audit…' : 'Start Audit'}
+              </button>
+              <button
+                onClick={() => handleStart('sample_check')}
+                disabled={starting || pending || !selectedAgentId}
+                aria-busy={starting || pending}
+                title={!selectedAgentId ? 'Select the agent this call belongs to first' : 'Log a Sample Check — no rubric score'}
+                style={{
+                  padding: '8px 16px', fontSize: '13px', fontWeight: 500,
+                  color: !selectedAgentId ? 'var(--text-muted)' : 'var(--brand)',
+                  background: !selectedAgentId ? 'var(--surface-1)' : 'var(--brand-light)',
+                  border: 'none', borderRadius: 'var(--radius-sm)',
+                  cursor: starting || pending ? 'progress' : !selectedAgentId ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {starting && startingMode === 'sample_check' ? 'Starting…' : 'Sample Check'}
+              </button>
+            </>
           )}
           {statusKey === 'in_progress_mine' && status && (
             <>

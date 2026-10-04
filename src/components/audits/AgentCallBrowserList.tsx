@@ -50,16 +50,18 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
   const seconds = call.duration ?? 0
   const duration = seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '—'
 
-  function handleStart() {
+  const [startingMode, setStartingMode] = useState<'audit' | 'sample_check' | null>(null)
+  function handleStart(mode: 'audit' | 'sample_check') {
     setError(null)
     setStarting(true)
+    setStartingMode(mode)
     start(async () => {
       try {
-        const auditId = await startAudit(call.lead_id, call.id, agentId)
+        const auditId = await startAudit(call.lead_id, call.id, agentId, mode)
         router.push(`/audits/${auditId}`)
       } catch (err) {
         setStarting(false)
-        setError(err instanceof Error ? err.message : 'Could not start the audit.')
+        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Sample Check.' : 'Could not start the audit.')
       }
     })
   }
@@ -95,11 +97,18 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
       <td style={td}><CallStatusPill status={call.call_status} /></td>
       <td style={{ ...td, textAlign: 'right' }}>
         {statusKey === 'available' && (
-          <button onClick={handleStart} disabled={starting || pending} aria-busy={starting || pending}
-            title={`Start an audit for ${agentName} on this call`}
-            style={{ ...btn, color: '#fff', background: 'var(--brand)', cursor: starting || pending ? 'progress' : 'pointer' }}>
-            {starting || pending ? 'Starting…' : 'Start Audit'}
-          </button>
+          <span style={{ display: 'inline-flex', gap: '6px' }}>
+            <button onClick={() => handleStart('audit')} disabled={starting || pending} aria-busy={starting || pending}
+              title={`Start an audit for ${agentName} on this call`}
+              style={{ ...btn, color: '#fff', background: 'var(--brand)', cursor: starting || pending ? 'progress' : 'pointer' }}>
+              {starting && startingMode === 'audit' ? 'Starting…' : 'Start Audit'}
+            </button>
+            <button onClick={() => handleStart('sample_check')} disabled={starting || pending} aria-busy={starting || pending}
+              title={`Log a Sample Check for ${agentName} on this call — no rubric score`}
+              style={{ ...btn, color: 'var(--brand)', background: 'var(--brand-light)', cursor: starting || pending ? 'progress' : 'pointer' }}>
+              {starting && startingMode === 'sample_check' ? 'Starting…' : 'Sample Check'}
+            </button>
+          </span>
         )}
         {statusKey === 'in_progress_mine' && status && (
           <span style={{ display: 'inline-flex', gap: '6px' }}>
@@ -112,7 +121,9 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
         )}
         {(statusKey === 'taken' || statusKey === 'audited') && status && (
           <a href={`/audits/${status.auditId}`} style={{ ...btn, color: 'var(--brand)', background: 'var(--brand-light)' }}>
-            {statusKey === 'taken' ? `Taken${status.auditorName ? ` · ${status.auditorName}` : ''}` : 'View'}
+            {statusKey === 'taken'
+              ? `Taken${status.auditorName ? ` · ${status.auditorName}` : ''}`
+              : status.checkMode === 'sample_check' ? 'View (Sample Check)' : 'View'}
           </a>
         )}
       </td>

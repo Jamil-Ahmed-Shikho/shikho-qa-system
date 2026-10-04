@@ -32,7 +32,20 @@ async function requireAuditor() {
 // call couldn't be matched to one of our users: for a matched call the
 // server attaches the audit to the real owner and ignores whatever the
 // browser sent (see decideAuditAgent).
-export async function startAudit(leadId: string | number, callId: string | number, pickedAgentId: string | null) {
+//
+// `checkMode` (Phase 3, schema_073): 'audit' (default — every existing
+// caller is unaffected) starts a real, scored audit; 'sample_check' starts
+// a Sample Check instead — same call lookup/matching/rubric-mapping below
+// (a Sample Check still records which rubric WOULD apply, as metadata —
+// it is never scored against it), but the resulting row is logged on
+// `/audits/{id}` as a Sample Check (no scorecard, no coaching prompt), via
+// submit_sample_check() rather than write_audit_results().
+export async function startAudit(
+  leadId: string | number,
+  callId: string | number,
+  pickedAgentId: string | null,
+  checkMode: 'audit' | 'sample_check' = 'audit'
+) {
   const user = await requireAuditor()
 
   // One call, not the lead's whole call list (which the page had just
@@ -111,6 +124,7 @@ export async function startAudit(leadId: string | number, callId: string | numbe
       call_status: call.call_status,
       call_destination: call.destination_number ?? call.destination ?? null,
       status: 'draft',
+      check_mode: checkMode,
     })
     .select('id')
     .single()
