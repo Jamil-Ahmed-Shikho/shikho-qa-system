@@ -5,7 +5,7 @@
 // which is admin-editable free text).
 // ============================================================
 
-import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml } from '@/lib/users/mailer'
 import type { AgentNotification, StaffNotification } from './notifications'
 
 const ALERT = BRAND.coral
@@ -26,8 +26,8 @@ export interface AgentEmailInput extends CyclePeriod {
   achievementUsd: number | null // null = could not be computed; never a false zero
 }
 
-export function agentNotificationSubject(): string {
-  return subjectLine('You have been placed on a Performance Improvement Plan (PIP)')
+export function agentNotificationSubject(i: AgentEmailInput): string {
+  return `PIP Notice | ${i.n.recipient.name} | ${i.label}`
 }
 
 export function agentNotificationText(i: AgentEmailInput): string {
@@ -79,7 +79,7 @@ export interface StaffEmailInput extends CyclePeriod {
 }
 
 export function staffNotificationSubject(i: StaffEmailInput): string {
-  return subjectLine(`PIP list published — ${i.n.total} of your ${i.n.total === 1 ? 'people is' : 'people are'} on it`)
+  return `PIP List Published | ${i.n.total} ${i.n.total === 1 ? 'Agent' : 'Agents'} | ${i.label}`
 }
 
 export function staffNotificationText(i: StaffEmailInput): string {

@@ -61,12 +61,12 @@ export const BRAND = {
 
 export const PRODUCT_NAME = 'Shikho QA Audit Management System'
 
-/** Every subject line in the system reads "{full product name} — {what happened}" — never
- * the short form a human receives (CMS convention, 2026-10-02) — so an inbox listing several
- * of these emails together is instantly recognizable as one system. */
-export function subjectLine(outcome: string): string {
-  return `${PRODUCT_NAME} — ${outcome}`
-}
+// Subject lines deliberately do NOT repeat the product name (2026-10-04, on Jamil's
+// feedback) — the recipient already sees it as the sender's display name
+// (EMAIL_FROM_NAME), so putting it in every subject too was pure repetition. Each
+// subject instead describes what the email actually is, pipe-separated, with the
+// specific facts (agent name, score, date, campaign name, phone number, …) that let
+// someone triage their inbox without opening it — see each call site below.
 
 export type EmailAccent = 'indigo' | 'green' | 'sunrise' | 'coral'
 const ACCENT_COLOR: Record<EmailAccent, string> = { indigo: BRAND.indigo, green: BRAND.green, sunrise: BRAND.sunrise, coral: BRAND.coral }
@@ -134,7 +134,7 @@ async function send(to: string, subject: string, html: string) {
 export async function sendWelcomeEmail(name: string, email: string, tempPassword: string) {
   await send(
     email,
-    subjectLine('Your account is ready'),
+    `Account Created | ${name}`,
     emailShell(
       'Welcome to Shikho QA',
       'Your account is ready',
@@ -147,7 +147,7 @@ export async function sendWelcomeEmail(name: string, email: string, tempPassword
 export async function sendPasswordResetEmail(name: string, email: string, tempPassword: string) {
   await send(
     email,
-    subjectLine('Your password was reset'),
+    `Password Reset | ${name}`,
     emailShell(
       'Password reset',
       'A new temporary password has been issued',
@@ -160,6 +160,14 @@ export async function sendPasswordResetEmail(name: string, email: string, tempPa
 // ── Briefings (§5) ───────────────────────────────────────────
 // The agent gets a dedicated email, their Team Leader CC'd — never the
 // auditor, who sees their own schedule in-app instead (Part B).
+
+// Short form for a subject line ("Thu, 2 Oct, 2:00 PM") — briefingTimeBody below uses
+// the longer weekday+month form for the body itself.
+function briefingDateLabel(scheduledAtIso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Dhaka',
+  }).format(new Date(scheduledAtIso))
+}
 
 function briefingTimeBody(intro: string, conductorName: string, scheduledAtIso: string): string {
   const label = new Intl.DateTimeFormat('en-GB', {
@@ -198,7 +206,7 @@ async function sendBriefingMail(
 // briefing's own conducted_by), so the agent knows who to expect.
 export async function sendBriefingScheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string) {
   await sendBriefingMail(
-    subjectLine(`Coaching session with ${conductorName} scheduled`),
+    `Coaching Session Scheduled | ${agentName} | ${briefingDateLabel(scheduledAtIso)}`,
     'Coaching session scheduled',
     `With ${escapeHtml(conductorName)}`,
     'indigo',
@@ -210,7 +218,7 @@ export async function sendBriefingScheduledEmail(agentName: string, agentEmail: 
 
 export async function sendBriefingRescheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string) {
   await sendBriefingMail(
-    subjectLine(`Coaching session with ${conductorName} rescheduled`),
+    `Coaching Session Rescheduled | ${agentName} | New Time: ${briefingDateLabel(scheduledAtIso)}`,
     'Coaching session rescheduled',
     `With ${escapeHtml(conductorName)} — new time`,
     'indigo',
@@ -222,7 +230,7 @@ export async function sendBriefingRescheduledEmail(agentName: string, agentEmail
 
 export async function sendBriefingCancelledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, conductorName: string) {
   await sendBriefingMail(
-    subjectLine(`Coaching session with ${conductorName} cancelled`),
+    `Coaching Session Cancelled | ${agentName}`,
     'Coaching session cancelled',
     `With ${escapeHtml(conductorName)}`,
     'sunrise',

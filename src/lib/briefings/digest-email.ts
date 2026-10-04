@@ -5,7 +5,7 @@
 // names come from user-editable profiles.
 // ============================================================
 
-import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml } from '@/lib/users/mailer'
 import { relativeDayLabel } from './rules'
 import type { Digest, DigestRow } from './digest'
 
@@ -21,7 +21,10 @@ function whenWord(d: Digest, now: Date): string {
 export function digestSubject(d: Digest, now: Date = new Date()): string {
   const n = d.total
   const who = d.recipient.role === 'manager' ? (n === 1 ? 'agent in your teams' : 'agents in your teams') : (n === 1 ? 'of your agents' : 'of your agents')
-  return subjectLine(`Coaching sessions ${whenWord(d, now)} (${d.dayLabel}): ${n} ${who}`)
+  const rel = whenWord(d, now)
+  const relLabel = rel === 'tomorrow' ? 'Tomorrow' : rel === 'today' ? 'Today' : null
+  const when = relLabel ? `${relLabel} (${d.dayLabel})` : d.dayLabel
+  return `Coaching Sessions | ${when} | ${n} ${who}`
 }
 
 // showTeamLeader: a Manager's digest shows which Team Lead each agent reports to, right next

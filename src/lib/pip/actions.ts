@@ -355,7 +355,7 @@ export async function sendPipNotificationsAction(
       const input = { label, n, achievementUsd }
       return {
         email: n.recipient.email,
-        send: () => sendPipNotificationEmail(n.recipient.email, agentNotificationSubject(), agentNotificationHtml(input), agentNotificationText(input)),
+        send: () => sendPipNotificationEmail(n.recipient.email, agentNotificationSubject(input), agentNotificationHtml(input), agentNotificationText(input)),
       }
     }))),
     ...staffNotifs.map((n) => {

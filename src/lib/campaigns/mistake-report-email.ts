@@ -9,7 +9,7 @@
 // escaped.
 // ============================================================
 
-import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml } from '@/lib/users/mailer'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import type { CampaignReportResult, MistakeRow } from './report.service'
 
@@ -32,7 +32,7 @@ export interface MistakeReportEmailInput {
 }
 
 export function mistakeReportSubject(i: MistakeReportEmailInput): string {
-  return subjectLine(`Campaign report: ${i.campaignName}`)
+  return `Campaign Report | ${i.campaignName} | ${i.periodLabel}`
 }
 
 const pct = (count: number, total: number) => (total > 0 ? Math.round((count / total) * 100) : 0)

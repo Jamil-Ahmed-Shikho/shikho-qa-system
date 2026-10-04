@@ -6,7 +6,7 @@
 // them may already see every score once the session is closed.
 // ============================================================
 
-import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml } from '@/lib/users/mailer'
 import type { VarianceReport } from './variance'
 
 const INDIGO = BRAND.indigo
@@ -28,7 +28,7 @@ export interface ReportEmailInput {
 const sign = (n: number) => (n > 0 ? `+${n}` : String(n))
 
 export function reportSubject(i: ReportEmailInput): string {
-  return subjectLine(`Calibration report: ${i.title} (${i.whenLabel})`)
+  return `Calibration Report | ${i.title} | ${i.whenLabel}`
 }
 
 export function reportText(i: ReportEmailInput): string {

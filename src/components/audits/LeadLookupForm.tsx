@@ -16,7 +16,7 @@ export function LeadLookupForm() {
     e.preventDefault()
     const leadId = parseLeadIdentifier(value)
     if (!leadId) {
-      setError('Could not find a lead ID in that — paste a lead ID (e.g. 12345) or a lead URL (e.g. crm.shikho.com/leads/12345).')
+      setError('Could not find a lead ID in that — paste a lead ID (e.g. 12345) or a lead URL (e.g. crm.shikho.com/details/lead/12345).')
       return
     }
     setError(null)
@@ -53,7 +53,7 @@ export function LeadLookupForm() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={pending}
-          placeholder="12345 or crm.shikho.com/leads/12345"
+          placeholder="12345 or crm.shikho.com/details/lead/12345"
           autoFocus
           style={{
             width: '100%', padding: '10px 14px', fontSize: '14px', border: '1px solid var(--border)',

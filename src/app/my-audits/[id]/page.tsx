@@ -7,6 +7,7 @@ import { ReviewRequestPanel } from '@/components/review-requests/ReviewRequestPa
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { isRecordingFilename, recordingConfigured } from '@/lib/crm/recording'
+import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { isMissingReviewRequestSchema, loadEffectiveResult, loadReviewRequestForAudit, type ReviewRequestView } from '@/lib/review-requests/review-requests.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
@@ -88,7 +89,7 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
           </p>
           {audit.crm_lead_id && (
             <a
-              href={`https://crm.shikho.com/leads/${audit.crm_lead_id}`}
+              href={crmLeadUrl(audit.crm_lead_id)}
               target="_blank"
               rel="noreferrer"
               style={{

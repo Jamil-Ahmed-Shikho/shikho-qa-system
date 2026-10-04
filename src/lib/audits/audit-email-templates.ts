@@ -21,8 +21,9 @@
 // {name}" the same way a Team Lead Cc has always been.
 // ============================================================
 
-import { BRAND, emailShell, escapeHtml, subjectLine, type EmailAccent } from '@/lib/users/mailer'
+import { BRAND, emailShell, escapeHtml, type EmailAccent } from '@/lib/users/mailer'
 import { formatDhakaDateTime } from '@/lib/dates/format'
+import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
 import type { AuditEmailData } from './audit-notifications'
 
 // One shared palette (BRAND, mailer.ts) — these are just short local aliases, not a
@@ -69,7 +70,7 @@ function ctaButton(href: string, text: string): string {
 
 function leadPill(crmLeadId: string | null): string {
   if (!crmLeadId) return `<span style="font-size:12.5px;color:${MUTED}">—</span>`
-  return `<a href="https://crm.shikho.com/leads/${escapeHtml(crmLeadId)}" style="display:inline-block;background:#fff;border:1px solid ${INDIGO};color:${INDIGO};text-decoration:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600">Open lead →</a>`
+  return `<a href="${escapeHtml(crmLeadUrl(crmLeadId))}" style="display:inline-block;background:#fff;border:1px solid ${INDIGO};color:${INDIGO};text-decoration:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600">Open lead →</a>`
 }
 
 // ── A clean "label | value" card with an uppercase eyebrow title — the same
@@ -118,8 +119,20 @@ function agentInfoCard(d: AuditEmailData, includeName: boolean): string {
 // ── Audit result email (To: agent, Cc: Team Leader always, Cc: Manager + QA
 // Managers too when the audit didn't pass — see qualifiesForRedFatalAlert) ──
 
+// Matches the subject format the team already recognizes from the previous (Apps
+// Script) system — "New Evaluation Arrived | Score: 95% | Md. Rubayet Hasan |
+// 1933728342" (the lead's phone number) — with a result tag added only when the
+// outcome needs flagging (a plain pass needs no extra word).
 export function auditResultSubject(d: AuditEmailData): string {
-  return subjectLine(`Your audit result: ${d.scorePercent}% — ${resultLabel(d)}`)
+  const scorePart = d.criticalFail
+    ? `Score: ${d.scorePercent}% (Critical Fatal)`
+    : !d.passed
+      ? `Score: ${d.scorePercent}% (Did Not Pass)`
+      : `Score: ${d.scorePercent}%`
+  const parts = ['New Evaluation Arrived', scorePart, d.agentName]
+  if (d.callDestination) parts.push(d.callDestination)
+  else if (d.crmLeadId) parts.push(`Lead ${d.crmLeadId}`)
+  return parts.join(' | ')
 }
 
 export function auditResultHtml(d: AuditEmailData): string {
@@ -208,7 +221,7 @@ export function auditResultText(d: AuditEmailData): string {
     `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
     `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
     `Auditor: ${d.auditorName}`,
-    ...(d.crmLeadId ? [`Lead: https://crm.shikho.com/leads/${d.crmLeadId}`] : []),
+    ...(d.crmLeadId ? [`Lead: ${crmLeadUrl(d.crmLeadId)}`] : []),
     '',
     'EMPLOYEE INFORMATION',
     `Agent ID: ${d.agentEmpId ?? '—'}`,
