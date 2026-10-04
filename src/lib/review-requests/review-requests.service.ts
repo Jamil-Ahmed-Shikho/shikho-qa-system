@@ -212,10 +212,14 @@ export async function loadManagerFileableAudits(): Promise<ManagerFileableAudit[
   const supabase = await getSupabaseServer()
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const [audits, requests] = await Promise.all([
+    // check_mode = 'audit': a Sample Check has no score, so it can't sensibly have a Review
+    // Request filed against it (the database also refuses this directly now, schema_078) —
+    // it shouldn't be offered here in the first place.
     supabase
       .from('audits')
       .select('id, agent_id, score_percent, passed, critical_fail, submitted_at, agent:users!audits_agent_id_fkey(name)')
       .eq('status', 'submitted')
+      .eq('check_mode', 'audit')
       .is('review_request_id', null)
       .gte('submitted_at', since)
       .order('submitted_at', { ascending: false }),

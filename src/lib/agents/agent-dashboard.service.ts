@@ -83,11 +83,17 @@ export async function loadAgentDashboard(agentId: string, agentName: string, now
   const historyFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
 
   const [recentAudits, statusRow, briefing, requests, revenue] = await Promise.all([
+    // check_mode = 'audit': an agent's OWN session already excludes a Sample Check via RLS
+    // (audits_select_agent_own, schema_075), but this loader is also reused — same agentId,
+    // a DIFFERENT viewer's session — for the QA/Team Lead/Manager-facing agent profile pages
+    // (§9 Part 2), where RLS does NOT filter check_mode (those roles may see Sample Checks).
+    // Without this, a Sample Check would inflate thisWeek/lastWeek's audit count there.
     supabase
       .from('audits')
       .select('id, score_percent, passed, critical_fail, submitted_at, auditor:users!audits_auditor_id_fkey(name), audit_parameter_results(passed, parameter_id, rubric_parameters(name))')
       .eq('agent_id', agentId)
       .eq('status', 'submitted')
+      .eq('check_mode', 'audit')
       .gte('submitted_at', historyFrom.toISOString())
       .order('submitted_at', { ascending: false })
       .limit(120),

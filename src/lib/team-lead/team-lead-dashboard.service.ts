@@ -104,7 +104,9 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
 
   const [slabs, auditsRes, targetsRes, statusRes, zeroSellerRes, fatalsRes, reviewRes, recentRes, cycleRes] = await Promise.all([
     loadVintageSlabs().catch(() => DEFAULT_VINTAGE_SLABS),
-    supabase.from('audits').select('score_percent, passed').eq('status', 'submitted').in('agent_id', agentIds)
+    // check_mode = 'audit' — a Sample Check has no score and must not inflate "audits done" or
+    // (worse) drag down avgScore/passRate by counting toward the denominator with a null score.
+    supabase.from('audits').select('score_percent, passed').eq('status', 'submitted').eq('check_mode', 'audit').in('agent_id', agentIds)
       .gte('submitted_at', from.toISOString()).lt('submitted_at', to.toISOString()),
     supabase.from('agent_weekly_audit_target').select('final_target').in('agent_id', agentIds)
       .gte('week_start', from.toISOString().slice(0, 10)).lt('week_start', to.toISOString().slice(0, 10)),
@@ -113,7 +115,8 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     supabase.from('audits').select('id, agent_id, auditor_id, submitted_at').eq('status', 'submitted').eq('critical_fail', true).in('agent_id', agentIds)
       .gte('submitted_at', from.toISOString()).lt('submitted_at', to.toISOString()),
     supabase.from('review_requests').select('id, agent_id, status, created_at').in('agent_id', agentIds).neq('status', 'resolved'),
-    supabase.from('audits').select('id, agent_id, score_percent, critical_fail, submitted_at, auditor_id').eq('status', 'submitted').in('agent_id', agentIds)
+    // Same check_mode exclusion — "recent audits" means real audits, not Sample Checks.
+    supabase.from('audits').select('id, agent_id, score_percent, critical_fail, submitted_at, auditor_id').eq('status', 'submitted').eq('check_mode', 'audit').in('agent_id', agentIds)
       .order('submitted_at', { ascending: false }).limit(15),
     supabase.from('pip_cycles').select('id, start_date, end_date')
       .lte('start_date', new Date().toISOString().slice(0, 10)).gte('end_date', new Date().toISOString().slice(0, 10)).maybeSingle(),

@@ -24,6 +24,7 @@ export async function loadAgentAuditHistory(agentId: string): Promise<AgentAudit
     .select('id, submitted_at, score_percent, passed, critical_fail, auditor:users!audits_auditor_id_fkey(name)')
     .eq('agent_id', agentId)
     .eq('status', 'submitted')
+    .eq('check_mode', 'audit')
     .order('submitted_at', { ascending: false })
   if (error) throw new Error(`Could not load this agent's audit history: ${error.message}`)
 
