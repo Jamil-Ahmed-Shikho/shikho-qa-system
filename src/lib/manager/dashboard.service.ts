@@ -10,6 +10,7 @@
 
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { describeRange, periodRange, type Period } from '@/lib/dates/sales-week'
+import { loadQueue } from '@/lib/queue/queue.service'
 import { buildRollup, type AgentStatRow, type ManagerRollup, type TeamLeadInfo } from './rollup'
 
 export interface ManagerOption {
@@ -84,10 +85,22 @@ export async function getManagerDashboard(
     critical_fails: Number(r.critical_fails),
   }))
 
+  // qa_agent_queue() (schema_070) — the same "right now" ranked view QA and Team Lead dashboards
+  // use, scoped to THIS VIEWER's own session (manager_chain_ids() for an actual manager; unrestricted
+  // for an admin browsing someone else's chain) — buildRollup() restricts it to this specific
+  // manager's own agents (agentRows) regardless of which case applies. A failure here degrades
+  // gracefully: the drill-down table just shows no ranked rows, the rest of the dashboard is unaffected.
+  let queueRows: Awaited<ReturnType<typeof loadQueue>> = []
+  try {
+    queueRows = await loadQueue('team')
+  } catch (err) {
+    console.error('getManagerDashboard: loadQueue failed:', err)
+  }
+
   return {
     ok: true,
     managerName: manager.name,
     rangeLabel: describeRange(range),
-    rollup: buildRollup((teamLeads ?? []) as TeamLeadInfo[], agentRows),
+    rollup: buildRollup((teamLeads ?? []) as TeamLeadInfo[], agentRows, queueRows),
   }
 }

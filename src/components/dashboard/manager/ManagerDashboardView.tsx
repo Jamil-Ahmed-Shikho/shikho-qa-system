@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import type { ChannelGroup, ManagerRollup, Metrics, TeamLeadGroup } from '@/lib/manager/rollup'
+import { AgentQueueTable } from '../AgentQueueTable'
+
+const agentProfileHref = (id: string) => `/dashboard/manager/agent/${id}`
 
 const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`)
-const STAGE_LABEL: Record<string, string> = {
-  ojt: 'OJT', re_training: 'Re-training', active: 'Active', not_certified: 'Not certified', discontinued: 'Discontinued',
-}
 
 export function ManagerDashboardView({ rollup, managerName }: { rollup: ManagerRollup; managerName: string }) {
   const { overview, groups, activeTeamLeads, channelGroups } = rollup
@@ -136,42 +135,8 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
       </tr>
       {isOpen && (
         <tr>
-          <td colSpan={7} style={{ padding: 0, background: 'var(--surface-0)' }}>
-            {group.agents.length === 0 ? (
-              <div style={{ padding: '12px 16px 12px 36px', color: 'var(--text-muted)', fontSize: '12px' }}>No agents in this channel.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
-                    <th style={{ ...subTh, paddingLeft: '36px' }}>Agent</th>
-                    <th style={subTh}>Team / Site</th>
-                    <th style={subTh}>Stage</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Audits</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Avg score</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Pass rate</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Critical</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.agents.map((a) => (
-                    <tr key={a.agent_id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ ...subTd, paddingLeft: '36px' }}>
-                        <Link href={`/dashboard/manager/agent/${a.agent_id}`} style={{ fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>{a.agent_name}</Link>
-                        <div style={{ color: 'var(--text-muted)' }}>{a.agent_email}</div>
-                      </td>
-                      <td style={subTd}>{[a.team_name, a.site_name].filter(Boolean).join(' · ') || '—'}</td>
-                      <td style={subTd}>{STAGE_LABEL[a.employment_stage] ?? a.employment_stage}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct(a.score_sum / a.audits_completed) : '—'}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct((a.audits_passed / a.audits_completed) * 100) : '—'}</td>
-                      <td style={{ ...subTd, textAlign: 'right', color: a.critical_fails ? 'var(--alert)' : undefined, fontWeight: a.critical_fails ? 600 : undefined }}>
-                        {a.critical_fails}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
+            <AgentQueueTable ranked={group.rankedAgents} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." />
           </td>
         </tr>
       )}
@@ -198,42 +163,8 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
       </tr>
       {isOpen && (
         <tr>
-          <td colSpan={8} style={{ padding: 0, background: 'var(--surface-0)' }}>
-            {group.agents.length === 0 ? (
-              <div style={{ padding: '12px 16px 12px 36px', color: 'var(--text-muted)', fontSize: '12px' }}>No agents under this Team Lead.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
-                    <th style={{ ...subTh, paddingLeft: '36px' }}>Agent</th>
-                    <th style={subTh}>Team / Site</th>
-                    <th style={subTh}>Stage</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Audits</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Avg score</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Pass rate</th>
-                    <th style={{ ...subTh, textAlign: 'right' }}>Critical</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.agents.map((a) => (
-                    <tr key={a.agent_id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ ...subTd, paddingLeft: '36px' }}>
-                        <Link href={`/dashboard/manager/agent/${a.agent_id}`} style={{ fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>{a.agent_name}</Link>
-                        <div style={{ color: 'var(--text-muted)' }}>{a.agent_email}</div>
-                      </td>
-                      <td style={subTd}>{[a.team_name, a.site_name].filter(Boolean).join(' · ') || '—'}</td>
-                      <td style={subTd}>{STAGE_LABEL[a.employment_stage] ?? a.employment_stage}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct(a.score_sum / a.audits_completed) : '—'}</td>
-                      <td style={{ ...subTd, textAlign: 'right' }}>{a.audits_completed ? pct((a.audits_passed / a.audits_completed) * 100) : '—'}</td>
-                      <td style={{ ...subTd, textAlign: 'right', color: a.critical_fails ? 'var(--alert)' : undefined, fontWeight: a.critical_fails ? 600 : undefined }}>
-                        {a.critical_fails}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <td colSpan={8} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
+            <AgentQueueTable ranked={group.rankedAgents} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." />
           </td>
         </tr>
       )}
@@ -269,8 +200,6 @@ function Card({ label, value, sub, color }: { label: string; value: string; sub?
 
 const th: React.CSSProperties = { padding: '10px 12px', fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }
 const td: React.CSSProperties = { padding: '10px 12px' }
-const subTh: React.CSSProperties = { padding: '8px 12px', fontWeight: 500 }
-const subTd: React.CSSProperties = { padding: '8px 12px', verticalAlign: 'top' }
 const emptyBox: React.CSSProperties = {
   background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
   padding: '24px', color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', lineHeight: 1.6,
