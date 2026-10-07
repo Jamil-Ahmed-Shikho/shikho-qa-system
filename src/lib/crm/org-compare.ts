@@ -47,13 +47,36 @@ export function linkOf(row: {
   return { crmId: row.crm_reporting_to_id, crmName: row.crm_reporting_to_name, crmEmail: row.crm_reporting_to_email }
 }
 
+function normalizeName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 function samePerson(ours: OurPerson, crm: CrmLink): boolean | null {
-  // A cached CRM id is the strongest identity; then the login email.
-  if (ours.crm_agent_id != null && crm.crmId != null && ours.crm_agent_id === crm.crmId) return true
+  // A cached CRM id is the strongest identity — authoritative either way,
+  // never second-guessed by email or name below.
+  if (ours.crm_agent_id != null && crm.crmId != null) return ours.crm_agent_id === crm.crmId
+
+  // Next: login email — but ONLY as a positive signal. A Team Lead/Manager
+  // almost never gets a crm_agent_id resolved at all (that only happens
+  // through an AGENT's own calls/revenue being matched, §8/§10 — confirmed
+  // live 2026-10-07: just 4 of 19 active Team Leads/Managers had one), so
+  // for a supervisor this email check is usually the only thing available —
+  // and the CRM's own stored "reporting_to" email for them is frequently
+  // NOT their @shikho.com login here at all, but a personal/gmail address
+  // or an @shikho.tech alias. An email MATCH is still trusted; an email
+  // DIFFERENCE alone is not treated as proof of a real mismatch — the name
+  // gets the final say (below), rather than assuming "different email" means
+  // "different person."
   if (crm.crmEmail && ours.email.trim().toLowerCase() === crm.crmEmail.trim().toLowerCase()) return true
-  // Different when both sides carry the same kind of identifier and it differs.
-  if (ours.crm_agent_id != null && crm.crmId != null) return false
-  if (crm.crmEmail) return false
+
+  // Fall back to the display name, case/whitespace-insensitive. Verified
+  // against live data (2026-10-07): of 164 flagged "mismatches" app-wide,
+  // 161 had an IDENTICAL supervisor name on both sides — pure false
+  // positives from the email-identity gap above, not a real org problem.
+  // Only 3 had a genuinely different name, which this still correctly flags.
+  if (crm.crmName) return normalizeName(ours.name) === normalizeName(crm.crmName)
+
+  if (crm.crmEmail) return false // crm has an email (didn't match) and no name to fall back on
   return null // nothing to go on
 }
 

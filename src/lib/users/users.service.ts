@@ -37,11 +37,32 @@ export { canManageRole }
 
 // ── Reads ────────────────────────────────────────────────────
 
+// Paginated (not a single unbounded select) — PostgREST silently caps an unpaginated
+// query at 1000 rows, and this table passed that mark a while ago (1,150+ users as of
+// 2026-10, after the real-roster + historical imports). An unpaginated query here
+// doesn't error, it just quietly drops every row alphabetically past the 1000th —
+// which is exactly how two real, already-created Team Leads (alphabetically late
+// names) went missing from the admin list while "Add user" correctly still refused
+// to recreate them (the unique-email constraint sees the whole table, not this
+// query). Same class of bug as scripts/rematch-revenue.mjs's own pagination fix
+// (CLAUDE.md §14) — fixed the same way, with a .range() page loop.
+const LIST_USERS_PAGE_SIZE = 1000
+
 export async function listUsers(): Promise<UserProfile[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.from('users').select('*').order('name', { ascending: true })
-  if (error) throw new Error(error.message)
-  return (data ?? []) as UserProfile[]
+  const all: UserProfile[] = []
+  for (let from = 0; ; from += LIST_USERS_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('name', { ascending: true })
+      .order('id', { ascending: true }) // tiebreak so the sort is deterministic across pages (many users share a name)
+      .range(from, from + LIST_USERS_PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    all.push(...((data ?? []) as UserProfile[]))
+    if (!data || data.length < LIST_USERS_PAGE_SIZE) break
+  }
+  return all
 }
 
 // ── Tag validation ───────────────────────────────────────────
