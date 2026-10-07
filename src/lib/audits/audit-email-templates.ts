@@ -135,12 +135,22 @@ export function auditResultSubject(d: AuditEmailData): string {
   return parts.join(' | ')
 }
 
+// Redesigned 2026-10-08 on Jamil's feedback: the full parameter-by-parameter table
+// (every PASS included) made the email too long, and a PASS row has nothing anyone
+// needs to act on — "View full result" already gives everyone the complete
+// breakdown. Only FAILED parameters are listed here now, with a one-line summary so
+// the reader still knows how many passed, not just how many didn't. Fatal errors
+// also moved from just-above-the-footer to right after the score hero, before Call
+// Details — the single most important fact in a failing audit shouldn't be the
+// thing someone has to scroll to.
 export function auditResultHtml(d: AuditEmailData): string {
   const color = scoreColor(d)
-  const paramRows = d.parameters
+  const failedParams = d.parameters.filter((p) => !p.passed)
+  const passedCount = d.parameters.length - failedParams.length
+
+  const paramRows = failedParams
     .map((p) => {
-      const rowColor = p.passed ? GREEN : ALERT
-      const feedback = !p.passed && p.feedback
+      const feedback = p.feedback
         ? `<div style="margin-top:4px;font-size:12.5px;color:#5A5F76">${escapeHtml(p.feedback)}</div>` : ''
       return `<tr>
         <td style="padding:10px 12px;border-bottom:1px solid #EEF0F6;font-size:13px;vertical-align:top">
@@ -152,14 +162,22 @@ export function auditResultHtml(d: AuditEmailData): string {
           <span style="font-weight:700">${p.pointsAwarded}</span><span style="color:${MUTED}">/${p.points}</span>
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #EEF0F6;text-align:right;vertical-align:top;white-space:nowrap">
-          <span style="font-size:11px;font-weight:700;color:${rowColor}">${p.passed ? 'PASS' : 'FAIL'}</span>
+          <span style="font-size:11px;font-weight:700;color:${ALERT}">FAIL</span>
         </td>
       </tr>`
     })
     .join('')
 
+  const performanceSection = failedParams.length === 0
+    ? `<p style="margin:4px 0 20px;font-size:13px;color:${GREEN};font-weight:600">✓ All ${d.parameters.length} parameters passed.</p>`
+    : `<h3 style="margin:4px 0 4px;font-size:14px;font-weight:700">What needs attention</h3>
+       <p style="margin:0 0 10px;font-size:12px;color:${MUTED}">${passedCount} of ${d.parameters.length} parameters passed — showing only the ${failedParams.length} that didn't.</p>
+       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:8px">
+         ${paramRows}
+       </table>`
+
   const fatalsHtml = d.fatals.length
-    ? `<h3 style="margin:22px 0 10px;font-size:14px;font-weight:700;color:${ALERT}">Fatal errors</h3>` +
+    ? `<h3 style="margin:4px 0 10px;font-size:14px;font-weight:700;color:${ALERT}">Fatal errors</h3>` +
       d.fatals
         .map(
           (f) => `<div style="background:#FDEBEE;border:1px solid ${ALERT};border-radius:10px;padding:12px 16px;margin-bottom:8px">
@@ -168,7 +186,7 @@ export function auditResultHtml(d: AuditEmailData): string {
             ${f.feedback ? `<div style="font-size:12.5px;color:#5A5F76">${escapeHtml(f.feedback)}</div>` : ''}
           </div>`
         )
-        .join('')
+        .join('') + '<div style="margin-bottom:10px"></div>'
     : ''
 
   const overallFeedback = d.overallFeedback
@@ -191,15 +209,11 @@ export function auditResultHtml(d: AuditEmailData): string {
       </tr>
     </table>
 
+    ${fatalsHtml}
     ${callDetailsCard(d)}
     ${agentInfoCard(d, false)}
 
-    <h3 style="margin:4px 0 10px;font-size:14px;font-weight:700">Performance breakdown</h3>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:8px">
-      ${paramRows}
-    </table>
-
-    ${fatalsHtml}
+    ${performanceSection}
     ${overallFeedback}
 
     <p style="margin:24px 0 12px;font-size:12.5px;color:${MUTED};text-align:center">If you think any score here isn't correct, you can request a review from the full result page.</p>
@@ -211,11 +225,21 @@ export function auditResultHtml(d: AuditEmailData): string {
 }
 
 export function auditResultText(d: AuditEmailData): string {
+  const failedParams = d.parameters.filter((p) => !p.passed)
+  const passedCount = d.parameters.length - failedParams.length
+
   const lines = [
     `Hi ${d.agentName},`,
     '',
     `Your recent call was audited. Result: ${d.scorePercent}% — ${resultLabel(d)}`,
     '',
+  ]
+  if (d.fatals.length) {
+    lines.push('FATAL ERRORS')
+    for (const f of d.fatals) lines.push(`  [${f.severity.toUpperCase()}] ${f.description}${f.feedback ? ` — ${f.feedback}` : ''}`)
+    lines.push('')
+  }
+  lines.push(
     'CALL DETAILS',
     `Phone number: ${d.callDestination ?? '—'}`,
     `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
@@ -230,15 +254,13 @@ export function auditResultText(d: AuditEmailData): string {
     `Vintage: ${d.agentVintageLabel ?? '—'}`,
     `Distribution list: ${d.distributionList ?? '—'}`,
     `Contact stage: ${d.contactStage ?? '—'}`,
-    '',
-    'PERFORMANCE BREAKDOWN',
-  ]
-  for (const p of d.parameters) {
-    lines.push(`  ${p.passed ? 'PASS' : 'FAIL'}  ${p.name} (${p.pointsAwarded}/${p.points})${!p.passed && p.feedback ? ` — ${p.feedback}` : ''}`)
-  }
-  if (d.fatals.length) {
-    lines.push('', 'Fatal errors:')
-    for (const f of d.fatals) lines.push(`  [${f.severity.toUpperCase()}] ${f.description}${f.feedback ? ` — ${f.feedback}` : ''}`)
+    ''
+  )
+  if (failedParams.length === 0) {
+    lines.push(`All ${d.parameters.length} parameters passed.`)
+  } else {
+    lines.push(`WHAT NEEDS ATTENTION (${passedCount} of ${d.parameters.length} parameters passed — showing only the ${failedParams.length} that didn't)`)
+    for (const p of failedParams) lines.push(`  FAIL  ${p.name} (${p.pointsAwarded}/${p.points})${p.feedback ? ` — ${p.feedback}` : ''}`)
   }
   if (d.overallFeedback) lines.push('', 'Overall feedback:', d.overallFeedback)
   lines.push('', "If you think any score here isn't correct, you can request a review from the full result page.")

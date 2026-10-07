@@ -25,6 +25,7 @@ import { ScorecardSummary } from '@/components/audits/ScorecardSummary'
 import { loadSampleCheck } from '@/lib/audits/sample-check.service'
 import { SampleCheckForm } from '@/components/audits/SampleCheckForm'
 import { SampleCheckSummary } from '@/components/audits/SampleCheckSummary'
+import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
 
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -191,8 +192,20 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
-            {`Lead #${audit.crm_lead_id}`}
+          <h1 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 4px', wordBreak: 'break-all' }}>
+            {audit.crm_lead_id ? (
+              <a
+                href={crmLeadUrl(audit.crm_lead_id)}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--brand)', textDecoration: 'underline' }}
+                title="Open this lead in the CRM (new tab)"
+              >
+                {crmLeadUrl(audit.crm_lead_id)} ↗
+              </a>
+            ) : (
+              `Lead #${audit.crm_lead_id}`
+            )}
           </h1>
           {isSampleCheck && (
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
