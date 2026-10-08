@@ -104,6 +104,8 @@ export function rankQueue(rows: QueueRow[]): RankedRow[] {
 export interface GroupSummary {
   group: string
   agents: number
+  /** agents in the group with at least 1 submitted audit this sales week */
+  covered: number
   target: number
   done: number
   /** agents in the group with no target rule yet */
@@ -118,8 +120,9 @@ export function summarizeTargets(rows: QueueRow[]): { total: GroupSummary; group
   const map = new Map<string, GroupSummary>()
   for (const r of rows) {
     const k = groupKey(r)
-    const g = map.get(k) ?? { group: k, agents: 0, target: 0, done: 0, withoutTarget: 0 }
+    const g = map.get(k) ?? { group: k, agents: 0, covered: 0, target: 0, done: 0, withoutTarget: 0 }
     g.agents += 1
+    if (r.doneThisWeek >= 1) g.covered += 1
     g.done += r.doneThisWeek
     if (r.hasTarget && r.finalTarget !== null) g.target += r.finalTarget
     else g.withoutTarget += 1
@@ -127,8 +130,46 @@ export function summarizeTargets(rows: QueueRow[]): { total: GroupSummary; group
   }
   const groups = [...map.values()].sort((a, b) => (a.group === 'OJT' ? 1 : b.group === 'OJT' ? -1 : a.group.localeCompare(b.group)))
   const total = groups.reduce<GroupSummary>(
-    (t, g) => ({ group: 'Total', agents: t.agents + g.agents, target: t.target + g.target, done: t.done + g.done, withoutTarget: t.withoutTarget + g.withoutTarget }),
-    { group: 'Total', agents: 0, target: 0, done: 0, withoutTarget: 0 }
+    (t, g) => ({
+      group: 'Total', agents: t.agents + g.agents, covered: t.covered + g.covered,
+      target: t.target + g.target, done: t.done + g.done, withoutTarget: t.withoutTarget + g.withoutTarget,
+    }),
+    { group: 'Total', agents: 0, covered: 0, target: 0, done: 0, withoutTarget: 0 }
   )
   return { total, groups }
+}
+
+/** Percentage from two raw counts, rounded to a whole number — never capped (a +1 bonus can
+ *  push "done" past "target", so this can legitimately read over 100). null (shown as "—")
+ *  when the denominator is 0, rather than dividing by zero. */
+export function ratioPct(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? Math.round((numerator / denominator) * 100) : null
+}
+
+// ── Team/channel chips for "Who to audit next" ──
+
+export interface TeamGroupOption {
+  group: string
+  /** Agents in this group with a target who haven't yet reached it this week (done < target). */
+  pendingCount: number
+}
+
+/** One option per team/channel present in `rows` (same grouping and ordering as
+ *  summarizeTargets()'s groups, OJT last), each with how many of its agents still need more
+ *  audits this week — the source for the "Who to audit next" filter chips. Re-training agents
+ *  are never in `rows` (§7 — they have no weekly target) so they don't produce or count toward
+ *  a chip here; they're still filterable by their own team name once a chip is picked (see
+ *  QueueSection), they just don't change which chips appear. */
+export function teamGroupOptions(rows: QueueRow[]): TeamGroupOption[] {
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    const k = groupKey(r)
+    if (!map.has(k)) map.set(k, 0)
+    if (r.hasTarget && r.finalTarget !== null && r.doneThisWeek < r.finalTarget) {
+      map.set(k, (map.get(k) ?? 0) + 1)
+    }
+  }
+  return [...map.entries()]
+    .map(([group, pendingCount]) => ({ group, pendingCount }))
+    .sort((a, b) => (a.group === 'OJT' ? 1 : b.group === 'OJT' ? -1 : a.group.localeCompare(b.group)))
 }

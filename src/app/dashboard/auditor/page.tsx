@@ -6,7 +6,7 @@ import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 import { QueueSection } from '@/components/dashboard/QueueSection'
 
-export default async function AuditorDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function AuditorDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; team?: string }> }) {
   const user = await getAuthUser()
   const sp = await searchParams
   // A QA Auditor defaults to their own portfolio; a QA Manager / Super Admin has no assigned portfolio, so defaults to everyone.
@@ -20,7 +20,7 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
         Your audit queue, targets, and tools.
       </p>
 
-      <QueueSection view={view} base="/dashboard/auditor" />
+      <QueueSection view={view} base="/dashboard/auditor" team={sp.team} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: '24px' }}>
         <NavCard
