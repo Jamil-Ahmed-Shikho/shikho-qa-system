@@ -36,7 +36,7 @@ export async function loadSampleCheck(auditId: string, overallFeedback: string |
   for (const [what, res] of [['Special Check links', linksRes], ['Special Check answers', answersRes]] as const) {
     if (res.error) {
       console.error(`loadSampleCheck: reading ${what} for audit ${auditId} failed:`, res.error.code, res.error.message)
-      throw new Error(`Could not load this Sample Check's ${what}. Please reload the page.`)
+      throw new Error(`Could not load this Special Check's ${what}. Please reload the page.`)
     }
   }
 

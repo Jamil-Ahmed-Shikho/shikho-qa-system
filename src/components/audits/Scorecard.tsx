@@ -178,7 +178,7 @@ export function Scorecard({
     const attached = campaignId in marks.campaigns
     const answers = answeredCount(campaignId)
     if (attached && answers > 0) {
-      const name = special.find((c) => c.id === campaignId)?.name ?? 'this campaign'
+      const name = special.find((c) => c.id === campaignId)?.name ?? 'this Special Check'
       if (!confirm(`Removing "${name}" clears the ${answers} answer${answers === 1 ? '' : 's'} you picked for it. Continue?`)) return
     }
     setMarks((m) => {

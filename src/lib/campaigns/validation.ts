@@ -37,7 +37,7 @@ export interface CampaignValues {
 
 export function validateCampaignInput(input: CampaignInput): Result<CampaignValues> {
   const name = cleanLine(input?.name)
-  if (!name) return { ok: false, error: 'Give the campaign a name.' }
+  if (!name) return { ok: false, error: 'Give the Special Check a name.' }
   if (length(name) > CAMPAIGN_LIMITS.name) return { ok: false, error: `The name can be at most ${CAMPAIGN_LIMITS.name} characters.` }
 
   const description = cleanBlock(input?.description)

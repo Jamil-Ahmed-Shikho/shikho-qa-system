@@ -45,7 +45,7 @@ export default async function ManagerDashboardPage({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <Link href="/reports/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
-            Campaign Report →
+            Special Check Report →
           </Link>
           <Link href="/reports/repeat-mistakes" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Repeat-Mistake Report →

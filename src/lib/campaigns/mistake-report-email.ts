@@ -1,5 +1,5 @@
 // ============================================================
-// SHIKHO QA SYSTEM — Campaign Mistake Report email (2026-10-04, corrected
+// SHIKHO QA SYSTEM — Special Check Mistake Report email (2026-10-04, corrected
 // same day on Jamil's feedback: "the report should be a completed report
 // not the mistake part only" — the full answer-distribution analysis, the
 // same thing CampaignReportView shows on screen, now comes first, exactly
@@ -32,16 +32,16 @@ export interface MistakeReportEmailInput {
 }
 
 export function mistakeReportSubject(i: MistakeReportEmailInput): string {
-  return `Campaign Report | ${i.campaignName} | ${i.periodLabel}`
+  return `Special Check Report | ${i.campaignName} | ${i.periodLabel}`
 }
 
 const pct = (count: number, total: number) => (total > 0 ? Math.round((count / total) * 100) : 0)
 
 export function mistakeReportText(i: MistakeReportEmailInput): string {
   const lines = [
-    `Campaign report — ${i.campaignName}`,
+    `Special Check report — ${i.campaignName}`,
     i.periodLabel,
-    `${i.auditCount} submitted audit${i.auditCount === 1 ? '' : 's'} had this campaign attached.`,
+    `${i.auditCount} submitted audit${i.auditCount === 1 ? '' : 's'} had this Special Check attached.`,
     '',
   ]
   for (const check of i.checks) {
@@ -58,7 +58,7 @@ export function mistakeReportText(i: MistakeReportEmailInput): string {
   if (i.mistakeRows.length === 0) {
     lines.push('No mistakes matching this report.')
   } else {
-    lines.push('AGENT — TEAM LEADER — IN THIS VIEW — LIFETIME — MOST RECENT')
+    lines.push('AGENT — TEAM LEADER — MATCHING CURRENT FILTERS — LIFETIME IN SPECIAL CHECK — MOST RECENT')
     for (const r of i.mistakeRows) {
       const repeat = r.lifetimeCount >= 2 ? ' [REPEAT]' : ''
       lines.push(`- ${r.agentName} — ${r.teamLeaderName ?? '—'} — ${r.mistakeCount} — ${r.lifetimeCount}${repeat} — ${r.lastMistakeAt ? formatDhakaDateTime(r.lastMistakeAt) : '—'}`)
@@ -118,7 +118,7 @@ export function mistakeReportHtml(i: MistakeReportEmailInput): string {
 
   const mistakeTable = i.mistakeRows.length
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 18px">
-         <tr><th style="${th}">Agent</th><th style="${th}">Team Leader</th><th style="${th}">In this view</th><th style="${th}">Lifetime</th><th style="${th}">Most recent</th></tr>
+         <tr><th style="${th}">Agent</th><th style="${th}">Team Leader</th><th style="${th}">Matching current filters</th><th style="${th}">Lifetime in Special Check</th><th style="${th}">Most recent</th></tr>
          ${mistakeRows}
        </table>`
     : `<p style="margin:0 0 18px;font-size:13px;color:${MUTED}">No mistakes matching this report.</p>`
@@ -129,7 +129,7 @@ export function mistakeReportHtml(i: MistakeReportEmailInput): string {
 
   const body = `
     <p style="margin:0 0 6px"><b>${escapeHtml(i.campaignName)}</b>${i.campaignArchived ? ' <span style="color:#898EA4;font-size:11px">(archived)</span>' : ''}</p>
-    <p style="margin:0 0 20px;font-size:13px;color:${MUTED}">${escapeHtml(i.periodLabel)} · ${i.auditCount} submitted audit${i.auditCount === 1 ? '' : 's'} had this campaign attached</p>
+    <p style="margin:0 0 20px;font-size:13px;color:${MUTED}">${escapeHtml(i.periodLabel)} · ${i.auditCount} submitted audit${i.auditCount === 1 ? '' : 's'} had this Special Check attached</p>
 
     ${i.checks.map(checkCardHtml).join('')}
 
@@ -138,5 +138,5 @@ export function mistakeReportHtml(i: MistakeReportEmailInput): string {
     ${mistakeTable}
     ${link}`
 
-  return emailShell('Campaign report', i.campaignName, 'indigo', body, 640)
+  return emailShell('Special Check report', i.campaignName, 'indigo', body, 640)
 }

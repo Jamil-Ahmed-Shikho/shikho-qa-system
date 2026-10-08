@@ -34,7 +34,7 @@ export function SampleCheckSummary({
             fontSize: '13px', fontWeight: 700, padding: '5px 14px', borderRadius: 'var(--radius-pill)',
             background: 'var(--surface-1)', color: 'var(--text-secondary)',
           }}>
-            SAMPLE CHECK — no score
+            SPECIAL CHECK — no score
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             {submittedAt && `Logged ${formatDhakaDateTime(submittedAt)}`}
@@ -57,9 +57,9 @@ export function SampleCheckSummary({
         <h3 style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 4px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Special Check
         </h3>
-        <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-muted)' }}>What this Sample Check actually checked.</p>
+        <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-muted)' }}>What this Special Check actually checked.</p>
         {special.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>No campaigns were recorded on this check.</p>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>No Special Checks were recorded on this check.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {special.map((c) => (
@@ -69,7 +69,7 @@ export function SampleCheckSummary({
                   {c.archived && <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>Archived</span>}
                 </div>
                 {c.checks.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>No answers were recorded for this campaign.</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>No answers were recorded for this Special Check.</div>
                 ) : (
                   <ul style={{ margin: '6px 0 0', paddingLeft: '18px', fontSize: '13px', lineHeight: 1.7, color: 'var(--text-primary)' }}>
                     {c.checks.map((check) => (

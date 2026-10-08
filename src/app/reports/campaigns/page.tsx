@@ -9,6 +9,7 @@ import {
   loadCampaignMistakeBreakdown,
   loadCampaignReport,
   loadReportParticipants,
+  MISTAKE_REPORT_SEND_ROLES,
   type ReportFilters,
 } from '@/lib/campaigns/report.service'
 import { SITE_NAMES } from '@/lib/users/constants'
@@ -16,6 +17,8 @@ import { TEAM_NAMES } from '@/types/database.types'
 import { CampaignReportView, selectStyle } from '@/components/reports/CampaignReportView'
 import { MistakeBreakdownTable, MistakeFilterFields } from '@/components/reports/CampaignMistakeSection'
 import { SendMistakeReportButton } from '@/components/reports/SendMistakeReportButton'
+import { MistakeReportSendLog } from '@/components/reports/MistakeReportSendLog'
+import { loadMistakeReportSendLog } from '@/lib/campaigns/mistake-report-actions'
 
 type SP = Record<string, string | undefined> & { mistakeValues?: string | string[] }
 
@@ -28,9 +31,9 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
     return (
       <div>
         <BackLink href="/dashboard" label="Dashboard" />
-        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Campaign Report</h1>
+        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Special Check Report</h1>
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px', marginTop: '16px' }}>
-          No Special Check campaigns exist yet.
+          No Special Checks exist yet.
         </div>
       </div>
     )
@@ -73,11 +76,14 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
   const isManager = user?.role === 'manager'
   const agentProfileHref = (agentId: string) => (isManager ? `/dashboard/manager/agent/${agentId}` : `/audits/agent/${agentId}/profile`)
 
+  const canSendReport = !!user && (MISTAKE_REPORT_SEND_ROLES as readonly string[]).includes(user.role)
+  const sendLog = canSendReport && mistakeOptions.length > 0 ? await loadMistakeReportSendLog(selectedId) : []
+
   return (
     <div>
       <BackLink href="/dashboard" label="Dashboard" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '4px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>Campaign Report</h1>
+        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>Special Check Report</h1>
         <Link href="/admin/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
           Manage Special Checks →
         </Link>
@@ -94,7 +100,7 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
           background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px', marginBottom: '20px',
         }}
       >
-        <Field label="Campaign">
+        <Field label="Special Check">
           <select name="campaign" defaultValue={selectedId} style={selectStyle}>
             {campaigns.map((c) => (
               <option key={c.tree.id} value={c.tree.id}>{c.tree.name}{c.tree.is_archived ? ' (archived)' : ''}</option>
@@ -165,13 +171,16 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
             agentProfileHref={agentProfileHref}
             auditLinksEnabled={!isManager}
           />
-          {mistakeOptions.length > 0 && user && ['super_admin', 'qa_manager'].includes(user.role) && (
-            <SendMistakeReportButton campaignId={selectedId} filters={filters} valueIds={selectedValueIds} />
+          {mistakeOptions.length > 0 && canSendReport && (
+            <>
+              <SendMistakeReportButton campaignId={selectedId} filters={filters} valueIds={selectedValueIds} />
+              <MistakeReportSendLog entries={sendLog} />
+            </>
           )}
         </>
       ) : (
         <div style={{ background: 'var(--alert-light)', border: '1px solid var(--alert)', borderRadius: 'var(--radius-md)', padding: '16px', color: 'var(--alert)', fontSize: '13px' }}>
-          That campaign no longer exists.
+          That Special Check no longer exists.
         </div>
       )}
     </div>

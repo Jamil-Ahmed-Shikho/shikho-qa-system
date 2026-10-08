@@ -111,7 +111,7 @@ export function SampleCheckForm({
 
   function handleSubmit() {
     if (!ready) return
-    if (!confirm('Submit this Sample Check? Once submitted it can\'t be changed.')) return
+    if (!confirm('Submit this Special Check? Once submitted it can\'t be changed.')) return
     setError(null)
     startSubmit(async () => {
       const res = await submitSampleCheck(auditId, payload)
@@ -132,7 +132,7 @@ export function SampleCheckForm({
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          {attachedCount === 0 ? 'Tick a campaign below to begin' : `${attachedCount} campaign${attachedCount === 1 ? '' : 's'} ticked`}
+          {attachedCount === 0 ? 'Tick a Special Check below to begin' : `${attachedCount} Special Check${attachedCount === 1 ? '' : 's'} ticked`}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -147,8 +147,8 @@ export function SampleCheckForm({
       <section style={{ ...card }}>
         <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 600 }}>Special Check</h3>
         <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Tick the campaign(s) you&apos;re checking on this call. A Sample Check has no rubric score —
-          this is the whole point of it. Each ticked campaign asks for an answer to every check below it.
+          Tick the Special Check(s) you&apos;re checking on this call. A Special Check has no rubric score —
+          this is the whole point of it. Each ticked Special Check asks for an answer to every check below it.
         </p>
         {campaigns.length === 0 ? (
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -170,12 +170,12 @@ export function SampleCheckForm({
                   }}
                 >
                   <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={on} onChange={() => toggleCampaign(c.id)} style={{ marginTop: '3px' }} aria-label={`Check campaign: ${c.name}`} />
+                    <input type="checkbox" checked={on} onChange={() => toggleCampaign(c.id)} style={{ marginTop: '3px' }} aria-label={`Check Special Check: ${c.name}`} />
                     <span style={{ minWidth: 0 }}>
                       <span style={{ fontSize: '14px', fontWeight: 600, overflowWrap: 'anywhere' }}>{c.name}</span>
                       {c.archived && (
                         <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>
-                          Archived — you can still finish this Sample Check
+                          Archived — you can still finish this Special Check
                         </span>
                       )}
                       {c.description && <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{c.description}</span>}
@@ -184,7 +184,7 @@ export function SampleCheckForm({
 
                   {on && (
                     <div style={{ marginTop: '12px', marginLeft: '26px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {c.checks.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>This campaign has no active checks to answer.</span>}
+                      {c.checks.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>This Special Check has no active checks to answer.</span>}
                       {c.checks.map((check) => {
                         const chosen = answers[check.id] ?? ''
                         const missing = check.required && !chosen
@@ -218,7 +218,7 @@ export function SampleCheckForm({
 
       <section id="overall-feedback" style={{ ...card, marginTop: '20px' }}>
         <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 600 }}>
-          Overall feedback <span style={{ color: 'var(--alert)' }} title="Required for a Sample Check"> *</span>
+          Overall feedback <span style={{ color: 'var(--alert)' }} title="Required for a Special Check"> *</span>
         </h3>
         <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-muted)' }}>
           The context for whoever reads this later (QA, the agent&apos;s Team Lead or Manager) — what you checked and what you found.
@@ -281,7 +281,7 @@ export function SampleCheckForm({
             title={ready ? undefined : 'Finish the check first — see what is still needed'}
             style={{ ...btn, background: ready && !busy ? 'var(--brand)' : 'var(--surface-1)', color: ready && !busy ? 'white' : 'var(--text-muted)', borderColor: ready && !busy ? 'var(--brand)' : 'var(--border)', padding: '11px 22px', fontSize: '14px', cursor: ready && !busy ? 'pointer' : 'not-allowed' }}
           >
-            {submitting ? 'Submitting…' : 'Submit Sample Check'}
+            {submitting ? 'Submitting…' : 'Submit Special Check'}
           </button>
           {!ready && (
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>

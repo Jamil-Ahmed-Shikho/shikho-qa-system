@@ -41,8 +41,8 @@ async function requireAdmin(): Promise<{ actor: AuthUser } | Fail> {
 function friendly(error: { code?: string; message: string }): string {
   if (error.code === 'P0001') return error.message
   if (error.code === '23505') {
-    if (error.message.includes('uq_campaigns_name')) return 'A campaign with this name already exists.'
-    if (error.message.includes('uq_campaign_check_types_name')) return 'This campaign already has a check with that name.'
+    if (error.message.includes('uq_campaigns_name')) return 'A Special Check with this name already exists.'
+    if (error.message.includes('uq_campaign_check_types_name')) return 'This Special Check already has a check with that name.'
     if (error.message.includes('uq_campaign_check_values_label')) return 'This check already has an option with that text — it may be archived; un-archive it instead.'
     return 'That already exists.'
   }
@@ -79,14 +79,14 @@ export async function createCampaignAction(input: CampaignInput): Promise<{ ok: 
 
 export async function updateCampaignAction(id: string, input: CampaignInput): Promise<Ok | Fail> {
   const g = await requireAdmin(); if ('error' in g) return g
-  if (!isUuid(id)) return { ok: false, error: 'Unknown campaign.' }
+  if (!isUuid(id)) return { ok: false, error: 'Unknown Special Check.' }
   const parsed = validateCampaignInput(input); if (!parsed.ok) return parsed
 
   const supabase = await getSupabaseServer()
   const { data: before } = await supabase.from('campaigns').select('*').eq('id', id).maybeSingle()
   const { data, error } = await supabase.from('campaigns').update(parsed.value).eq('id', id).select('*')
   if (error) return { ok: false, error: friendly(error) }
-  if (!data?.length) return { ok: false, error: 'That campaign no longer exists.' }
+  if (!data?.length) return { ok: false, error: 'That Special Check no longer exists.' }
 
   await log(g.actor, 'campaign.updated', 'campaigns', id, before, data[0])
   refresh(id)
@@ -95,12 +95,12 @@ export async function updateCampaignAction(id: string, input: CampaignInput): Pr
 
 export async function setCampaignArchivedAction(id: string, archived: boolean): Promise<Ok | Fail> {
   const g = await requireAdmin(); if ('error' in g) return g
-  if (!isUuid(id)) return { ok: false, error: 'Unknown campaign.' }
+  if (!isUuid(id)) return { ok: false, error: 'Unknown Special Check.' }
 
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.from('campaigns').update({ is_archived: archived }).eq('id', id).select('id')
   if (error) return { ok: false, error: friendly(error) }
-  if (!data?.length) return { ok: false, error: 'That campaign no longer exists.' }
+  if (!data?.length) return { ok: false, error: 'That Special Check no longer exists.' }
 
   await log(g.actor, archived ? 'campaign.archived' : 'campaign.unarchived', 'campaigns', id, { is_archived: !archived }, { is_archived: archived })
   refresh(id)
@@ -110,13 +110,13 @@ export async function setCampaignArchivedAction(id: string, archived: boolean): 
 /** Only works for a campaign no audit has ever been attached to — the database refuses otherwise. */
 export async function deleteCampaignAction(id: string): Promise<Ok | Fail> {
   const g = await requireAdmin(); if ('error' in g) return g
-  if (!isUuid(id)) return { ok: false, error: 'Unknown campaign.' }
+  if (!isUuid(id)) return { ok: false, error: 'Unknown Special Check.' }
 
   const supabase = await getSupabaseServer()
   const { data: before } = await supabase.from('campaigns').select('*').eq('id', id).maybeSingle()
   const { data, error } = await supabase.from('campaigns').delete().eq('id', id).select('id')
   if (error) return { ok: false, error: friendly(error) }
-  if (!data?.length) return { ok: false, error: 'That campaign no longer exists.' }
+  if (!data?.length) return { ok: false, error: 'That Special Check no longer exists.' }
 
   await log(g.actor, 'campaign.deleted', 'campaigns', id, before, null)
   refresh()
@@ -127,7 +127,7 @@ export async function deleteCampaignAction(id: string): Promise<Ok | Fail> {
 
 export async function createCheckTypeAction(campaignId: string, input: CheckTypeInput): Promise<{ ok: true; id: string } | Fail> {
   const g = await requireAdmin(); if ('error' in g) return g
-  if (!isUuid(campaignId)) return { ok: false, error: 'Unknown campaign.' }
+  if (!isUuid(campaignId)) return { ok: false, error: 'Unknown Special Check.' }
   const parsed = validateCheckTypeInput(input); if (!parsed.ok) return parsed
 
   const supabase = await getSupabaseServer()

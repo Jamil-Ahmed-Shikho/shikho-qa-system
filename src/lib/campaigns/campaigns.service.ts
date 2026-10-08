@@ -50,7 +50,7 @@ function fail(what: string, error: { code?: string; message: string }): never {
 export async function listCampaignTrees(): Promise<CampaignTree[]> {
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.from('campaigns').select(TREE_SELECT).order('name', { ascending: true })
-  if (error) fail('the campaigns', error)
+  if (error) fail('the Special Checks', error)
   return ((data ?? []) as unknown as RawCampaign[]).map(toTree)
 }
 
@@ -63,7 +63,7 @@ export interface CampaignListItem {
 export async function listCampaigns(): Promise<CampaignListItem[]> {
   const supabase = await getSupabaseServer()
   const [trees, counts] = await Promise.all([listCampaignTrees(), supabase.rpc('campaign_audit_counts')])
-  if (counts.error) fail('campaign usage', counts.error)
+  if (counts.error) fail('Special Check usage', counts.error)
 
   const usage = new Map<string, Usage>()
   for (const row of (counts.data ?? []) as { campaign_id: string; submitted_audits: number; draft_audits: number }[]) {
@@ -80,9 +80,9 @@ export async function getCampaign(id: string): Promise<{ tree: CampaignTree; usa
     supabase.rpc('campaign_item_usage', { p_campaign_id: id }),
     supabase.rpc('campaign_audit_counts'),
   ])
-  if (campaign.error) fail('the campaign', campaign.error)
-  if (itemUsage.error) fail('campaign usage', itemUsage.error)
-  if (counts.error) fail('campaign usage', counts.error)
+  if (campaign.error) fail('the Special Check', campaign.error)
+  if (itemUsage.error) fail('Special Check usage', itemUsage.error)
+  if (counts.error) fail('Special Check usage', counts.error)
   if (!campaign.data) return null
 
   const usage: CampaignUsage = { campaign: NONE, checks: {}, options: {} }

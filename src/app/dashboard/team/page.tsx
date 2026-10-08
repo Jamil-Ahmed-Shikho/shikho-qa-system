@@ -66,7 +66,7 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
         />
         <NavCard
           href="/reports/campaigns"
-          title="Campaign Report"
+          title="Special Check Report"
           description="How your team answered a Special Check, over submitted audits."
         />
         <NavCard

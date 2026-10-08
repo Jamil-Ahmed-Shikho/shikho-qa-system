@@ -59,7 +59,7 @@ export function CampaignForm({
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
-        <label style={labelStyle} htmlFor="campaign-name">Campaign name</label>
+        <label style={labelStyle} htmlFor="campaign-name">Special Check name</label>
         <input
           id="campaign-name" style={inputStyle} value={values.name} maxLength={CAMPAIGN_LIMITS.name}
           placeholder="e.g. New course launch — October" onChange={(e) => set({ name: e.target.value })}
@@ -71,7 +71,7 @@ export function CampaignForm({
         <textarea
           id="campaign-description" style={{ ...inputStyle, minHeight: '72px', resize: 'vertical', lineHeight: 1.5 }}
           value={values.description} maxLength={CAMPAIGN_LIMITS.description}
-          placeholder="What is this campaign checking, and why?" onChange={(e) => set({ description: e.target.value })}
+          placeholder="What is this Special Check checking, and why?" onChange={(e) => set({ description: e.target.value })}
         />
       </div>
 
@@ -103,7 +103,7 @@ export function CampaignForm({
           </div>
         )}
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '8px 0 0' }}>
-          The campaign is offered only on audits of agents in the selected teams.
+          The Special Check is offered only on audits of agents in the selected teams.
         </p>
       </fieldset>
 
@@ -115,7 +115,7 @@ export function CampaignForm({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button type="submit" disabled={busy || !dirty} style={{ ...primaryBtn, ...(busy || !dirty ? disabledStyle : {}) }}>
-          {busy ? 'Saving…' : mode === 'create' ? 'Create campaign' : 'Save details'}
+          {busy ? 'Saving…' : mode === 'create' ? 'Create Special Check' : 'Save details'}
         </button>
         {saved && !dirty && <span style={{ fontSize: '12px', color: 'var(--status-green)' }}>Saved</span>}
         {mode === 'create' && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>You&apos;ll add the checks and their options next.</span>}

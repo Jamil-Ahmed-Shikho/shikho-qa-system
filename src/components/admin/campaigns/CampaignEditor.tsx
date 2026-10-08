@@ -92,7 +92,7 @@ export function CampaignEditor({ tree, usage }: { tree: CampaignTree; usage: Cam
 
   return (
     <div>
-      <BackLink href="/admin/campaigns" label="All campaigns" />
+      <BackLink href="/admin/campaigns" label="All Special Checks" />
 
       {/* ── header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -116,7 +116,7 @@ export function CampaignEditor({ tree, usage }: { tree: CampaignTree; usage: Cam
           </button>
           <button
             disabled={busy || campaignUsed}
-            title={campaignUsed ? 'This campaign has been attached to audits, so it can\'t be deleted — archive it instead.' : 'Delete this campaign'}
+            title={campaignUsed ? 'This Special Check has been attached to audits, so it can\'t be deleted — archive it instead.' : 'Delete this Special Check'}
             style={{ ...dangerBtn, ...(busy || campaignUsed ? disabledStyle : {}) }}
             onClick={deleteCampaign}
           >
@@ -127,12 +127,12 @@ export function CampaignEditor({ tree, usage }: { tree: CampaignTree; usage: Cam
 
       {tree.is_archived && (
         <Note tone="muted">
-          This campaign is archived: it no longer appears when auditing, but it stays on the audits that used it and in the reports. Un-archive it to use it again.
+          This Special Check is archived: it no longer appears when auditing, but it stays on the audits that used it and in the reports. Un-archive it to use it again.
         </Note>
       )}
       {!tree.is_archived && !readiness.ready && (
         <Note tone="warn">
-          <b>Not offered on new audits yet.</b> A campaign appears on the scorecard once it has at least one check and every active check has {OPTION_LIMITS.min}–{OPTION_LIMITS.max} active options:
+          <b>Not offered on new audits yet.</b> A Special Check appears on the scorecard once it has at least one check and every active check has {OPTION_LIMITS.min}–{OPTION_LIMITS.max} active options:
           <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>{readiness.problems.map((p) => <li key={p}>{p}</li>)}</ul>
         </Note>
       )}
@@ -409,7 +409,7 @@ function OptionRow({
           <button
             style={ghostBtn}
             disabled={busy}
-            title={option.is_mistake ? 'No longer flag this answer as a mistake' : 'Flag this answer as a mistake in the Campaign Report'}
+            title={option.is_mistake ? 'No longer flag this answer as a mistake' : 'Flag this answer as a mistake in the Special Check Report'}
             onClick={() => run(() => setOptionMistakeAction(option.id, campaignId, !option.is_mistake))}
           >
             {option.is_mistake ? 'Unmark mistake' : 'Mark as mistake'}

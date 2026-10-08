@@ -24,7 +24,7 @@ const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID_RE.tes
 
 function parseInput(input: unknown): { ok: true; payload: SampleCheckPayload } | { ok: false; error: string } {
   const bad = (error: string) => ({ ok: false as const, error })
-  if (!input || typeof input !== 'object') return bad('Malformed Sample Check.')
+  if (!input || typeof input !== 'object') return bad('Malformed Special Check.')
   const { overall_feedback, campaigns } = input as Record<string, unknown>
 
   if (overall_feedback !== undefined && overall_feedback !== null && typeof overall_feedback !== 'string') return bad('Malformed overall feedback.')
@@ -54,7 +54,7 @@ type Prepared =
 async function prepare(auditId: string, rawPayload: unknown): Promise<Prepared> {
   const user = await getAuthUser()
   if (!user || !['super_admin', 'qa_manager', 'qa_auditor', 'team_lead'].includes(user.role)) {
-    return { error: 'Only QA roles can log a Sample Check.' }
+    return { error: 'Only QA roles can log a Special Check.' }
   }
 
   const parsed = parseInput(rawPayload)
@@ -66,10 +66,10 @@ async function prepare(auditId: string, rawPayload: unknown): Promise<Prepared> 
     .select('id, auditor_id, status, check_mode, crm_lead_id')
     .eq('id', auditId)
     .maybeSingle()
-  if (!audit) return { error: 'Sample Check not found.' }
+  if (!audit) return { error: 'Special Check not found.' }
   if (audit.check_mode !== 'sample_check') return { error: 'This is a real audit — use the scorecard instead.' }
-  if (audit.auditor_id !== user.profile.id) return { error: 'Only the person who started this Sample Check can log it.' }
-  if (audit.status !== 'draft') return { error: 'This Sample Check has already been submitted and can no longer be changed.' }
+  if (audit.auditor_id !== user.profile.id) return { error: 'Only the person who started this Special Check can log it.' }
+  if (audit.status !== 'draft') return { error: 'This Special Check has already been submitted and can no longer be changed.' }
 
   return { actorId: user.profile.id, auditId: audit.id, crmLeadId: audit.crm_lead_id, payload: parsed.payload }
 }
@@ -77,7 +77,7 @@ async function prepare(auditId: string, rawPayload: unknown): Promise<Prepared> 
 function friendly(error: { code?: string; message: string }): string {
   if (error.code === 'P0001') return error.message
   console.error('submit_sample_check failed:', error.code, error.message)
-  return 'Something went wrong saving the Sample Check. Please try again.'
+  return 'Something went wrong saving the Special Check. Please try again.'
 }
 
 async function write(auditId: string, actorId: string, finalize: boolean, p: SampleCheckPayload) {

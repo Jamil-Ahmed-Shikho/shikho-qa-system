@@ -37,7 +37,7 @@ export default async function AdminDashboardPage() {
         />
         <NavCard
           href="/reports/campaigns"
-          title="Campaign Report"
+          title="Special Check Report"
           description="How agents answered a Special Check, over submitted audits — filterable by team, site, agent, auditor and date."
         />
         <NavCard

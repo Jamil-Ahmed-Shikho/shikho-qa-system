@@ -110,7 +110,7 @@ export function ScorecardSummary({
                   {c.archived && <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}>Archived</span>}
                 </div>
                 {c.checks.length === 0 ? (
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>No answers were recorded for this campaign.</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>No answers were recorded for this Special Check.</div>
                 ) : (
                   <ul style={{ margin: '6px 0 0', paddingLeft: '18px', fontSize: '13px', lineHeight: 1.7, color: 'var(--text-primary)' }}>
                     {c.checks.map((check) => (

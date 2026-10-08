@@ -1,9 +1,9 @@
 'use client'
 // The optional "Special Check" section of the scorecard.
 //
-// Off by default. Turn it on to see the campaigns that apply to this agent's team;
+// Off by default. Turn it on to see the Special Checks that apply to this agent's team;
 // tick one or more, and each of their checks asks for one answer from a fixed list
-// (no free text). Only ticked campaigns ask for anything. None of it affects the score.
+// (no free text). Only ticked Special Checks ask for anything. None of it affects the score.
 
 import type { SpecialCampaign } from '@/lib/campaigns/special'
 
@@ -66,7 +66,7 @@ export function SpecialChecks({
           ) : (
             <>
               <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                Tick the campaign(s) you are checking on this call. Each one asks for an answer to every check below it.
+                Tick the Special Check(s) you are checking on this call. Each one asks for an answer to every check below it.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {campaigns.map((c) => {
@@ -82,7 +82,7 @@ export function SpecialChecks({
                       }}
                     >
                       <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={on} onChange={() => onToggleCampaign(c.id)} style={{ marginTop: '3px' }} aria-label={`Check campaign: ${c.name}`} />
+                        <input type="checkbox" checked={on} onChange={() => onToggleCampaign(c.id)} style={{ marginTop: '3px' }} aria-label={`Check Special Check: ${c.name}`} />
                         <span style={{ minWidth: 0 }}>
                           <span style={{ fontSize: '14px', fontWeight: 600, overflowWrap: 'anywhere' }}>{c.name}</span>
                           {c.archived && (
@@ -96,7 +96,7 @@ export function SpecialChecks({
 
                       {on && (
                         <div style={{ marginTop: '12px', marginLeft: '26px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          {c.checks.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>This campaign has no active checks to answer.</span>}
+                          {c.checks.length === 0 && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>This Special Check has no active checks to answer.</span>}
                           {c.checks.map((check) => {
                             const chosen = answers[check.id] ?? ''
                             const missing = check.required && !chosen

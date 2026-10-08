@@ -209,7 +209,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           </h1>
           {isSampleCheck && (
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Sample Check — no rubric score
+              Special Check — no rubric score
             </span>
           )}
         </div>
@@ -295,7 +295,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
       <h2 style={{ fontSize: '17px', fontWeight: 600, margin: '0 0 12px' }}>
         {isSampleCheck
-          ? (audit.status === 'draft' ? 'Sample Check' : 'Sample Check result')
+          ? (audit.status === 'draft' ? 'Special Check' : 'Special Check result')
           : (audit.status === 'draft' ? 'Scorecard' : 'Result')}
       </h2>
 
@@ -309,7 +309,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
             background: 'var(--surface-1)', border: '1px dashed var(--border-strong)', borderRadius: 'var(--radius-md)',
             padding: '20px', color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px',
           }}>
-            Sample Check in progress — only {auditor?.name} can log it.
+            Special Check in progress — only {auditor?.name} can log it.
           </div>
         )
       ) : !scorecard ? (

@@ -62,7 +62,7 @@ export function sampleCheckIssues(marks: SampleCheckMarks, special: SpecialCampa
   const issues: SampleCheckIssue[] = []
   const attached = marks.campaigns
   if (Object.keys(attached).length === 0) {
-    issues.push({ message: 'Tick at least one Special Check campaign before submitting.' })
+    issues.push({ message: 'Tick at least one Special Check before submitting.' })
   }
   for (const def of special) {
     const answers = attached[def.id]

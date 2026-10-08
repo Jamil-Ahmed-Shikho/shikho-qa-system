@@ -35,7 +35,7 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
         />
         <NavCard
           href="/reports/campaigns"
-          title="Campaign Report"
+          title="Special Check Report"
           description="How agents answered a Special Check, over submitted audits — company-wide, not just your own."
         />
         <NavCard

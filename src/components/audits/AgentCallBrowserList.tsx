@@ -61,7 +61,7 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
         router.push(`/audits/${auditId}`)
       } catch (err) {
         setStarting(false)
-        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Sample Check.' : 'Could not start the audit.')
+        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Special Check.' : 'Could not start the audit.')
       }
     })
   }
@@ -104,9 +104,9 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
               {starting && startingMode === 'audit' ? 'Starting…' : 'Start Audit'}
             </button>
             <button onClick={() => handleStart('sample_check')} disabled={starting || pending} aria-busy={starting || pending}
-              title={`Log a Sample Check for ${agentName} on this call — no rubric score`}
+              title={`Log a Special Check for ${agentName} on this call — no rubric score`}
               style={{ ...btn, color: 'var(--brand)', background: 'var(--brand-light)', cursor: starting || pending ? 'progress' : 'pointer' }}>
-              {starting && startingMode === 'sample_check' ? 'Starting…' : 'Sample Check'}
+              {starting && startingMode === 'sample_check' ? 'Starting…' : 'Special Check'}
             </button>
           </span>
         )}
@@ -123,7 +123,7 @@ function Row({ row, agentId, agentName }: { row: AgentCallRow; agentId: string; 
           <a href={`/audits/${status.auditId}`} style={{ ...btn, color: 'var(--brand)', background: 'var(--brand-light)' }}>
             {statusKey === 'taken'
               ? `Taken${status.auditorName ? ` · ${status.auditorName}` : ''}`
-              : status.checkMode === 'sample_check' ? 'View (Sample Check)' : 'View'}
+              : status.checkMode === 'sample_check' ? 'View (Special Check)' : 'View'}
           </a>
         )}
       </td>

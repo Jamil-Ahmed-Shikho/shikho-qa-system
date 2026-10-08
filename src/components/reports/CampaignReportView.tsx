@@ -1,4 +1,4 @@
-// The Campaign Report body: a summary line, then one card per check — a
+// The Special Check Report body: a summary line, then one card per check — a
 // table (count + %) and a simple bar chart. Server-safe (no 'use client'):
 // every number here is exactly what CampaignReportResult already computed.
 
@@ -30,13 +30,13 @@ export function CampaignReportView({ report }: { report: CampaignReportResult })
           )}
         </div>
         <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          <b>{report.auditCount}</b> submitted audit{report.auditCount === 1 ? '' : 's'} matching the current filters had this campaign attached.
+          <b>{report.auditCount}</b> submitted audit{report.auditCount === 1 ? '' : 's'} matching the current filters had this Special Check attached.
         </p>
       </section>
 
       {report.checks.length === 0 && (
         <div style={{ ...card, textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
-          This campaign has no checks.
+          This Special Check has no checks.
         </div>
       )}
 

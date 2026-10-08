@@ -78,7 +78,7 @@ export function MistakeBreakdownTable({
   if (options.length === 0) {
     return (
       <section style={{ ...card, marginTop: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-        No options in this campaign are tagged as a mistake yet — tag one under &ldquo;Manage Special Checks&rdquo; to start tracking who to take care of.
+        No options in this Special Check are tagged as a mistake yet — tag one under &ldquo;Manage Special Checks&rdquo; to start tracking who to take care of.
       </section>
     )
   }
@@ -87,7 +87,7 @@ export function MistakeBreakdownTable({
     <section style={{ ...card, marginTop: '20px' }}>
       <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }}>Who to take care of</h3>
       <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-muted)' }}>
-        Agents who picked a mistake-tagged answer, worst first. &ldquo;Lifetime&rdquo; counts the same kind of mistake across every submitted audit, not just the current filters.
+        Agents who picked a mistake-tagged answer in this Special Check, worst first. &ldquo;Lifetime in Special Check&rdquo; counts the same kind of mistake across every submitted audit in THIS Special Check only — not other Special Checks, and not just the current filters.
       </p>
 
       {rows.length === 0 ? (
@@ -99,8 +99,8 @@ export function MistakeBreakdownTable({
               <tr>
                 <th style={{ ...th, borderTop: 'none' }}>Agent</th>
                 <th style={{ ...th, borderTop: 'none' }}>Team Leader</th>
-                <th style={{ ...th, borderTop: 'none' }}>In this view</th>
-                <th style={{ ...th, borderTop: 'none' }}>Lifetime</th>
+                <th style={{ ...th, borderTop: 'none' }}>Matching current filters</th>
+                <th style={{ ...th, borderTop: 'none' }}>Lifetime in Special Check</th>
                 <th style={{ ...th, borderTop: 'none' }}>Most recent</th>
               </tr>
             </thead>

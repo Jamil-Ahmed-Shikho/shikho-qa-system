@@ -32,10 +32,13 @@ export function canNarrowByManager(role: string): boolean {
   return (UNRESTRICTED_REPORT_ROLES as readonly string[]).includes(role)
 }
 
+/** Who may press "Send report" on the Campaign Mistake Report — QA Auditors send this in practice too, not just QA Manager/Admin (Jamil, 2026-10-08). */
+export const MISTAKE_REPORT_SEND_ROLES = ['super_admin', 'qa_manager', 'qa_auditor'] as const
+
 export async function requireReportAccess(): Promise<AuthUser> {
   const user = await getAuthUser()
   if (!user || !(REPORT_ROLES as readonly string[]).includes(user.role)) {
-    throw new Error('Only Super Admin, QA Manager, QA Auditor, Manager or Team Lead can view the Campaign Report.')
+    throw new Error('Only Super Admin, QA Manager, QA Auditor, Manager or Team Lead can view the Special Check Report.')
   }
   return user
 }
@@ -148,7 +151,7 @@ export async function loadCampaignReport(campaignId: string, filters: ReportFilt
     supabase.rpc('campaign_report_audit_count', rpcArgs),
   ])
 
-  if (campaign.error) { console.error('loadCampaignReport (campaign) failed:', campaign.error.code, campaign.error.message); throw new Error('Could not load the campaign. Please reload the page.') }
+  if (campaign.error) { console.error('loadCampaignReport (campaign) failed:', campaign.error.code, campaign.error.message); throw new Error('Could not load the Special Check. Please reload the page.') }
   if (rows.error) { console.error('loadCampaignReport (distribution) failed:', rows.error.code, rows.error.message); throw new Error('Could not load the report. Please reload the page.') }
   if (countRes.error) { console.error('loadCampaignReport (count) failed:', countRes.error.code, countRes.error.message); throw new Error('Could not load the report. Please reload the page.') }
   if (!campaign.data) return null

@@ -123,7 +123,7 @@ function CallRowItem({
         router.push(`/audits/${auditId}`) // the audit page shows its own loading state (loading.tsx)
       } catch (err) {
         setStarting(false)
-        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Sample Check.' : 'Could not start the audit.')
+        setError(err instanceof Error ? err.message : mode === 'sample_check' ? 'Could not start the Special Check.' : 'Could not start the audit.')
       }
     })
   }
@@ -161,7 +161,7 @@ function CallRowItem({
           fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: 'var(--radius-pill)',
           background: badge.bg, color: badge.color,
         }}>
-          {statusKey === 'audited' && status?.checkMode === 'sample_check' ? 'Sample-checked' : badge.label}
+          {statusKey === 'audited' && status?.checkMode === 'sample_check' ? 'Special-checked' : badge.label}
           {status?.auditorName && statusKey !== 'in_progress_mine' ? ` · ${status.auditorName}` : ''}
         </span>
       </div>
@@ -239,7 +239,7 @@ function CallRowItem({
                 onClick={() => handleStart('sample_check')}
                 disabled={starting || pending || !selectedAgentId}
                 aria-busy={starting || pending}
-                title={!selectedAgentId ? 'Select the agent this call belongs to first' : 'Log a Sample Check — no rubric score'}
+                title={!selectedAgentId ? 'Select the agent this call belongs to first' : 'Log a Special Check — no rubric score'}
                 style={{
                   padding: '8px 16px', fontSize: '13px', fontWeight: 500,
                   color: !selectedAgentId ? 'var(--text-muted)' : 'var(--brand)',
@@ -248,7 +248,7 @@ function CallRowItem({
                   cursor: starting || pending ? 'progress' : !selectedAgentId ? 'not-allowed' : 'pointer',
                 }}
               >
-                {starting && startingMode === 'sample_check' ? 'Starting…' : 'Sample Check'}
+                {starting && startingMode === 'sample_check' ? 'Starting…' : 'Special Check'}
               </button>
             </>
           )}

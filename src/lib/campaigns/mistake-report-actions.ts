@@ -28,7 +28,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { writeAuditLogs } from '@/lib/users/audit-log'
 import { sendCampaignMistakeReportEmail } from '@/lib/users/mailer'
 import { parseNotifyMode, parseNotifyTestRecipients } from '@/lib/pip/notification-runner'
-import { listMistakeOptions, loadCampaignMistakeBreakdown, loadCampaignReport, type MistakeRow, type ReportFilters } from './report.service'
+import { listMistakeOptions, loadCampaignMistakeBreakdown, loadCampaignReport, MISTAKE_REPORT_SEND_ROLES, type MistakeRow, type ReportFilters } from './report.service'
 import { mistakeReportHtml, mistakeReportSubject, mistakeReportText } from './mistake-report-email'
 
 type Fail = { ok: false; error: string }
@@ -104,17 +104,17 @@ export async function sendMistakeReportAction(
   valueIds: string[] | null
 ): Promise<{ ok: true; mode: 'test' | 'live'; sentTo: string[]; cc: string[] } | Fail> {
   const user = await getAuthUser()
-  if (!user || !['super_admin', 'qa_manager'].includes(user.role)) {
-    return { ok: false, error: 'Only Super Admin / QA Manager can send the Campaign Mistake Report.' }
+  if (!user || !(MISTAKE_REPORT_SEND_ROLES as readonly string[]).includes(user.role)) {
+    return { ok: false, error: 'Only Super Admin, QA Manager or QA Auditor can send the Special Check Mistake Report.' }
   }
 
   const [report, mistakeRows] = await Promise.all([
     loadCampaignReport(campaignId, filters),
     loadCampaignMistakeBreakdown(campaignId, filters, valueIds),
   ])
-  if (!report) return { ok: false, error: 'That campaign no longer exists.' }
+  if (!report) return { ok: false, error: 'That Special Check no longer exists.' }
   const options = listMistakeOptions(report)
-  if (options.length === 0) return { ok: false, error: 'No options in this campaign are tagged as a mistake yet — nothing to report.' }
+  if (options.length === 0) return { ok: false, error: 'No options in this Special Check are tagged as a mistake yet — nothing to report.' }
 
   const input = {
     campaignName: report.campaignName,
@@ -152,4 +152,55 @@ export async function sendMistakeReportAction(
     console.error('Campaign mistake report email failed:', err)
     return { ok: false, error: 'The email could not be sent. Check the mail settings and try again.' }
   }
+}
+
+// ── Send log (2026-10-08, Jamil's own request: "we may need a log report
+// when we last send this report") ───────────────────────────────────────
+// Reads the same audit_log rows writeAuditLogs() above already writes —
+// no new table. Scoped to this one campaign (table_name='campaigns',
+// record_id=campaignId, action='campaign.mistake_report_sent'), newest
+// first, capped at 10. Uses the service-role client (audit_log's own RLS
+// only lets an admin SELECT, schema_001) — safe here because this function
+// is only ever called from a page already gated by requireReportAccess(),
+// and it exposes nothing beyond what the Send button itself already shows
+// the person who presses it (who/when/mode/recipients of a report send).
+
+export interface MistakeReportSendLogEntry {
+  sentAt: string
+  sentByName: string
+  mode: 'test' | 'live'
+  to: string[]
+  cc: string[]
+}
+
+export async function loadMistakeReportSendLog(campaignId: string, limit = 10): Promise<MistakeReportSendLogEntry[]> {
+  const admin = getSupabaseAdmin()
+  const { data, error } = await admin
+    .from('audit_log')
+    .select('actor_id, created_at, after_data')
+    .eq('table_name', 'campaigns')
+    .eq('record_id', campaignId)
+    .eq('action', 'campaign.mistake_report_sent')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) {
+    console.error('loadMistakeReportSendLog failed:', error.code, error.message)
+    return []
+  }
+  const rows = (data ?? []) as { actor_id: string | null; created_at: string; after_data: { mode?: 'test' | 'live'; to?: string[]; cc?: string[] } | null }[]
+  if (rows.length === 0) return []
+
+  const actorIds = [...new Set(rows.map((r) => r.actor_id).filter((id): id is string => !!id))]
+  const { data: actors } = actorIds.length > 0
+    ? await admin.from('users').select('id, name').in('id', actorIds)
+    : { data: [] as { id: string; name: string }[] }
+  const nameById = new Map((actors ?? []).map((a) => [a.id, a.name]))
+
+  return rows.map((r) => ({
+    sentAt: r.created_at,
+    sentByName: (r.actor_id && nameById.get(r.actor_id)) ?? 'Unknown',
+    mode: r.after_data?.mode ?? 'live',
+    to: r.after_data?.to ?? [],
+    cc: r.after_data?.cc ?? [],
+  }))
 }

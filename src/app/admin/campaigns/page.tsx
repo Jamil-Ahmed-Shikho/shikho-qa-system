@@ -24,11 +24,11 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
           </p>
         </div>
         <Link href="/admin/campaigns/new" style={{ padding: '10px 18px', fontSize: '14px', fontWeight: 500, color: 'white', background: 'var(--brand)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' }}>
-          + New Campaign
+          + New Special Check
         </Link>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }} role="tablist" aria-label="Campaign view">
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }} role="tablist" aria-label="Special Check view">
         {(['active', 'archived', 'all'] as const).map((v) => (
           <Link
             key={v}
@@ -46,7 +46,7 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
 
       {shown.length === 0 && (
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
-          {all.length === 0 ? 'No campaigns yet. Create the first one to get started.' : `No ${view} campaigns.`}
+          {all.length === 0 ? 'No Special Checks yet. Create the first one to get started.' : `No ${view} Special Checks.`}
         </div>
       )}
 
