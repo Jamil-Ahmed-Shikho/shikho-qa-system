@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseAdmin, getSupabaseServer } from '@/lib/supabase/server'
+import { searchAgentsForPip } from './pip.service'
 import { writeAuditLogs } from '@/lib/users/audit-log'
 import { sendPipNotificationEmail } from '@/lib/users/mailer'
 import { dhakaDateEndUtc, dhakaDateStartUtc } from '@/lib/dates/sales-week'
@@ -107,6 +108,70 @@ export async function createCycleAction(month: string): Promise<ActionResult<{ i
   await log(a.user.profile.id, 'pip.cycle_created', data as string, { month })
   refresh()
   return { ok: true, id: data as string }
+}
+
+// A whole cycle can only be deleted while unpublished (admin_delete_pip_cycle itself enforces this
+// too — the check here just gives a friendlier message before the round trip). The snapshot read
+// happens BEFORE the delete so audit_log keeps a record of exactly what was removed (§1 — every
+// write is logged, deletions included), since the row itself won't exist afterward to look back at.
+export async function deleteCycleAction(cycleId: string): Promise<ActionResult> {
+  const a = await actor(ADMIN_ROLES, 'delete a PIP cycle')
+  if (!a.ok) return { ok: false, error: a.error }
+  const supabase = await getSupabaseServer()
+  const { data: snapshot } = await supabase
+    .from('pip_cycles')
+    .select('id, month, start_date, end_date, published_at, pip_candidates(id, agent_id, status)')
+    .eq('id', cycleId)
+    .maybeSingle()
+  const { error } = await supabase.rpc('admin_delete_pip_cycle', { p_cycle_id: cycleId })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.cycle_deleted', cycleId, { deleted: snapshot ?? null })
+  refresh(cycleId)
+  return { ok: true }
+}
+
+// A single candidate can be removed at ANY status (including a currently-running, approved PIP) —
+// a genuine hard delete for a mistaken/test entry, distinct from Exclude (which keeps the row as
+// part of the audit trail). Same before-delete snapshot discipline as deleteCycleAction above.
+export async function deleteCandidateAction(candidateId: string, cycleId: string): Promise<ActionResult> {
+  const a = await actor(ADMIN_ROLES, 'remove a PIP candidate')
+  if (!a.ok) return { ok: false, error: a.error }
+  const supabase = await getSupabaseServer()
+  const { data: snapshot } = await supabase
+    .from('pip_candidates')
+    .select('id, pip_cycle_id, agent_id, status, revenue_at_selection, incentive_downgraded, agent:users!pip_candidates_agent_id_fkey(name, email)')
+    .eq('id', candidateId)
+    .maybeSingle()
+  const { error } = await supabase.rpc('admin_delete_pip_candidate', { p_candidate_id: candidateId })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.candidate_deleted', candidateId, { deleted: snapshot ?? null })
+  refresh(cycleId, candidateId)
+  return { ok: true }
+}
+
+// A direct, unilateral add — a THIRD way onto the list besides generate_pip_candidates() (the
+// benchmark/vintage run) and a Manager's accepted include request (schema_043/046). Deliberately
+// skips those checks; see schema_081's own header comment for why.
+export async function addCandidateAction(cycleId: string, agentId: string): Promise<ActionResult<{ id: string }>> {
+  const a = await actor(ADMIN_ROLES, 'manually add a PIP candidate')
+  if (!a.ok) return { ok: false, error: a.error }
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('pip_add_candidate', { p_cycle_id: cycleId, p_agent_id: agentId })
+  if (error) return { ok: false, error: plain(error.message) }
+  await log(a.user.profile.id, 'pip.candidate_added_manually', data as string, { cycleId, agentId })
+  refresh(cycleId)
+  return { ok: true, id: data as string }
+}
+
+export async function searchAgentsAction(query: string) {
+  const a = await actor(ADMIN_ROLES, 'search agents')
+  if (!a.ok) return { ok: false as const, error: a.error }
+  try {
+    const results = await searchAgentsForPip(query)
+    return { ok: true as const, results }
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 export async function generateCandidatesAction(cycleId: string, acknowledgePartialRevenue: boolean): Promise<ActionResult<{ inserted: number; sharePct: number }>> {

@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { BackLink } from '@/components/common/BackLink'
+import { AddCandidateForm } from '@/components/admin/pip/AddCandidateForm'
 import { CandidateActions } from '@/components/admin/pip/CandidateActions'
+import { DeleteCandidateButton } from '@/components/admin/pip/DeleteCandidateButton'
+import { DeleteCycleButton } from '@/components/admin/pip/DeleteCycleButton'
 import { GenerateForm } from '@/components/admin/pip/GenerateForm'
 import { ManagerRequestsSection } from '@/components/admin/pip/ManagerRequestsSection'
 import { PublishButton } from '@/components/admin/pip/PublishButton'
@@ -48,7 +51,10 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
   return (
     <div style={{ maxWidth: '1100px' }}>
       <BackLink href="/admin/pip" label="All PIP cycles" />
-      <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>PIP cycle — {fmtMonth(cycle.month)}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>PIP cycle — {fmtMonth(cycle.month)}</h1>
+        {!cycle.publishedAt && <DeleteCycleButton cycleId={cycle.id} candidateCount={candidates.length} monthLabel={fmtMonth(cycle.month)} />}
+      </div>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
         Runs {fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}
         {policy && <> · benchmark ${policy.revenueBenchmark} · minimum vintage {policy.vintageMinWeeks} completed sales weeks · bottom {policy.bottomNPerSite} per team/channel
@@ -101,6 +107,18 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
         </section>
       )}
 
+      {!cycle.publishedAt && (
+        <section style={{ ...card, marginBottom: '20px' }} aria-label="Add an agent manually">
+          <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>Add an agent manually</h2>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px', maxWidth: '680px' }}>
+            A direct add, for a case the benchmark run or a Manager&apos;s request doesn&apos;t cover — skips the revenue
+            benchmark, vintage and team-scope checks on purpose. Added as &quot;suggested&quot;, same as everyone else, so it
+            still needs publishing like the rest of the list.
+          </p>
+          <AddCandidateForm cycleId={cycle.id} />
+        </section>
+      )}
+
       {[...byGroup.entries()].map(([group, rows]) => (
         <section key={group} style={{ ...card, marginBottom: '16px' }} aria-label={`Candidates — ${group}`}>
           <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 10px' }}>{group} <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '13px' }}>({rows.length})</span></h2>
@@ -129,6 +147,7 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
                     </td>
                     <td style={td}>
                       <CandidateActions candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} />
+                      <DeleteCandidateButton candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} />
                       {(c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (
                         <div style={{ marginTop: '6px' }}>
                           <Link href={`/pip/${c.id}`} style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Feedback &amp; training →</Link>

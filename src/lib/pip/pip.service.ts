@@ -336,6 +336,37 @@ export async function loadManagerCycleInfo(cycleId: string): Promise<PipManagerC
   return { month: r.month, startDate: r.start_date, endDate: r.end_date, publishedAt: r.published_at ?? null }
 }
 
+export interface PipAgentOption {
+  id: string
+  name: string
+  email: string | null
+  teamName: string | null
+  siteName: string | null
+}
+
+/**
+ * Agents matching a search term, for the manual "Add agent" picker on /admin/pip/[cycleId]
+ * (Super Admin / QA Manager only — unrestricted RLS reads `users` for both roles, so this is an
+ * ordinary session-client query, not a SECURITY DEFINER function). Name or email, case-insensitive,
+ * active agents only — adding an inactive one is refused by pip_add_candidate() anyway, so there is
+ * no point surfacing them here. Capped at 15: this is a typeahead, not a full roster browser.
+ */
+export async function searchAgentsForPip(query: string): Promise<PipAgentOption[]> {
+  const q = query.trim()
+  if (q.length < 2) return []
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, email, team_name, site_name')
+    .eq('role', 'agent')
+    .eq('is_active', true)
+    .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
+    .order('name')
+    .limit(15)
+  if (error) throw new Error(`Could not search agents: ${error.message}`)
+  return ((data ?? []) as Row[]).map((r) => ({ id: r.id, name: r.name, email: r.email, teamName: r.team_name, siteName: r.site_name }))
+}
+
 /** Approved-or-later PIPs in the caller's scope (a Team Lead's team, a Manager's chain, or everyone for QA staff). */
 export async function loadVisiblePips(): Promise<PipCandidate[]> {
   const supabase = await getSupabaseServer()

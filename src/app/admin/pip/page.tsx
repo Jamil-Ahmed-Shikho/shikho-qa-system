@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { BackLink } from '@/components/common/BackLink'
 import { PolicyForm } from '@/components/admin/pip/PolicyForm'
 import { CreateCycleForm } from '@/components/admin/pip/CreateCycleForm'
+import { DeleteCycleButton } from '@/components/admin/pip/DeleteCycleButton'
 import { SchemaMissing, isMissingPipSchema } from '@/components/pip/SchemaMissing'
 import { card, fmtDate, fmtMonth, td, th } from '@/components/pip/pip-display'
 import { loadCurrentPolicy, loadCycles, type PipCycle, type PipPolicy } from '@/lib/pip/pip.service'
@@ -55,7 +56,7 @@ export default async function PipAdminPage() {
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '480px' }}>
-                  <thead><tr><th style={th}>Month</th><th style={th}>Runs</th><th style={th}>Candidates</th><th style={th} /></tr></thead>
+                  <thead><tr><th style={th}>Month</th><th style={th}>Runs</th><th style={th}>Candidates</th><th style={th} /><th style={th} /></tr></thead>
                   <tbody>
                     {cycles.map((c) => (
                       <tr key={c.id}>
@@ -63,6 +64,9 @@ export default async function PipAdminPage() {
                         <td style={td}>{fmtDate(c.startDate)} – {fmtDate(c.endDate)}</td>
                         <td style={td}>{c.candidateCount}</td>
                         <td style={td}><Link href={`/admin/pip/${c.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                        <td style={td}>
+                          {!c.publishedAt && <DeleteCycleButton cycleId={c.id} candidateCount={c.candidateCount} monthLabel={fmtMonth(c.month)} />}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
