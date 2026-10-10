@@ -1,16 +1,22 @@
 'use client'
 // ============================================================
 // SHIKHO QA SYSTEM — notification bell (schema_064, 2026-10-02)
-// Polls loadNotificationsAction every 30s and on focus/open. A failed
-// load shows "could not load" in the dropdown rather than a silently
-// empty bell (§14).
+// Polls loadNotificationsAction every POLL_MS, on open, and on returning to
+// the tab — but NOT while the tab is hidden (2026-10-10, Vercel Hobby Active
+// CPU reduction: this bell is mounted on every page for every signed-in
+// user, so a 30s poll running in a background tab all day was the single
+// biggest driver of invocation count — see the Oct-2 usage jump). A hidden
+// tab stops the interval entirely rather than just skipping the fetch, so
+// an all-day background tab costs nothing until it's actually looked at
+// again, at which point it refreshes immediately. A failed load shows
+// "could not load" in the dropdown rather than a silently empty bell (§14).
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadNotificationsAction, markAllNotificationsReadAction, markNotificationsReadAction } from '@/lib/notifications/actions'
 import type { NotificationItem } from '@/lib/notifications/notifications.service'
 
-const POLL_MS = 30_000
+const POLL_MS = 120_000
 
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -70,9 +76,26 @@ export function NotificationBell() {
   }, [])
 
   useEffect(() => {
+    let id: ReturnType<typeof setInterval> | null = null
+    const stop = () => { if (id !== null) { clearInterval(id); id = null } }
+    const start = () => { if (id === null) id = setInterval(load, POLL_MS) }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        load()
+        start()
+      } else {
+        stop()
+      }
+    }
+
     load()
-    const id = setInterval(load, POLL_MS)
-    return () => clearInterval(id)
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [load])
 
   useEffect(() => {
