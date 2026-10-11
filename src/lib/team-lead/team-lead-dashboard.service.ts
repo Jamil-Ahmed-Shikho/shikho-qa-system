@@ -30,13 +30,22 @@ export interface FatalIncidentRow {
   agentName: string
   auditorName: string | null
   submittedAt: string
+  /** The fatal item(s) ticked on this audit (fatal_parameters.description) — may be more than one. */
+  fatalParameters: string[]
+  /** How many critical-fatal audits this agent has ever had (all time, not just this period). */
+  lifetimeFatalCount: number
 }
 
 export interface ZeroSellerRow {
   agentId: string
   agentName: string
+  vintage: Vintage
   currentStreakWeeks: number
   lastSaleDate: string | null
+  /** Whole days from their last sale to now — null only when they have no sale on record at all. */
+  daysSinceLastSale: number | null
+  /** USD revenue attributed on their last sale date (converted the same way agent_revenue_usd always does). */
+  lastSaleRevenueUsd: number | null
 }
 
 export interface PipLiveRow {
@@ -44,9 +53,12 @@ export interface PipLiveRow {
   agentName: string
   targetUsd: number | null
   achievedUsd: number
+  /** target - achieved, floored at 0; null when no target was ever set for this candidate. */
+  remainingUsd: number | null
   daysLeft: number
   runRateRequiredUsdPerDay: number | null
   targetMet: boolean | null
+  lastSaleDate: string | null
 }
 
 export interface OpenReviewRequestRow {
@@ -145,6 +157,11 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
 
   const statusByAgent = new Map((statusRes.data ?? []).map((s) => [s.agent_id, s]))
   const rosterById = new Map((roster ?? []).map((a) => [a.id, a]))
+  // Vintage for every roster agent, not just the filtered "agents" list below (Zero-Seller can
+  // include an agent that list excludes, e.g. a discontinued one with an old streak still on record).
+  const vintageByAgent = new Map(
+    (roster ?? []).map((a) => [a.id, agentVintage({ employment_stage: a.employment_stage, joining_date: a.joining_date }, slabs)])
+  )
 
   const agents: TeamLeadAgentRow[] = (roster ?? [])
     .filter((a) => a.employment_stage === 'active' || a.employment_stage === 'ojt' || a.employment_stage === 're_training')
@@ -158,12 +175,72 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
       }
     })
 
+  // Which fatal item(s) were ticked on each incident, and each agent's lifetime fatal count — both
+  // asked for by Jamil (2026-10-11) so a Team Lead can see more than just "a critical fatal happened".
+  type OneOrMany<T> = T | T[] | null
+  const one = <T,>(v: OneOrMany<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v)
+  const fatalAuditIds = (fatalsRes.data ?? []).map((f) => f.id)
+  const fatalAgentIds = [...new Set((fatalsRes.data ?? []).map((f) => f.agent_id))]
+  const [fatalParamsRes, lifetimeFatalsRes] = await Promise.all([
+    fatalAuditIds.length > 0
+      ? supabase.from('audit_fatal_results').select('audit_id, fatal_parameters(description)').in('audit_id', fatalAuditIds)
+      : Promise.resolve({ data: [] as { audit_id: string; fatal_parameters: OneOrMany<{ description: string }> }[], error: null }),
+    // Lifetime = every submitted, real (non-Sample-Check) critical-fatal audit this agent has ever
+    // had, not scoped to the period picker — a running total, same spirit as the repeat-mistake tracker.
+    fatalAgentIds.length > 0
+      ? supabase.from('audits').select('agent_id').eq('status', 'submitted').eq('check_mode', 'audit').eq('critical_fail', true).in('agent_id', fatalAgentIds)
+      : Promise.resolve({ data: [] as { agent_id: string }[], error: null }),
+  ])
+  if (fatalParamsRes.error) throw new Error(`Could not load fatal parameter detail: ${fatalParamsRes.error.message}`)
+  if (lifetimeFatalsRes.error) throw new Error(`Could not load lifetime fatal counts: ${lifetimeFatalsRes.error.message}`)
+
+  const fatalParamsByAudit = new Map<string, string[]>()
+  for (const row of fatalParamsRes.data ?? []) {
+    const desc = one(row.fatal_parameters as OneOrMany<{ description: string }>)?.description
+    if (!desc) continue
+    const list = fatalParamsByAudit.get(row.audit_id) ?? []
+    list.push(desc)
+    fatalParamsByAudit.set(row.audit_id, list)
+  }
+  const lifetimeFatalByAgent = new Map<string, number>()
+  for (const row of lifetimeFatalsRes.data ?? []) {
+    lifetimeFatalByAgent.set(row.agent_id, (lifetimeFatalByAgent.get(row.agent_id) ?? 0) + 1)
+  }
+
   const fatalIncidents: FatalIncidentRow[] = (fatalsRes.data ?? []).map((f) => ({
     auditId: f.id, agentId: f.agent_id, agentName: rosterById.get(f.agent_id)?.name ?? 'Unknown', auditorName: f.auditor_id ? auditorNames.get(f.auditor_id) ?? null : null, submittedAt: f.submitted_at,
+    fatalParameters: fatalParamsByAudit.get(f.id) ?? [],
+    lifetimeFatalCount: lifetimeFatalByAgent.get(f.agent_id) ?? 0,
   }))
 
+  // Last sale date is a Dhaka calendar date, not a known transaction — sum whatever was attributed
+  // on that day (agent_revenue_usd, the same converter the rest of the system trusts) rather than
+  // trying to pick out a single row, since more than one sale on the same day is routine.
+  const zeroSellerRevenueByAgent = new Map<string, number | null>(
+    await Promise.all(
+      (zeroSellerRes.data ?? []).map(async (z): Promise<[string, number | null]> => {
+        if (!z.last_sale_date) return [z.agent_id, null]
+        const { data: rev } = await supabase.rpc('agent_revenue_usd', {
+          p_agent_id: z.agent_id,
+          p_from: dhakaDateStartUtc(z.last_sale_date).toISOString(),
+          p_to: dhakaDateEndUtc(z.last_sale_date).toISOString(),
+        })
+        return [z.agent_id, rev === null || rev === undefined ? null : Number(rev)]
+      })
+    )
+  )
+
+  const nowMs = Date.now()
   const zeroSellers: ZeroSellerRow[] = (zeroSellerRes.data ?? [])
-    .map((z) => ({ agentId: z.agent_id, agentName: rosterById.get(z.agent_id)?.name ?? 'Unknown', currentStreakWeeks: z.current_streak_weeks, lastSaleDate: z.last_sale_date }))
+    .map((z) => ({
+      agentId: z.agent_id,
+      agentName: rosterById.get(z.agent_id)?.name ?? 'Unknown',
+      vintage: vintageByAgent.get(z.agent_id) ?? { label: 'Not available', detail: null, days: null },
+      currentStreakWeeks: z.current_streak_weeks,
+      lastSaleDate: z.last_sale_date,
+      daysSinceLastSale: z.last_sale_date ? Math.floor((nowMs - dhakaDateStartUtc(z.last_sale_date).getTime()) / 86_400_000) : null,
+      lastSaleRevenueUsd: zeroSellerRevenueByAgent.get(z.agent_id) ?? null,
+    }))
     .sort((a, b) => b.currentStreakWeeks - a.currentStreakWeeks)
 
   const openReviewRequests: OpenReviewRequestRow[] = (reviewRes.data ?? [])
@@ -191,6 +268,18 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }))
     const endDate = new Date(cycle.end_date + 'T00:00:00')
     const daysLeft = Math.max(0, Math.round((endDate.getTime() - today.getTime()) / 86_400_000))
+
+    // Last sale date for whoever is on the PIP right now — not scoped to current zero-sellers
+    // (zeroSellerRes only covers an active streak), a PIP candidate may well have sold recently.
+    const pipCandidateIds = (candidates ?? []).map((c) => c.agent_id)
+    const lastSaleByAgent = new Map<string, string | null>()
+    if (pipCandidateIds.length > 0) {
+      const { data: lastSales, error: lastSaleErr } = await supabase
+        .from('agent_zero_seller_status').select('agent_id, last_sale_date').in('agent_id', pipCandidateIds)
+      if (lastSaleErr) throw new Error(`Could not load last-sale dates for PIP: ${lastSaleErr.message}`)
+      for (const row of lastSales ?? []) lastSaleByAgent.set(row.agent_id, row.last_sale_date)
+    }
+
     pipLive = await Promise.all(
       (candidates ?? []).map(async (c) => {
         const { data: rev } = await supabase.rpc('agent_revenue_usd', { p_agent_id: c.agent_id, p_from: cycleStart.toISOString(), p_to: cappedEnd.toISOString() })
@@ -199,8 +288,10 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
         const targetMet = target === null ? null : achieved >= target
         return {
           agentId: c.agent_id, agentName: rosterById.get(c.agent_id)?.name ?? 'Unknown', targetUsd: target, achievedUsd: achieved, daysLeft,
+          remainingUsd: target !== null ? Math.max(0, Math.round((target - achieved) * 100) / 100) : null,
           runRateRequiredUsdPerDay: target !== null && !targetMet ? Math.round(((target - achieved) / Math.max(daysLeft, 1)) * 100) / 100 : null,
           targetMet,
+          lastSaleDate: lastSaleByAgent.get(c.agent_id) ?? null,
         }
       })
     )

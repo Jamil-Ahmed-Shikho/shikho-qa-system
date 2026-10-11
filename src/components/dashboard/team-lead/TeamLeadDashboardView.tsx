@@ -11,6 +11,13 @@ function AgentLink({ id, name }: { id: string; name: string }) {
   return <Link href={`/audits/agent/${id}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
 }
 
+/** Opens exactly this one audit — distinct from AgentLink, which opens the agent's whole profile
+ * (every audit). Added 2026-10-11 per Jamil's own feedback: a Team Lead reading "Fatal incidents"
+ * or "Recent audits" shouldn't have to search the full profile for the one audit the row is about. */
+function AuditLink({ id }: { id: string }) {
+  return <Link href={`/audits/${id}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link>
+}
+
 const card: React.CSSProperties = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px', marginBottom: '24px' }
 const sectionTitle: React.CSSProperties = { fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }
 const sectionNote: React.CSSProperties = { fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 14px' }
@@ -39,11 +46,22 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
         <p style={sectionNote}>Every critical-fatal audit on your team in this period.</p>
         {data.fatalIncidents.length === 0 ? <p style={empty}>None in this period.</p> : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Auditor</th><th style={th}>Submitted</th></tr></thead>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
+              <thead><tr><th style={th}>Agent</th><th style={th}>Fatal item(s)</th><th style={th}>Auditor</th><th style={th}>Submitted</th><th style={th}>Lifetime fatals</th><th style={th}></th></tr></thead>
               <tbody>
                 {data.fatalIncidents.map((f) => (
-                  <tr key={f.auditId}><td style={td}><AgentLink id={f.agentId} name={f.agentName} /></td><td style={td}>{f.auditorName ?? '—'}</td><td style={td}>{formatDhakaDateTime(f.submittedAt)}</td></tr>
+                  <tr key={f.auditId}>
+                    <td style={td}><AgentLink id={f.agentId} name={f.agentName} /></td>
+                    <td style={{ ...td, whiteSpace: 'normal', minWidth: '220px' }}>
+                      {f.fatalParameters.length === 0 ? '—' : f.fatalParameters.join('; ')}
+                    </td>
+                    <td style={td}>{f.auditorName ?? '—'}</td>
+                    <td style={td}>{formatDhakaDateTime(f.submittedAt)}</td>
+                    <td style={td}>
+                      <span style={{ fontWeight: f.lifetimeFatalCount >= 2 ? 700 : 400, color: f.lifetimeFatalCount >= 2 ? 'var(--alert)' : 'inherit' }}>{f.lifetimeFatalCount}</span>
+                    </td>
+                    <td style={td}><AuditLink id={f.auditId} /></td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -56,11 +74,18 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
         <p style={sectionNote}>Anyone on your team currently on an active zero-seller streak.</p>
         {data.zeroSellers.length === 0 ? <p style={empty}>Nobody on your team is a zero-seller right now.</p> : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Streak (weeks)</th><th style={th}>Last sale</th></tr></thead>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '680px' }}>
+              <thead><tr><th style={th}>Agent</th><th style={th}>Vintage</th><th style={th}>Streak (weeks)</th><th style={th}>Last sale</th><th style={th}>Days since</th><th style={th}>Revenue that day</th></tr></thead>
               <tbody>
                 {data.zeroSellers.map((z) => (
-                  <tr key={z.agentId}><td style={td}><AgentLink id={z.agentId} name={z.agentName} /></td><td style={td}>{z.currentStreakWeeks}</td><td style={td}>{z.lastSaleDate ?? 'None on record'}</td></tr>
+                  <tr key={z.agentId}>
+                    <td style={td}><AgentLink id={z.agentId} name={z.agentName} /></td>
+                    <td style={td}>{z.vintage.label}</td>
+                    <td style={td}>{z.currentStreakWeeks}</td>
+                    <td style={td}>{z.lastSaleDate ?? 'None on record'}</td>
+                    <td style={td}>{z.daysSinceLastSale ?? '—'}</td>
+                    <td style={td}>{formatUsd(z.lastSaleRevenueUsd)}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -73,16 +98,18 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
         <p style={sectionNote}>Anyone on your team currently on a PIP, and how they&apos;re tracking against target.</p>
         {data.pipLive.length === 0 ? <p style={empty}>Nobody on your team is on a PIP right now.</p> : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Target</th><th style={th}>Achieved</th><th style={th}>Days left</th><th style={th}>Run rate needed / day</th></tr></thead>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
+              <thead><tr><th style={th}>Agent</th><th style={th}>Target</th><th style={th}>Achieved</th><th style={th}>Remaining</th><th style={th}>Days left</th><th style={th}>Run rate needed / day</th><th style={th}>Last sale</th></tr></thead>
               <tbody>
                 {data.pipLive.map((p) => (
                   <tr key={p.agentId}>
                     <td style={td}><AgentLink id={p.agentId} name={p.agentName} /></td>
                     <td style={td}>{formatUsd(p.targetUsd)}</td>
                     <td style={td}>{formatUsd(p.achievedUsd)}</td>
+                    <td style={td}>{p.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>$0.00</span> : formatUsd(p.remainingUsd)}</td>
                     <td style={td}>{p.daysLeft}</td>
                     <td style={td}>{p.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>Target met</span> : p.runRateRequiredUsdPerDay !== null ? formatUsd(p.runRateRequiredUsdPerDay) : '—'}</td>
+                    <td style={td}>{p.lastSaleDate ?? 'None on record'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -113,8 +140,8 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
         <p style={sectionNote}>The team&apos;s last 15 submitted audits, regardless of period.</p>
         {data.recentAudits.length === 0 ? <p style={empty}>No submitted audits yet.</p> : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Score</th><th style={th}>When</th></tr></thead>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '560px' }}>
+              <thead><tr><th style={th}>Agent</th><th style={th}>Score</th><th style={th}>When</th><th style={th}></th></tr></thead>
               <tbody>
                 {data.recentAudits.map((a) => (
                   <tr key={a.auditId}>
@@ -125,6 +152,7 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
                       </span>
                     </td>
                     <td style={td}>{formatDhakaDateTime(a.submittedAt)}</td>
+                    <td style={td}><AuditLink id={a.auditId} /></td>
                   </tr>
                 ))}
               </tbody>

@@ -114,6 +114,19 @@ export async function middleware(request: NextRequest) {
     return redirectTo(new URL('/auth/change-password', request.url))
   }
 
+  // A specific-audit link from the audit-submitted email (`/my-audits/{id}`) goes to the agent AND,
+  // cc'd on the exact same email, their Team Leader (§4) — but /my-audits is agent-only, so without
+  // this a Team Lead clicking "View full result" was bounced straight to their own dashboard home,
+  // losing which audit the email was even about (Jamil, 2026-10-11). Send a non-agent viewer who
+  // CAN read audits straight to the QA/TL-facing equivalent for the same audit id instead.
+  const myAuditDetailMatch = pathname.match(/^\/my-audits\/([0-9a-f-]{36})\/?$/i)
+  if (myAuditDetailMatch) {
+    const role = profile?.role as string | undefined
+    if (role && role !== 'agent' && ROLE_ROUTES['/audits'].includes(role)) {
+      return redirectTo(new URL(`/audits/${myAuditDetailMatch[1]}`, request.url))
+    }
+  }
+
   const matchedRoute = Object.keys(ROLE_ROUTES).find((route) => pathname.startsWith(route))
 
   if (matchedRoute) {
