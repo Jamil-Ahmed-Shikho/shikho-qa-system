@@ -12,6 +12,7 @@ import { getSupabaseServer } from '@/lib/supabase/server'
 import { describeRange, periodRange, type Period } from '@/lib/dates/sales-week'
 import { loadQueue } from '@/lib/queue/queue.service'
 import { loadOjtCandidates, isMissingOjtSchema, type OjtCandidate } from '@/lib/ojt/ojt.service'
+import { loadManagerOverview, type ManagerOverview } from './manager-overview.service'
 import { buildRollup, type AgentStatRow, type ManagerRollup, type TeamLeadInfo } from './rollup'
 
 export interface ManagerOption {
@@ -34,7 +35,7 @@ export async function listManagerOptions(): Promise<ManagerOption[]> {
 }
 
 export type ManagerDashboardResult =
-  | { ok: true; managerName: string; rangeLabel: string; rollup: ManagerRollup }
+  | { ok: true; managerName: string; rangeLabel: string; rollup: ManagerRollup; overview: ManagerOverview }
   | { ok: false; error: string }
 
 export async function getManagerDashboard(
@@ -108,10 +109,22 @@ export async function getManagerDashboard(
     if (!isMissingOjtSchema(err)) console.error('getManagerDashboard: loadOjtCandidates failed:', err)
   }
 
+  // Fatal incidents / Zero-Seller / PIP live progress, scoped to exactly THIS manager's chain
+  // (agentRows' own ids, resolved above via manager_agent_stats — correct whether the viewer is
+  // this manager or an admin browsing their chain, unlike the queue/OJT reads above which rely on
+  // the viewer's own session and are narrowed to agentRows only later, in buildRollup()).
+  let overview: ManagerOverview = { fatalIncidents: [], zeroSellers: [], pipLive: [] }
+  try {
+    overview = await loadManagerOverview(agentRows.map((a) => a.agent_id), range.from, range.to)
+  } catch (err) {
+    console.error('getManagerDashboard: loadManagerOverview failed:', err)
+  }
+
   return {
     ok: true,
     managerName: manager.name,
     rangeLabel: describeRange(range),
     rollup: buildRollup((teamLeads ?? []) as TeamLeadInfo[], agentRows, queueRows, reTrainingRows),
+    overview,
   }
 }

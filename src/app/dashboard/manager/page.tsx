@@ -107,7 +107,7 @@ export default async function ManagerDashboardPage({
         </div>
       )}
 
-      {result?.ok && <ManagerDashboardView rollup={result.rollup} managerName={result.managerName} />}
+      {result?.ok && <ManagerDashboardView rollup={result.rollup} managerName={result.managerName} overview={result.overview} />}
 
       {/* A Manager's own chain (the database scopes it). Not shown to an admin browsing another manager: the sessions table has no per-manager filter, so it would show everyone's under that manager's name. */}
       {isManager && <BriefingsSection audience="scope" canOpenAudit={false} />}
