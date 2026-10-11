@@ -28,6 +28,44 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
     }
   }
 
+  // Built once, placed either inside TeamLeadDashboardView's reordered layout (a real Team Lead,
+  // right under the KPIs/attention strip — Jamil's own standardization request, 2026-10-12) or
+  // standalone below (a Super Admin / QA Manager browsing this page, who gets no personal dashboard
+  // data) — same cards, same position relative to "nothing else is a Team Lead's own data" either way.
+  const quickActionsNode = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+      {/* No "Calibration sessions" nav card here (2026-10-12, Jamil's own catch) — a Team Lead
+          can't schedule one (§5: QA function only), so the CalibrationSection below already
+          covers everything this card would: what you're invited to, plus its own "All sessions"
+          link to the exact same /calibration destination. Nothing left for the card to add. */}
+      <NavCard
+        href="/audits"
+        title="Audit a Call"
+        description="Look up a lead's call history and start an audit."
+      />
+      <NavCard
+        href="/reports/campaigns"
+        title="Special Check Report"
+        description="How your team answered a Special Check, over submitted audits."
+      />
+      <NavCard
+        href="/reports/repeat-mistakes"
+        title="Repeat-Mistake Report"
+        description="Agents on your team whose audits show the same rubric parameter failing repeatedly."
+      />
+      <NavCard
+        href="/reports/qa-rubric-trends"
+        title="Rubric Fail Trends"
+        description="Which rubric parameters your team is failing most, by skill area, and whether it's improving."
+      />
+      <NavCard
+        href="/pip"
+        title="PIP — your agents"
+        description="Agents on a performance improvement plan: give your feedback on their progress."
+      />
+    </div>
+  )
+
   return (
     <div>
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Team Lead Dashboard</h1>
@@ -51,39 +89,9 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
         <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px', marginBottom: '20px' }}>Your team's stats could not be loaded right now. Try again shortly.</div>
       ) : null}
 
-      {dashboard && <TeamLeadDashboardView data={dashboard} agentPerformance={<TeamLeadAgentPerformanceSection />} />}
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: isTeamLead ? '8px' : 0 }}>
-        {/* No "Calibration sessions" nav card here (2026-10-12, Jamil's own catch) — a Team Lead
-            can't schedule one (§5: QA function only), so the CalibrationSection below already
-            covers everything this card would: what you're invited to, plus its own "All sessions"
-            link to the exact same /calibration destination. Nothing left for the card to add. */}
-        <NavCard
-          href="/audits"
-          title="Audit a Call"
-          description="Look up a lead's call history and start an audit."
-        />
-        <NavCard
-          href="/reports/campaigns"
-          title="Special Check Report"
-          description="How your team answered a Special Check, over submitted audits."
-        />
-        <NavCard
-          href="/reports/repeat-mistakes"
-          title="Repeat-Mistake Report"
-          description="Agents on your team whose audits show the same rubric parameter failing repeatedly."
-        />
-        <NavCard
-          href="/reports/qa-rubric-trends"
-          title="Rubric Fail Trends"
-          description="Which rubric parameters your team is failing most, by skill area, and whether it's improving."
-        />
-        <NavCard
-          href="/pip"
-          title="PIP — your agents"
-          description="Agents on a performance improvement plan: give your feedback on their progress."
-        />
-      </div>
+      {dashboard
+        ? <TeamLeadDashboardView data={dashboard} agentPerformance={<TeamLeadAgentPerformanceSection />} quickActions={quickActionsNode} />
+        : quickActionsNode}
 
       <CalibrationSection />
       <BriefingsSection audience={audience} />

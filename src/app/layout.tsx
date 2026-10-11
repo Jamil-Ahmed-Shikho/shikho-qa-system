@@ -50,6 +50,7 @@ const globalCSS = `
     --highlight-light: #FFF8E0;
     --alert:           #E03050;  /* Alert Coral */
     --alert-light:     #FEE8EC;
+    --status-green-light: #E3F7EC;
     --paper:           #FFFFFF;  /* Paper White */
     --ink:             #0F1322;  /* Dark Ink */
 
@@ -99,6 +100,7 @@ const globalCSS = `
       --accent-light:    #3D1B33;
       --highlight-light: #3A2E10;
       --alert-light:     #3D1520;
+      --status-green-light: #17301F;
     }
   }
 

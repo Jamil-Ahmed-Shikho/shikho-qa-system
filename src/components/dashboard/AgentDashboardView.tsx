@@ -182,7 +182,7 @@ function TrendBadge({ trend }: { trend: { scorePercent: number }[] }) {
   if (trend.length < 2) return null
   const delta = trend[trend.length - 1].scorePercent - trend[0].scorePercent
   const meta = delta > 2
-    ? { label: 'Trending up', icon: '▲', color: 'var(--status-green)', bg: 'var(--status-green-light, #E3F7EC)' }
+    ? { label: 'Trending up', icon: '▲', color: 'var(--status-green)', bg: 'var(--status-green-light)' }
     : delta < -2
       ? { label: 'Trending down', icon: '▼', color: 'var(--alert)', bg: 'var(--alert-light)' }
       : { label: 'Holding steady', icon: '–', color: 'var(--text-muted)', bg: 'var(--surface-1)' }
