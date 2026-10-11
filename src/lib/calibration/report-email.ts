@@ -11,6 +11,7 @@ import type { VarianceReport } from './variance'
 
 const INDIGO = BRAND.indigo
 const CORAL = BRAND.coral
+const GREEN = BRAND.green
 
 export interface ReportEmailInput {
   title: string
@@ -33,18 +34,24 @@ export function reportSubject(i: ReportEmailInput): string {
 
 export function reportText(i: ReportEmailInput): string {
   const r = i.report
+  const vsLabel = r.aligned ? 'vs aligned score' : 'vs average'
   const lines = [
     `Calibration report — ${i.title}`,
     `${i.whenLabel} · ${i.scope}${i.rubricName ? ` · ${i.rubricName}` : ''}`,
     '',
     `${r.count} scores · group average ${r.mean}% · range ${r.min}%–${r.max}% (${r.range} points) · standard deviation ${r.stdDev}`,
-    '',
-    ...r.participants.map((p) => `- ${p.name}: ${p.scorePercent}% (${sign(p.deviation)} vs average)${p.position === 'highest' ? ' — highest' : p.position === 'lowest' ? ' — lowest' : ''}${p.criticalFail ? ' — critical fatal' : ''}`),
   ]
+  if (r.aligned) {
+    lines.push(`Aligned score: ${r.aligned.scorePercent}%${r.aligned.criticalFail ? ' — critical fatal' : ''}${r.aligned.byName ? ` — decided by ${r.aligned.byName}` : ''}`)
+  }
+  lines.push(
+    '',
+    ...r.participants.map((p) => `- ${p.name}: ${p.scorePercent}% (${sign(p.deviation)} ${vsLabel})${p.position === 'highest' ? ' — highest' : p.position === 'lowest' ? ' — lowest' : ''}${p.criticalFail ? ' — critical fatal' : ''}`)
+  )
   if (r.splitParameters.length || r.fatals.some((f) => !f.unanimous)) {
     lines.push('', 'Where the group disagreed:')
-    for (const p of r.splitParameters) lines.push(`- ${p.name} (${p.points} pts): Pass — ${p.passed.join(', ')}; Fail — ${p.failed.join(', ')}`)
-    for (const f of r.fatals.filter((x) => !x.unanimous)) lines.push(`- ${f.description} (${f.severity}): ticked by ${f.ticked.join(', ')}; not by ${f.notTicked.join(', ')}`)
+    for (const p of r.splitParameters) lines.push(`- ${p.name} (${p.points} pts): Pass — ${p.passed.join(', ')}; Fail — ${p.failed.join(', ')}${p.alignedPassed !== null ? ` [Aligned: ${p.alignedPassed ? 'Pass' : 'Fail'}]` : ''}`)
+    for (const f of r.fatals.filter((x) => !x.unanimous)) lines.push(`- ${f.description} (${f.severity}): ticked by ${f.ticked.join(', ')}; not by ${f.notTicked.join(', ')}${f.alignedTicked !== null ? ` [Aligned: ${f.alignedTicked ? 'Applied' : 'Did not apply'}]` : ''}`)
   } else {
     lines.push('', 'Everyone marked every parameter and fatal error the same way.')
   }
@@ -57,6 +64,7 @@ export function reportHtml(i: ReportEmailInput): string {
   const r = i.report
   const td = 'padding:8px 10px;border-bottom:1px solid #EEF0F6;font-size:13px;vertical-align:top'
   const th = 'text-align:left;padding:6px 10px;border-bottom:2px solid #DFE1EA;font-size:11px;color:#898EA4;text-transform:uppercase;letter-spacing:.04em'
+  const vsLabel = r.aligned ? 'Vs aligned' : 'Vs average'
   const rows = r.participants
     .map((p) => `<tr>
       <td style="${td}">${escapeHtml(p.name)}${p.criticalFail ? ` <span style="color:${CORAL};font-size:10px;font-weight:700">critical fatal</span>` : ''}</td>
@@ -65,9 +73,12 @@ export function reportHtml(i: ReportEmailInput): string {
       <td style="${td};color:#5A5F76">${p.position === 'highest' ? 'Highest' : p.position === 'lowest' ? 'Lowest' : ''}</td>
     </tr>`)
     .join('')
+  const aligned = r.aligned
+    ? `<p style="margin:0 0 12px;font-size:13px;padding:8px 12px;background:#F4F5FA;border-radius:8px">Aligned score: <b>${r.aligned.scorePercent}%</b>${r.aligned.criticalFail ? ` <span style="color:${CORAL};font-weight:700">critical fatal</span>` : ''}${r.aligned.byName ? ` <span style="color:#898EA4">— decided by ${escapeHtml(r.aligned.byName)}</span>` : ''}</p>`
+    : ''
   const splits = [
-    ...r.splitParameters.map((p) => `<li style="margin:0 0 6px"><b>${escapeHtml(p.name)}</b> (${p.points} pts) — Pass: ${escapeHtml(p.passed.join(', '))}; Fail: ${escapeHtml(p.failed.join(', '))}</li>`),
-    ...r.fatals.filter((f) => !f.unanimous).map((f) => `<li style="margin:0 0 6px"><b>${escapeHtml(f.description)}</b> (${f.severity}) — ticked by ${escapeHtml(f.ticked.join(', '))}; not by ${escapeHtml(f.notTicked.join(', '))}</li>`),
+    ...r.splitParameters.map((p) => `<li style="margin:0 0 6px"><b>${escapeHtml(p.name)}</b> (${p.points} pts) — Pass: ${escapeHtml(p.passed.join(', '))}; Fail: ${escapeHtml(p.failed.join(', '))}${p.alignedPassed !== null ? ` <span style="color:${p.alignedPassed ? GREEN : CORAL};font-weight:700">· Aligned: ${p.alignedPassed ? 'Pass' : 'Fail'}</span>` : ''}</li>`),
+    ...r.fatals.filter((f) => !f.unanimous).map((f) => `<li style="margin:0 0 6px"><b>${escapeHtml(f.description)}</b> (${f.severity}) — ticked by ${escapeHtml(f.ticked.join(', '))}; not by ${escapeHtml(f.notTicked.join(', '))}${f.alignedTicked !== null ? ` <span style="color:${f.alignedTicked ? CORAL : GREEN};font-weight:700">· Aligned: ${f.alignedTicked ? 'Applied' : 'Did not apply'}</span>` : ''}</li>`),
   ]
   const disagreement = splits.length
     ? `<ul style="margin:0 0 16px;padding-left:18px;font-size:13px">${splits.join('')}</ul>`
@@ -82,8 +93,9 @@ export function reportHtml(i: ReportEmailInput): string {
     <p style="margin:0 0 6px"><b>${escapeHtml(i.title)}</b></p>
     <p style="margin:0 0 16px;font-size:13px;color:#5A5F76">${escapeHtml(i.whenLabel)} · ${escapeHtml(i.scope)}${i.rubricName ? ` · ${escapeHtml(i.rubricName)}` : ''}</p>
     <p style="margin:0 0 12px;font-size:13px">${r.count} scores · group average <b>${r.mean}%</b> · range ${r.min}%–${r.max}% (${r.range} points) · standard deviation ${r.stdDev}</p>
+    ${aligned}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 18px">
-      <tr><th style="${th}">Participant</th><th style="${th}">Score</th><th style="${th}">Vs average</th><th style="${th}"></th></tr>${rows}
+      <tr><th style="${th}">Participant</th><th style="${th}">Score</th><th style="${th}">${vsLabel}</th><th style="${th}"></th></tr>${rows}
     </table>
     <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where the group disagreed</p>
     ${disagreement}${missing}${link}`

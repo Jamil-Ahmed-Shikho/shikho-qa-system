@@ -5,11 +5,12 @@ import { CancelButton } from '@/components/calibration/CancelButton'
 import { SessionForm } from '@/components/calibration/SessionForm'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { formatDhakaDateTime } from '@/lib/dates/format'
-import { getSession, loadCalibrationRubric, loadCandidates, loadReportSentAt, loadResults, loadRubricChoices, type CalibrationResultsState } from '@/lib/calibration/calibration.service'
+import { getSession, loadAlignment, loadCalibrationRubric, loadCandidates, loadReportSentAt, loadResults, loadRubricChoices, type CalibrationResultsState } from '@/lib/calibration/calibration.service'
 import { ScoringForm } from '@/components/calibration/ScoringForm'
 import { CloseButton } from '@/components/calibration/CloseButton'
 import { SendReportButton } from '@/components/calibration/SendReportButton'
 import { VarianceReportView } from '@/components/calibration/VarianceReportView'
+import { AlignmentForm } from '@/components/calibration/AlignmentForm'
 import { buildVarianceReport } from '@/lib/calibration/variance'
 import { KIND_LABELS, toDhakaLocalInput } from '@/lib/calibration/validation'
 import { SITE_NAMES } from '@/lib/users/constants'
@@ -40,8 +41,16 @@ export default async function CalibrationDetailPage({ params }: { params: Promis
     console.error(err)
   }
   const canSendReport = s.status === 'closed' && (isAdmin || s.createdBy === user.profile.id)
+  const canAlign = canSendReport // same authority as closing/sending the report (§5)
   const reportSentAt = canSendReport ? await loadReportSentAt(s.id) : null
   const rubric = results && s.status !== 'cancelled' ? await loadCalibrationRubric(s.rubricId) : null
+  const alignment = results?.revealed ? await loadAlignment(s.id).catch(() => null) : null
+  const report = results?.revealed && rubric
+    ? buildVarianceReport(results.scores, rubric, alignment?.recorded ? {
+        scorePercent: alignment.scorePercent!, criticalFail: alignment.criticalFail!, byName: alignment.byName, at: alignment.at,
+        params: alignment.params, fatalIds: alignment.fatalIds,
+      } : null)
+    : null
 
   const [candidates, choices] = canEdit ? await Promise.all([loadCandidates(), loadRubricChoices()]) : [[], { rubrics: [], byTeam: {} }]
 
@@ -130,10 +139,28 @@ export default async function CalibrationDetailPage({ params }: { params: Promis
         </section>
       )}
 
-      {results?.revealed && rubric && (
+      {report && (
         <section style={card} aria-label="Variance report">
           <h2 style={{ fontSize: '15px', margin: '0 0 8px' }}>Variance report</h2>
-          <VarianceReportView report={buildVarianceReport(results.scores, rubric)} />
+          <VarianceReportView report={report} />
+        </section>
+      )}
+
+      {canAlign && report && (
+        <section style={card} aria-label="Alignment">
+          <h2 style={{ fontSize: '15px', margin: '0 0 4px' }}>Record the alignment outcome</h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+            Once the group has discussed where they disagreed, record what was decided — this becomes the aligned score everyone is measured against.
+          </p>
+          <AlignmentForm
+            sessionId={s.id}
+            splitParameters={report.splitParameters}
+            splitFatals={report.fatals.filter((f) => !f.unanimous)}
+            initialParams={alignment?.params ?? {}}
+            initialFatalIds={alignment?.fatalIds ?? []}
+            alignedAt={alignment?.at ?? null}
+            alignedByName={alignment?.byName ?? null}
+          />
         </section>
       )}
 

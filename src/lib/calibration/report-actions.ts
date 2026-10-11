@@ -12,7 +12,7 @@ import { getSupabaseAdmin, getSupabaseServer } from '@/lib/supabase/server'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { writeAuditLogs } from '@/lib/users/audit-log'
 import { sendCalibrationReportEmail } from '@/lib/users/mailer'
-import { getSession, loadCalibrationRubric, loadReportSentAt, loadResults } from './calibration.service'
+import { getSession, loadAlignment, loadCalibrationRubric, loadReportSentAt, loadResults } from './calibration.service'
 import { reportHtml, reportSubject, reportText } from './report-email'
 import { parseRecipientList, parseReportMode, runReportSend } from './report-runner'
 import { buildVarianceReport } from './variance'
@@ -37,14 +37,18 @@ export async function sendReportAction(
 
     const found = await getSession(sessionId)
     if (!found) return { ok: false, error: 'That session was not found.' }
-    const [results, rubric, sentAt] = await Promise.all([
+    const [results, rubric, sentAt, alignment] = await Promise.all([
       loadResults(sessionId),
       loadCalibrationRubric(found.session.rubricId),
       loadReportSentAt(sessionId),
+      loadAlignment(sessionId).catch(() => null),
     ])
     if (!results?.revealed || !rubric) return { ok: false, error: 'The report is not available yet.' }
     if (sentAt && !resend) return { ok: false, error: 'The report was already sent. Confirm to send it again.' }
-    const report = buildVarianceReport(results.scores, rubric)
+    const report = buildVarianceReport(results.scores, rubric, alignment?.recorded ? {
+      scorePercent: alignment.scorePercent!, criticalFail: alignment.criticalFail!, byName: alignment.byName, at: alignment.at,
+      params: alignment.params, fatalIds: alignment.fatalIds,
+    } : null)
     if (report.count < 2) return { ok: false, error: 'A report needs at least two submitted scores.' }
 
     const s = found.session

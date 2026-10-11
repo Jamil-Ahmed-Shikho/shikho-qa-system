@@ -42,6 +42,8 @@ export interface ParameterAgreement {
   passed: string[]
   failed: string[]
   unanimous: boolean
+  /** The group's agreed final answer, once an alignment outcome has been recorded — null until then. */
+  alignedPassed: boolean | null
 }
 
 export interface FatalAgreement {
@@ -51,6 +53,20 @@ export interface FatalAgreement {
   ticked: string[]
   notTicked: string[]
   unanimous: boolean
+  /** Whether the group's aligned outcome confirms this fatal applied — null until one is recorded. */
+  alignedTicked: boolean | null
+}
+
+/** The post-calibration consensus (schema_085) — what the group agreed on after discussing where
+ * they split, recorded by the organizer. Optional: most of this module's callers won't have one. */
+export interface AlignedOutcome {
+  scorePercent: number
+  criticalFail: boolean
+  byName: string | null
+  at: string | null
+  /** parameter id -> the group's final agreed answer (every parameter, not just the disputed ones) */
+  params: Record<string, boolean>
+  fatalIds: string[]
 }
 
 export interface VarianceReport {
@@ -67,17 +83,24 @@ export interface VarianceReport {
   splitParameters: ParameterAgreement[]
   allParameters: ParameterAgreement[]
   fatals: FatalAgreement[]
+  /** Present once the organizer has recorded an alignment outcome — participant deviation is then
+   * measured against THIS instead of the raw group mean (mean/min/max/stdDev stay as plain group
+   * stats either way, for context). */
+  aligned: { scorePercent: number; criticalFail: boolean; byName: string | null; at: string | null } | null
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricShape): VarianceReport {
+export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricShape, aligned?: AlignedOutcome | null): VarianceReport {
   const n = scores.length
   const values = scores.map((s) => s.scorePercent)
   const mean = n ? values.reduce((a, b) => a + b, 0) / n : 0
   const min = n ? Math.min(...values) : 0
   const max = n ? Math.max(...values) : 0
   const stdDev = n ? Math.sqrt(values.reduce((a, v) => a + (v - mean) ** 2, 0) / n) : 0
+  // Deviation is measured against the group's own agreed answer once one exists — a reasoned
+  // consensus is a better baseline than the average of several independent guesses.
+  const baseline = aligned ? aligned.scorePercent : mean
 
   const participants: ParticipantVariance[] = scores
     .map((s) => ({
@@ -86,7 +109,7 @@ export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricSh
       role: s.role,
       scorePercent: s.scorePercent,
       criticalFail: s.criticalFail,
-      deviation: r2(s.scorePercent - mean),
+      deviation: r2(s.scorePercent - baseline),
       // Everyone tied on one value has no highest/lowest.
       position: (n === 1 ? 'only' : min === max ? 'middle' : s.scorePercent === max ? 'highest' : s.scorePercent === min ? 'lowest' : 'middle') as ParticipantVariance['position'],
       notes: s.notes,
@@ -98,7 +121,11 @@ export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricSh
     for (const p of c.parameters) {
       const passed = scores.filter((s) => s.params[p.id] === true).map((s) => s.name)
       const failed = scores.filter((s) => s.params[p.id] === false).map((s) => s.name)
-      allParameters.push({ parameterId: p.id, name: p.name, category: c.name, points: p.points, passed, failed, unanimous: passed.length === 0 || failed.length === 0 })
+      allParameters.push({
+        parameterId: p.id, name: p.name, category: c.name, points: p.points, passed, failed,
+        unanimous: passed.length === 0 || failed.length === 0,
+        alignedPassed: aligned ? aligned.params[p.id] ?? null : null,
+      })
     }
   }
 
@@ -106,7 +133,11 @@ export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricSh
     .map((f) => {
       const ticked = scores.filter((s) => s.fatalIds.includes(f.id)).map((s) => s.name)
       const notTicked = scores.filter((s) => !s.fatalIds.includes(f.id)).map((s) => s.name)
-      return { fatalId: f.id, description: f.description, severity: f.severity, ticked, notTicked, unanimous: ticked.length === 0 || notTicked.length === 0 }
+      return {
+        fatalId: f.id, description: f.description, severity: f.severity, ticked, notTicked,
+        unanimous: ticked.length === 0 || notTicked.length === 0,
+        alignedTicked: aligned ? aligned.fatalIds.includes(f.id) : null,
+      }
     })
     // Only fatals someone ticked are worth reporting.
     .filter((f) => f.ticked.length > 0)
@@ -114,5 +145,6 @@ export function buildVarianceReport(scores: ParticipantScore[], rubric: RubricSh
   return {
     count: n, mean: r2(mean), min: r2(min), max: r2(max), range: r2(max - min), stdDev: r2(stdDev),
     participants, allParameters, splitParameters: allParameters.filter((p) => !p.unanimous), fatals,
+    aligned: aligned ? { scorePercent: aligned.scorePercent, criticalFail: aligned.criticalFail, byName: aligned.byName, at: aligned.at } : null,
   }
 }

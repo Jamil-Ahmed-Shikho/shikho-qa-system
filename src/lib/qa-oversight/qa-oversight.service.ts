@@ -93,6 +93,8 @@ export interface CalibrationSessionRow {
   groupMeanScore: number | null
   groupStddev: number | null
   scoreRange: number | null
+  /** The organizer's recorded post-calibration consensus (schema_085) — null until one is recorded. */
+  alignedScorePercent: number | null
 }
 
 export async function loadCalibrationSessionOverview(from: Date, to: Date, view: QaRankingView = 'team'): Promise<CalibrationSessionRow[]> {
@@ -102,10 +104,11 @@ export async function loadCalibrationSessionOverview(from: Date, to: Date, view:
   return (data ?? []).map((r: {
     session_id: string; title: string; team_name: string; site_name: string; scheduled_at: string; status: 'scheduled' | 'closed' | 'cancelled'
     participants_count: number; scores_submitted_count: number; group_mean_score: number | null; group_stddev: number | null; score_range: number | null
+    aligned_score_percent: number | null
   }) => ({
     sessionId: r.session_id, title: r.title, teamName: r.team_name, siteName: r.site_name, scheduledAt: r.scheduled_at, status: r.status,
     participantsCount: r.participants_count, scoresSubmittedCount: r.scores_submitted_count, groupMeanScore: r.group_mean_score,
-    groupStddev: r.group_stddev, scoreRange: r.score_range,
+    groupStddev: r.group_stddev, scoreRange: r.score_range, alignedScorePercent: r.aligned_score_percent,
   }))
 }
 

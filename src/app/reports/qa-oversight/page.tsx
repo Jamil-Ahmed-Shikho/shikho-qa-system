@@ -155,7 +155,7 @@ function CalibrationSessionsSection({ rows }: { rows: CalibrationSessionRow[] })
   if (rows.length === 0) return <p style={empty}>No calibration sessions scheduled in this period.</p>
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '980px' }}>
         <thead>
           <tr>
             <th style={th}>Session</th>
@@ -167,6 +167,7 @@ function CalibrationSessionsSection({ rows }: { rows: CalibrationSessionRow[] })
             <th style={th}>Group mean</th>
             <th style={th}>Std. dev.</th>
             <th style={th}>Range</th>
+            <th style={th}>Aligned score</th>
           </tr>
         </thead>
         <tbody>
@@ -181,6 +182,7 @@ function CalibrationSessionsSection({ rows }: { rows: CalibrationSessionRow[] })
               <td style={td}>{r.groupMeanScore !== null ? `${r.groupMeanScore}%` : '—'}</td>
               <td style={td}>{r.groupStddev !== null ? r.groupStddev : '—'}</td>
               <td style={td}>{r.scoreRange !== null ? r.scoreRange : '—'}</td>
+              <td style={td}>{r.alignedScorePercent !== null ? <b style={{ color: 'var(--brand)' }}>{r.alignedScorePercent}%</b> : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -303,7 +305,7 @@ export default async function QaOversightPage({ searchParams }: { searchParams: 
 
           <div style={card}>
             <h2 style={sectionTitle}>Calibration consistency</h2>
-            <p style={sectionNote}>Across closed sessions: each person&apos;s average deviation from the group&apos;s own score — lower means more consistently aligned with the team.</p>
+            <p style={sectionNote}>Across closed sessions: each person&apos;s average deviation from the session&apos;s score — the recorded alignment outcome where one exists, otherwise the group&apos;s own average. Lower means more consistently aligned with the team.</p>
             <ConsistencySection rows={consistency} />
           </div>
         </>

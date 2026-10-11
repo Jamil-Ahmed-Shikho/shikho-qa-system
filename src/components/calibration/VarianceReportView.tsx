@@ -12,14 +12,21 @@ export function VarianceReportView({ report }: { report: VarianceReport }) {
   if (report.count < 2) {
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>A variance report needs at least two submitted scores.</p>
   }
+  const vsLabel = report.aligned ? 'Vs aligned score' : 'Vs group average'
   return (
     <div>
-      <p style={{ fontSize: '14px', margin: '0 0 12px' }}>
+      <p style={{ fontSize: '14px', margin: '0 0 6px' }}>
         {report.count} scores · group average <b>{report.mean}%</b> · range {report.min}%–{report.max}% ({report.range} points) · standard deviation {report.stdDev}
       </p>
+      {report.aligned && (
+        <p style={{ fontSize: '14px', margin: '0 0 12px', padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-1)' }}>
+          Aligned score: <b>{report.aligned.scorePercent}%</b>{report.aligned.criticalFail && <span style={{ color: 'var(--alert)', marginLeft: '6px' }}>critical fatal</span>}
+          {report.aligned.byName && <span style={{ color: 'var(--text-muted)' }}> — decided by {report.aligned.byName}</span>}
+        </p>
+      )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '480px' }}>
-          <thead><tr><th style={th}>Participant</th><th style={th}>Score</th><th style={th}>Vs group average</th><th style={th} /></tr></thead>
+          <thead><tr><th style={th}>Participant</th><th style={th}>Score</th><th style={th}>{vsLabel}</th><th style={th} /></tr></thead>
           <tbody>
             {report.participants.map((p) => (
               <tr key={p.userId}>
@@ -40,10 +47,20 @@ export function VarianceReportView({ report }: { report: VarianceReport }) {
       ) : (
         <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '14px', display: 'grid', gap: '6px' }}>
           {report.splitParameters.map((p) => (
-            <li key={p.parameterId}><b>{p.name}</b> ({p.points} pts, {p.category}) — Pass: {p.passed.join(', ')}; Fail: {p.failed.join(', ')}</li>
+            <li key={p.parameterId}>
+              <b>{p.name}</b> ({p.points} pts, {p.category}) — Pass: {p.passed.join(', ')}; Fail: {p.failed.join(', ')}
+              {p.alignedPassed !== null && (
+                <span style={{ color: p.alignedPassed ? 'var(--status-green)' : 'var(--alert)', fontWeight: 600 }}> · Aligned: {p.alignedPassed ? 'Pass' : 'Fail'}</span>
+              )}
+            </li>
           ))}
           {report.fatals.filter((f) => !f.unanimous).map((f) => (
-            <li key={f.fatalId}><b>{f.description}</b> ({f.severity}) — ticked by {f.ticked.join(', ')}; not ticked by {f.notTicked.join(', ')}</li>
+            <li key={f.fatalId}>
+              <b>{f.description}</b> ({f.severity}) — ticked by {f.ticked.join(', ')}; not ticked by {f.notTicked.join(', ')}
+              {f.alignedTicked !== null && (
+                <span style={{ color: f.alignedTicked ? 'var(--alert)' : 'var(--status-green)', fontWeight: 600 }}> · Aligned: {f.alignedTicked ? 'Applied' : 'Did not apply'}</span>
+              )}
+            </li>
           ))}
         </ul>
       )}

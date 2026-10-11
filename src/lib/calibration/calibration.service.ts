@@ -213,6 +213,41 @@ export async function loadResults(sessionId: string): Promise<CalibrationResults
   }
 }
 
+// ── Stage 5: alignment (post-calibration consensus, schema_085) ─
+
+export interface AlignmentState {
+  recorded: boolean
+  scorePercent: number | null
+  criticalFail: boolean | null
+  byName: string | null
+  at: string | null
+  /** parameter id -> the group's final agreed answer (every parameter, once recorded) */
+  params: Record<string, boolean>
+  fatalIds: string[]
+}
+
+const EMPTY_ALIGNMENT: AlignmentState = { recorded: false, scorePercent: null, criticalFail: null, byName: null, at: null, params: {}, fatalIds: [] }
+
+/** The organizer's recorded alignment outcome for this session, or the "nothing recorded yet" state.
+ * Null only when the viewer isn't allowed to see it at all (not a participant, not QA Manager/Super Admin). */
+export async function loadAlignment(sessionId: string): Promise<AlignmentState | null> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('calibration_alignment', { p_session_id: sessionId })
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  const d = data as Row
+  if (!d.recorded) return EMPTY_ALIGNMENT
+  return {
+    recorded: true,
+    scorePercent: Number(d.aligned_score_percent),
+    criticalFail: d.aligned_critical_fail,
+    byName: d.aligned_by_name,
+    at: d.aligned_at,
+    params: Object.fromEntries((d.params as Row[]).map((p) => [p.parameter_id, p.passed])),
+    fatalIds: d.fatals as string[],
+  }
+}
+
 /** When the report was last really sent (null = never). Tolerant of schema_033 not being applied yet. */
 export async function loadReportSentAt(sessionId: string): Promise<string | null> {
   try {

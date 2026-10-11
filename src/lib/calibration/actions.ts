@@ -177,6 +177,29 @@ export async function submitScoreAction(
   }
 }
 
+export async function recordAlignmentAction(
+  sessionId: string,
+  decisions: { parameter_id: string; passed: boolean }[],
+  fatalIds: string[]
+): Promise<ActionResult<{ score: number }>> {
+  try {
+    const user = await getAuthUser()
+    if (!user) return { ok: false, error: 'You are not signed in.' }
+    const supabase = await getSupabaseServer()
+    const { data, error } = await supabase.rpc('record_calibration_alignment', {
+      p_session_id: sessionId,
+      p_param_decisions: decisions,
+      p_fatal_decisions: fatalIds,
+    })
+    if (error) return { ok: false, error: plain(error.message) }
+    await log(user.profile.id, 'calibration.alignment_recorded', sessionId, { score: Number(data) })
+    refresh(sessionId)
+    return { ok: true, score: Number(data) }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? plain(err.message) : 'Something went wrong.' }
+  }
+}
+
 export async function closeSessionAction(id: string): Promise<ActionResult> {
   try {
     const user = await getAuthUser()
