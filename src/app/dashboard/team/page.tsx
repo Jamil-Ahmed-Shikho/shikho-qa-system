@@ -54,11 +54,10 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
       {dashboard && <TeamLeadDashboardView data={dashboard} agentPerformance={<TeamLeadAgentPerformanceSection />} />}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginTop: isTeamLead ? '8px' : 0 }}>
-        <NavCard
-          href="/calibration"
-          title="Calibration sessions"
-          description="Calibration sessions you have been invited to."
-        />
+        {/* No "Calibration sessions" nav card here (2026-10-12, Jamil's own catch) — a Team Lead
+            can't schedule one (§5: QA function only), so the CalibrationSection below already
+            covers everything this card would: what you're invited to, plus its own "All sessions"
+            link to the exact same /calibration destination. Nothing left for the card to add. */}
         <NavCard
           href="/audits"
           title="Audit a Call"

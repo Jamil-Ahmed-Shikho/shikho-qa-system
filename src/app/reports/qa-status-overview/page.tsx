@@ -215,6 +215,7 @@ function PipLiveSection({ rows }: { rows: PipLiveProgressRow[] }) {
             <th style={th}>Days left</th>
             <th style={th}>Run rate still needed / day</th>
             <th style={th}>Last sale</th>
+            <th style={th}></th>
           </tr>
         </thead>
         <tbody>
@@ -235,6 +236,7 @@ function PipLiveSection({ rows }: { rows: PipLiveProgressRow[] }) {
                     : r.runRateRequiredUsdPerDay !== null ? formatUsd(r.runRateRequiredUsdPerDay) : '—'}
                 </td>
                 <td style={td}>{r.lastSaleDate ?? 'None on record'}</td>
+                <td style={td}><Link href={`/pip/${r.candidateId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
               </tr>
             )
           })}

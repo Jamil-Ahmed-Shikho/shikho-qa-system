@@ -99,7 +99,7 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
         {data.pipLive.length === 0 ? <p style={empty}>Nobody on your team is on a PIP right now.</p> : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
-              <thead><tr><th style={th}>Agent</th><th style={th}>Target</th><th style={th}>Achieved</th><th style={th}>Remaining</th><th style={th}>Days left</th><th style={th}>Run rate needed / day</th><th style={th}>Last sale</th></tr></thead>
+              <thead><tr><th style={th}>Agent</th><th style={th}>Target</th><th style={th}>Achieved</th><th style={th}>Remaining</th><th style={th}>Days left</th><th style={th}>Run rate needed / day</th><th style={th}>Last sale</th><th style={th}></th></tr></thead>
               <tbody>
                 {data.pipLive.map((p) => (
                   <tr key={p.agentId}>
@@ -110,6 +110,7 @@ export function TeamLeadDashboardView({ data, agentPerformance }: { data: TeamLe
                     <td style={td}>{p.daysLeft}</td>
                     <td style={td}>{p.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>Target met</span> : p.runRateRequiredUsdPerDay !== null ? formatUsd(p.runRateRequiredUsdPerDay) : '—'}</td>
                     <td style={td}>{p.lastSaleDate ?? 'None on record'}</td>
+                    <td style={td}><Link href={`/pip/${p.candidateId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
                   </tr>
                 ))}
               </tbody>

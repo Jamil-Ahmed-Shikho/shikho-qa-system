@@ -115,6 +115,8 @@ export async function loadPipHistorySummary(view: QaRankingView = 'team'): Promi
 }
 
 export interface PipLiveProgressRow {
+  /** pip_candidates.id — links straight to /pip/{candidateId}, 2026-10-12. */
+  candidateId: string
   agentId: string
   agentName: string
   teamLeaderName: string | null
@@ -135,10 +137,11 @@ export async function loadPipLiveProgress(view: QaRankingView = 'team'): Promise
   const { data, error } = await supabase.rpc('qa_pip_live_progress', { p_view: view })
   if (error) throw new Error(`Could not load the current PIP cycle's live progress: ${error.message}`)
   return (data ?? []).map((r: {
-    agent_id: string; agent_name: string; team_leader_name: string | null; site_name: string | null; auditor_name: string | null
+    candidate_id: string; agent_id: string; agent_name: string; team_leader_name: string | null; site_name: string | null; auditor_name: string | null
     cycle_month: string; cycle_end_date: string; target_usd: number | null; achieved_usd: number; days_left: number
     run_rate_required_usd_per_day: number | null; target_met: boolean | null; last_sale_date: string | null
   }) => ({
+    candidateId: r.candidate_id,
     agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name, siteName: r.site_name, auditorName: r.auditor_name,
     cycleMonth: r.cycle_month, cycleEndDate: r.cycle_end_date, targetUsd: r.target_usd, achievedUsd: r.achieved_usd,
     daysLeft: r.days_left, runRateRequiredUsdPerDay: r.run_rate_required_usd_per_day, targetMet: r.target_met,

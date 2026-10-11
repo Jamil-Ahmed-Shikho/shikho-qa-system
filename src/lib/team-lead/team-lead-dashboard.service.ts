@@ -49,6 +49,8 @@ export interface ZeroSellerRow {
 }
 
 export interface PipLiveRow {
+  /** pip_candidates.id — links straight to /pip/{candidateId} (feedback + training), 2026-10-12. */
+  candidateId: string
   agentId: string
   agentName: string
   targetUsd: number | null
@@ -259,7 +261,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
   const cycle = cycleRes.data as { id: string; start_date: string; end_date: string } | null
   if (cycle) {
     const { data: candidates, error: candErr } = await supabase
-      .from('pip_candidates').select('agent_id, target_revenue')
+      .from('pip_candidates').select('id, agent_id, target_revenue')
       .eq('pip_cycle_id', cycle.id).eq('status', 'approved').in('agent_id', agentIds)
     if (candErr) throw new Error(`Could not load PIP progress: ${candErr.message}`)
     const cycleStart = dhakaDateStartUtc(cycle.start_date)
@@ -287,6 +289,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
         const target = c.target_revenue
         const targetMet = target === null ? null : achieved >= target
         return {
+          candidateId: c.id,
           agentId: c.agent_id, agentName: rosterById.get(c.agent_id)?.name ?? 'Unknown', targetUsd: target, achievedUsd: achieved, daysLeft,
           remainingUsd: target !== null ? Math.max(0, Math.round((target - achieved) * 100) / 100) : null,
           runRateRequiredUsdPerDay: target !== null && !targetMet ? Math.round(((target - achieved) / Math.max(daysLeft, 1)) * 100) / 100 : null,
