@@ -46,15 +46,25 @@ export interface ZeroSellerRow {
   currentStreakWeeks: number
   streakStartWeek: string | null
   lastSaleDate: string | null
+  vintageLabel: string | null
+  vintageDays: number | null
+  daysSinceLastSale: number | null
+  lastSaleRevenueUsd: number | null
 }
 
 export async function loadZeroSellerOverview(view: QaRankingView = 'team'): Promise<ZeroSellerRow[]> {
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.rpc('qa_zero_seller_overview', { p_view: view })
   if (error) throw new Error(`Could not load the Zero-Seller overview: ${error.message}`)
-  return (data ?? []).map((r: { agent_id: string; agent_name: string; team_name: string | null; site_name: string | null; current_streak_weeks: number; streak_start_week: string | null; last_sale_date: string | null }) => ({
+  return (data ?? []).map((r: {
+    agent_id: string; agent_name: string; team_name: string | null; site_name: string | null
+    current_streak_weeks: number; streak_start_week: string | null; last_sale_date: string | null
+    vintage_label: string | null; vintage_days: number | null; days_since_last_sale: number | null; last_sale_revenue_usd: number | null
+  }) => ({
     agentId: r.agent_id, agentName: r.agent_name, teamName: r.team_name, siteName: r.site_name,
     currentStreakWeeks: r.current_streak_weeks, streakStartWeek: r.streak_start_week, lastSaleDate: r.last_sale_date,
+    vintageLabel: r.vintage_label, vintageDays: r.vintage_days, daysSinceLastSale: r.days_since_last_sale,
+    lastSaleRevenueUsd: r.last_sale_revenue_usd === null ? null : Number(r.last_sale_revenue_usd),
   }))
 }
 
@@ -66,15 +76,21 @@ export interface FatalIncidentRow {
   siteName: string | null
   auditorName: string | null
   submittedAt: string
+  fatalParameters: string[]
+  lifetimeFatalCount: number
 }
 
 export async function loadFatalIncidentOverview(from: Date, to: Date, view: QaRankingView = 'team'): Promise<FatalIncidentRow[]> {
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.rpc('qa_fatal_incident_overview', { p_from: from.toISOString(), p_to: to.toISOString(), p_view: view })
   if (error) throw new Error(`Could not load the fatal-incident overview: ${error.message}`)
-  return (data ?? []).map((r: { audit_id: string; agent_id: string; agent_name: string; team_name: string | null; site_name: string | null; auditor_name: string | null; submitted_at: string }) => ({
+  return (data ?? []).map((r: {
+    audit_id: string; agent_id: string; agent_name: string; team_name: string | null; site_name: string | null
+    auditor_name: string | null; submitted_at: string; fatal_parameters: string[] | null; lifetime_fatal_count: number
+  }) => ({
     auditId: r.audit_id, agentId: r.agent_id, agentName: r.agent_name, teamName: r.team_name, siteName: r.site_name,
     auditorName: r.auditor_name, submittedAt: r.submitted_at,
+    fatalParameters: r.fatal_parameters ?? [], lifetimeFatalCount: r.lifetime_fatal_count,
   }))
 }
 
@@ -111,6 +127,7 @@ export interface PipLiveProgressRow {
   daysLeft: number
   runRateRequiredUsdPerDay: number | null
   targetMet: boolean | null
+  lastSaleDate: string | null
 }
 
 export async function loadPipLiveProgress(view: QaRankingView = 'team'): Promise<PipLiveProgressRow[]> {
@@ -120,10 +137,11 @@ export async function loadPipLiveProgress(view: QaRankingView = 'team'): Promise
   return (data ?? []).map((r: {
     agent_id: string; agent_name: string; team_leader_name: string | null; site_name: string | null; auditor_name: string | null
     cycle_month: string; cycle_end_date: string; target_usd: number | null; achieved_usd: number; days_left: number
-    run_rate_required_usd_per_day: number | null; target_met: boolean | null
+    run_rate_required_usd_per_day: number | null; target_met: boolean | null; last_sale_date: string | null
   }) => ({
     agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name, siteName: r.site_name, auditorName: r.auditor_name,
     cycleMonth: r.cycle_month, cycleEndDate: r.cycle_end_date, targetUsd: r.target_usd, achievedUsd: r.achieved_usd,
     daysLeft: r.days_left, runRateRequiredUsdPerDay: r.run_rate_required_usd_per_day, targetMet: r.target_met,
+    lastSaleDate: r.last_sale_date,
   }))
 }

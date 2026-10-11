@@ -98,14 +98,17 @@ function ZeroSellerSection({ rows }: { rows: ZeroSellerRow[] }) {
   if (rows.length === 0) return <p style={empty}>Nobody currently has an active zero-seller streak.</p>
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
         <thead>
           <tr>
             <th style={th}>Agent</th>
             <th style={th}>Team / Site</th>
+            <th style={th}>Vintage</th>
             <th style={th}>Streak (weeks)</th>
             <th style={th}>Since</th>
             <th style={th}>Last sale</th>
+            <th style={th}>Days since</th>
+            <th style={th}>Revenue that day</th>
           </tr>
         </thead>
         <tbody>
@@ -113,9 +116,12 @@ function ZeroSellerSection({ rows }: { rows: ZeroSellerRow[] }) {
             <tr key={r.agentId}>
               <td style={td}><b>{r.agentName}</b></td>
               <td style={td}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'}</td>
+              <td style={td}>{r.vintageLabel ?? '—'}</td>
               <td style={td}>{r.currentStreakWeeks}</td>
               <td style={td}>{r.streakStartWeek ?? '—'}</td>
               <td style={td}>{r.lastSaleDate ?? 'None on record'}</td>
+              <td style={td}>{r.daysSinceLastSale ?? '—'}</td>
+              <td style={td}>{formatUsd(r.lastSaleRevenueUsd)}</td>
             </tr>
           ))}
         </tbody>
@@ -128,13 +134,16 @@ function FatalSection({ rows }: { rows: FatalIncidentRow[] }) {
   if (rows.length === 0) return <p style={empty}>No critical-fatal audits in this period.</p>
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '980px' }}>
         <thead>
           <tr>
             <th style={th}>Agent</th>
             <th style={th}>Team / Site</th>
+            <th style={th}>Fatal item(s)</th>
             <th style={th}>Auditor</th>
             <th style={th}>Submitted</th>
+            <th style={th}>Lifetime fatals</th>
+            <th style={th}></th>
           </tr>
         </thead>
         <tbody>
@@ -142,8 +151,13 @@ function FatalSection({ rows }: { rows: FatalIncidentRow[] }) {
             <tr key={r.auditId}>
               <td style={td}><b>{r.agentName}</b></td>
               <td style={td}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'}</td>
+              <td style={{ ...td, whiteSpace: 'normal', minWidth: '220px' }}>{r.fatalParameters.length === 0 ? '—' : r.fatalParameters.join('; ')}</td>
               <td style={td}>{r.auditorName ?? '—'}</td>
               <td style={td}>{formatDhakaDateTime(r.submittedAt)}</td>
+              <td style={td}>
+                <span style={{ fontWeight: r.lifetimeFatalCount >= 2 ? 700 : 400, color: r.lifetimeFatalCount >= 2 ? 'var(--alert)' : 'inherit' }}>{r.lifetimeFatalCount}</span>
+              </td>
+              <td style={td}><Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>
             </tr>
           ))}
         </tbody>
@@ -188,7 +202,7 @@ function PipLiveSection({ rows }: { rows: PipLiveProgressRow[] }) {
   if (rows.length === 0) return <p style={empty}>No PIP cycle is currently running, or nobody is on it in scope.</p>
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '860px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '980px' }}>
         <thead>
           <tr>
             <th style={th}>Agent</th>
@@ -197,26 +211,33 @@ function PipLiveSection({ rows }: { rows: PipLiveProgressRow[] }) {
             <th style={th}>Auditor</th>
             <th style={th}>Target</th>
             <th style={th}>Achieved so far</th>
+            <th style={th}>Remaining</th>
             <th style={th}>Days left</th>
             <th style={th}>Run rate still needed / day</th>
+            <th style={th}>Last sale</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.agentId}>
-              <td style={td}><b>{r.agentName}</b></td>
-              <td style={td}>{r.teamLeaderName ?? '—'}</td>
-              <td style={td}>{r.siteName ?? '—'}</td>
-              <td style={td}>{r.auditorName ?? '—'}</td>
-              <td style={td}>{formatUsd(r.targetUsd)}</td>
-              <td style={td}>{formatUsd(r.achievedUsd)}</td>
-              <td style={td}>{r.daysLeft}</td>
-              <td style={td}>
-                {r.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>Target met</span>
-                  : r.runRateRequiredUsdPerDay !== null ? formatUsd(r.runRateRequiredUsdPerDay) : '—'}
-              </td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const remaining = r.targetUsd !== null ? Math.max(0, Math.round((r.targetUsd - r.achievedUsd) * 100) / 100) : null
+            return (
+              <tr key={r.agentId}>
+                <td style={td}><b>{r.agentName}</b></td>
+                <td style={td}>{r.teamLeaderName ?? '—'}</td>
+                <td style={td}>{r.siteName ?? '—'}</td>
+                <td style={td}>{r.auditorName ?? '—'}</td>
+                <td style={td}>{formatUsd(r.targetUsd)}</td>
+                <td style={td}>{formatUsd(r.achievedUsd)}</td>
+                <td style={td}>{r.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>$0.00</span> : formatUsd(remaining)}</td>
+                <td style={td}>{r.daysLeft}</td>
+                <td style={td}>
+                  {r.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>Target met</span>
+                    : r.runRateRequiredUsdPerDay !== null ? formatUsd(r.runRateRequiredUsdPerDay) : '—'}
+                </td>
+                <td style={td}>{r.lastSaleDate ?? 'None on record'}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
