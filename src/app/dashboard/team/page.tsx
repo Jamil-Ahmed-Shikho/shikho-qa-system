@@ -74,6 +74,11 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
           description="Agents on your team whose audits show the same rubric parameter failing repeatedly."
         />
         <NavCard
+          href="/reports/qa-rubric-trends"
+          title="Rubric Fail Trends"
+          description="Which rubric parameters your team is failing most, by skill area, and whether it's improving."
+        />
+        <NavCard
           href="/pip"
           title="PIP — your agents"
           description="Agents on a performance improvement plan: give your feedback on their progress."

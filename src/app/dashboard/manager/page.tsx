@@ -50,6 +50,9 @@ export default async function ManagerDashboardPage({
           <Link href="/reports/repeat-mistakes" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Repeat-Mistake Report →
           </Link>
+          <Link href="/reports/qa-rubric-trends" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            Rubric Fail Trends →
+          </Link>
           <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             PIPs in your chain →
           </Link>
