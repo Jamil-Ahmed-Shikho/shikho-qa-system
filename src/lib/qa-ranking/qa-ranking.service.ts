@@ -23,21 +23,32 @@ export interface AuditorRankingRow {
   coachingPct: number | null
   salesGrowthPct: number | null
   vintageTargetMetPct: number | null
+  agentRecoveryPct: number | null
   zeroSellerRecoveryPct: number | null
   pipRecoveryPct: number | null
+  pipConcludedThisMonth: number
   totalScore: number | null
+}
+
+export interface ImpactWeights {
+  audit: number
+  coaching: number
+  salesGrowth: number
+  vintageTarget: number
+  agentRecovery: number
+  zeroSeller: number
 }
 
 export function isMissingQaRankingSchema(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err)
-  return /qa_auditor_ranking|qa_coaching_targets|qa_channel_progress/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
+  return /qa_auditor_ranking|qa_coaching_targets|qa_channel_progress|qa_impact_weights/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
 }
 
 function fromRow(r: {
   auditor_id: string; auditor_name: string; agents_assigned: number; audits_done: number; audit_target: number; audit_pct: number | null
   coaching_completed: number; coaching_scheduled: number; coaching_target_total: number | null; coaching_pct: number | null
-  sales_growth_pct: number | null; vintage_target_met_pct: number | null; zero_seller_recovery_pct: number | null
-  pip_recovery_pct: number | null; total_score: number | null
+  sales_growth_pct: number | null; vintage_target_met_pct: number | null; agent_recovery_pct: number | null
+  zero_seller_recovery_pct: number | null; pip_recovery_pct: number | null; pip_concluded_this_month: number; total_score: number | null
 }): AuditorRankingRow {
   return {
     auditorId: r.auditor_id, auditorName: r.auditor_name, agentsAssigned: r.agents_assigned,
@@ -45,7 +56,9 @@ function fromRow(r: {
     coachingCompleted: r.coaching_completed, coachingScheduled: r.coaching_scheduled,
     coachingTargetTotal: r.coaching_target_total, coachingPct: r.coaching_pct,
     salesGrowthPct: r.sales_growth_pct, vintageTargetMetPct: r.vintage_target_met_pct,
+    agentRecoveryPct: r.agent_recovery_pct,
     zeroSellerRecoveryPct: r.zero_seller_recovery_pct, pipRecoveryPct: r.pip_recovery_pct,
+    pipConcludedThisMonth: r.pip_concluded_this_month,
     totalScore: r.total_score,
   }
 }
@@ -62,6 +75,21 @@ export async function loadCoachingTarget(): Promise<number | null> {
   const { data, error } = await supabase.from('qa_coaching_targets').select('weekly_target').is('effective_to', null).maybeSingle()
   if (error) throw new Error(`Could not load the coaching target: ${error.message}`)
   return data?.weekly_target ?? null
+}
+
+export async function loadImpactWeights(): Promise<ImpactWeights | null> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase
+    .from('qa_impact_weights')
+    .select('w_audit, w_coaching, w_sales_growth, w_vintage_target, w_agent_recovery, w_zero_seller')
+    .is('effective_to', null)
+    .maybeSingle()
+  if (error) throw new Error(`Could not load the Impact Report weights: ${error.message}`)
+  if (!data) return null
+  return {
+    audit: data.w_audit, coaching: data.w_coaching, salesGrowth: data.w_sales_growth,
+    vintageTarget: data.w_vintage_target, agentRecovery: data.w_agent_recovery, zeroSeller: data.w_zero_seller,
+  }
 }
 
 export interface ChannelProgressRow {

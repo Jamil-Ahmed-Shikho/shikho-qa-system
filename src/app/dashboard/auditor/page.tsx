@@ -45,8 +45,8 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
         />
         <NavCard
           href="/reports/qa-auditor-ranking"
-          title="Auditor Ranking"
-          description="Your own audit/coaching/sales/PIP/Zero-Seller numbers, or everyone's — My view / Team view."
+          title="Auditor's Impact Report"
+          description="Your own weighted Impact Score — audit, coaching, sales growth, vintage revenue targets, Red/Yellow and Zero-Seller recovery — or everyone's."
         />
         <NavCard
           href="/reports/qa-team-progress"

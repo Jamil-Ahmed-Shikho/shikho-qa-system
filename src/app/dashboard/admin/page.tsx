@@ -47,8 +47,8 @@ export default async function AdminDashboardPage() {
         />
         <NavCard
           href="/reports/qa-auditor-ranking"
-          title="Auditor Ranking"
-          description="Audit coverage, coaching, sales growth and PIP/Zero-Seller recovery — a Total Score per QA Auditor."
+          title="Auditor's Impact Report"
+          description="A weighted Total Score per QA Auditor — audit coverage, coaching, sales growth, vintage revenue targets, and Red/Yellow/Zero-Seller recovery."
         />
         <NavCard
           href="/reports/qa-team-progress"
