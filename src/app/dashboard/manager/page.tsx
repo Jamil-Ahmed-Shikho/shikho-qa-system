@@ -53,6 +53,9 @@ export default async function ManagerDashboardPage({
           <Link href="/reports/qa-rubric-trends" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Rubric Fail Trends →
           </Link>
+          <Link href="/reports/evaluation-tracking" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            Evaluation Email Tracking →
+          </Link>
           <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             PIPs in your chain →
           </Link>

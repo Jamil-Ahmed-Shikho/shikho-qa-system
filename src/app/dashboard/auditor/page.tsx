@@ -74,6 +74,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Which rubric parameters fail most often, and whether each is getting better or worse — My view / Team view."
         />
         <NavCard
+          href="/reports/evaluation-tracking"
+          title="Evaluation Email Tracking"
+          description="Has each agent clicked through to their result email, or is it still unseen? — My view / Team view."
+        />
+        <NavCard
           href="/pip"
           title="PIP training"
           description="Agents on a performance improvement plan and their training sessions."

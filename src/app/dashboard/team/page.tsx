@@ -59,6 +59,11 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
         description="Which rubric parameters your team is failing most, by skill area, and whether it's improving."
       />
       <NavCard
+        href="/reports/evaluation-tracking"
+        title="Evaluation Email Tracking"
+        description="Has each agent clicked through to their result email, or is it still unseen?"
+      />
+      <NavCard
         href="/pip"
         title="PIP — your agents"
         description="Agents on a performance improvement plan: give your feedback on their progress."

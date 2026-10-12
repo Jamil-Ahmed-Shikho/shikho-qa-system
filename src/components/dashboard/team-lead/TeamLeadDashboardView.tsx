@@ -61,12 +61,13 @@ function Kpi({ value, label, accent }: { value: string; label: string; accent: s
 function AttentionStrip({ data }: { data: TeamLeadDashboard }) {
   const fatalCount = data.fatalIncidents.length
   const staleReviews = data.openReviewRequests.filter((r) => r.daysOpen >= 5).length
+  const unviewedEvaluations = data.unviewedEvaluationCount
 
-  if (fatalCount === 0 && staleReviews === 0) {
+  if (fatalCount === 0 && staleReviews === 0 && unviewedEvaluations === 0) {
     return (
       <div style={{ background: 'var(--status-green-light)', border: '1px solid var(--status-green)', borderRadius: 'var(--radius-md)', padding: '12px 18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ color: 'var(--status-green)', fontWeight: 700 }}>✓</span>
-        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Nothing urgent right now — no critical fatals this period, no review request waiting 5+ days.</span>
+        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Nothing urgent right now — no critical fatals this period, no review request waiting 5+ days, no unseen evaluation emails.</span>
       </div>
     )
   }
@@ -86,6 +87,12 @@ function AttentionStrip({ data }: { data: TeamLeadDashboard }) {
             <StatusChip tone="warning">{staleReviews} review request{staleReviews === 1 ? '' : 's'}</StatusChip>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>open 5+ days →</span>
           </a>
+        )}
+        {unviewedEvaluations > 0 && (
+          <Link href="/reports/evaluation-tracking" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
+            <StatusChip tone="warning">{unviewedEvaluations} unseen evaluation{unviewedEvaluations === 1 ? '' : 's'}</StatusChip>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>3+ days →</span>
+          </Link>
         )}
       </div>
     </div>

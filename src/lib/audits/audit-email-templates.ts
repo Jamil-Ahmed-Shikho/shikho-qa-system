@@ -24,6 +24,7 @@
 import { BRAND, emailShell, escapeHtml, type EmailAccent } from '@/lib/users/mailer'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
+import { signAuditViewToken } from './view-tracking'
 import type { AuditEmailData } from './audit-notifications'
 
 // One shared palette (BRAND, mailer.ts) — these are just short local aliases, not a
@@ -48,6 +49,13 @@ function resultLabel(d: Pick<AuditEmailData, 'criticalFail' | 'passed'>): string
 function appUrl(path: string): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
   return base ? `${base}${path}` : path
+}
+
+// The "View full result" link goes through the click-tracking redirect (schema_092,
+// 2026-10-12) rather than straight to /my-audits/{id} — the agent clicks exactly the same
+// button they always would; the click itself is what gets recorded. See view-tracking.ts.
+function trackedResultUrl(auditId: string): string {
+  return appUrl(`/api/audits/${auditId}/view?t=${signAuditViewToken(auditId)}`)
 }
 
 function durationLabel(startIso: string | null, endIso: string | null): string | null {
@@ -217,8 +225,9 @@ export function auditResultHtml(d: AuditEmailData): string {
     ${overallFeedback}
 
     <p style="margin:24px 0 12px;font-size:12.5px;color:${MUTED};text-align:center">If you think any score here isn't correct, you can request a review from the full result page.</p>
+    <p style="margin:0 0 12px;font-size:12.5px;color:${MUTED};text-align:center">Clicking &ldquo;View full result&rdquo; below lets us know you&rsquo;ve seen this evaluation.</p>
     <div style="text-align:center">
-      ${ctaButton(appUrl(`/my-audits/${d.auditId}`), 'View full result')}
+      ${ctaButton(trackedResultUrl(d.auditId), 'View full result')}
     </div>`
 
   return emailShell('New audit result', `${resultLabel(d)} · ${d.agentTeamName ?? 'Shikho'}`, scoreAccent(d), body, 580)
@@ -264,6 +273,7 @@ export function auditResultText(d: AuditEmailData): string {
   }
   if (d.overallFeedback) lines.push('', 'Overall feedback:', d.overallFeedback)
   lines.push('', "If you think any score here isn't correct, you can request a review from the full result page.")
-  lines.push('', `View full result: ${appUrl(`/my-audits/${d.auditId}`)}`)
+  lines.push('', "Opening the link below lets us know you've seen this evaluation.")
+  lines.push(`View full result: ${trackedResultUrl(d.auditId)}`)
   return lines.join('\n')
 }

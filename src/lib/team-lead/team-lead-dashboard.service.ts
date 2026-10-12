@@ -94,6 +94,9 @@ export interface TeamLeadDashboard {
   pipLive: PipLiveRow[]
   openReviewRequests: OpenReviewRequestRow[]
   recentAudits: RecentAuditRow[]
+  /** Submitted-this-period audits whose agent hasn't clicked through to the result email yet,
+   *  sent 3+ days ago (schema_092, 2026-10-12) — feeds the "Needs your attention" strip. */
+  unviewedEvaluationCount: number
 }
 
 export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: string, from: Date, to: Date): Promise<TeamLeadDashboard> {
@@ -113,6 +116,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     return {
       teamLeadName, agentCount: 0, auditsDone: 0, auditTarget: 0, auditPct: null, avgScore: null, passRate: null,
       agents: [], fatalIncidents: [], zeroSellers: [], pipLive: [], openReviewRequests: [], recentAudits: [],
+      unviewedEvaluationCount: 0,
     }
   }
 
@@ -142,6 +146,30 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
   if (fatalsRes.error) throw new Error(`Could not load fatal incidents: ${fatalsRes.error.message}`)
   if (reviewRes.error) throw new Error(`Could not load Review Requests: ${reviewRes.error.message}`)
   if (recentRes.error) throw new Error(`Could not load recent audits: ${recentRes.error.message}`)
+
+  // Evaluation-email click tracking (schema_092, 2026-10-12) — a nice-to-have count for the
+  // attention strip, not core dashboard data, so a failure here degrades to 0 rather than
+  // taking down the whole page (same "don't let an add-on break the core" shape as the vintage
+  // slabs fallback above).
+  let unviewedEvaluationCount = 0
+  try {
+    const { data: evalRows, error: evalErr } = await supabase
+      .from('audits')
+      .select('submitted_at, audit_result_views(last_viewed_at)')
+      .eq('status', 'submitted').eq('check_mode', 'audit').in('agent_id', agentIds)
+      .gte('submitted_at', from.toISOString()).lt('submitted_at', to.toISOString())
+    if (evalErr) throw evalErr
+    const STALE_DAYS = 3
+    const nowMsForStale = Date.now()
+    unviewedEvaluationCount = (evalRows ?? []).filter((r) => {
+      const view = r.audit_result_views as unknown as { last_viewed_at: string } | { last_viewed_at: string }[] | null
+      const viewed = Array.isArray(view) ? view.length > 0 : view !== null
+      if (viewed) return false
+      return Math.floor((nowMsForStale - new Date(r.submitted_at).getTime()) / 86_400_000) >= STALE_DAYS
+    }).length
+  } catch (err) {
+    console.error('Could not load evaluation-email view status:', err)
+  }
 
   const auditRows = auditsRes.data ?? []
   const auditsDone = auditRows.length
@@ -314,5 +342,6 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     pipLive,
     openReviewRequests,
     recentAudits,
+    unviewedEvaluationCount,
   }
 }
