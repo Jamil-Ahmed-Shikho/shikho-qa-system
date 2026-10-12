@@ -9,8 +9,8 @@ import {
 import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/dates/sales-week'
 import Link from 'next/link'
 
-const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '8px 10px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
-const td: React.CSSProperties = { fontSize: '13px', padding: '9px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top', whiteSpace: 'nowrap' }
+const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '6px 6px', borderBottom: '1px solid var(--border)', lineHeight: 1.3 }
+const td: React.CSSProperties = { fontSize: '13px', padding: '8px 6px', borderBottom: '1px solid var(--border)', verticalAlign: 'top', whiteSpace: 'nowrap' }
 const pct = (v: number | null) => (v === null ? '—' : `${v}%`)
 
 const STATUS_BANDS: { min: number; label: string; color: string }[] = [
@@ -30,7 +30,7 @@ function MiniBar({ value, color }: { value: number | null; color?: string }) {
   const width = Math.max(0, Math.min(100, value))
   const barColor = color ?? (value >= 90 ? 'var(--status-green)' : value >= 70 ? 'var(--brand)' : value >= 50 ? 'var(--highlight)' : 'var(--alert)')
   return (
-    <div style={{ width: '88px' }}>
+    <div style={{ width: '64px' }}>
       <div style={{ height: '6px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-1)', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${width}%`, background: barColor, borderRadius: 'var(--radius-pill)' }} />
       </div>
@@ -129,19 +129,19 @@ export default async function QaAuditorRankingPage({ searchParams }: { searchPar
           {isAuditor && view === 'mine' ? 'You are not marked active as a QA Auditor, or nothing has been recorded for you yet.' : 'No active QA Auditors on record yet.'}
         </div>
       ) : (
-        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 12px', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1180px' }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '8px 10px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
             <thead>
               <tr>
                 <th style={th}>Auditor</th>
                 <th style={th}>Agents</th>
                 <th style={th}>Audit %</th>
                 <th style={th}>Coaching %</th>
-                <th style={th}>Sales Growth %</th>
-                <th style={th}>Vintage Target Met %</th>
+                <th style={th}>Growth %</th>
+                <th style={th} title="Vintage-wise weekly USD revenue target">Vintage Target %</th>
                 <th style={th}>Agent Recovery %</th>
-                <th style={th}>Zero-Seller Recovery %</th>
-                <th style={th}>PIP Recovery % (this month)</th>
+                <th style={th}>Zero-Seller %</th>
+                <th style={th} title="Current calendar month, not the period picker above">PIP Recovery %</th>
                 <th style={th}>Total Score</th>
               </tr>
             </thead>
@@ -158,12 +158,12 @@ export default async function QaAuditorRankingPage({ searchParams }: { searchPar
                     <td style={td} title="Vintage-wise weekly USD revenue target — total revenue vs. total target across the period">{pct(r.vintageTargetMetPct)}</td>
                     <td style={td} title="Of agents Red/Yellow just before the period, who's since recovered to Green">{pct(r.agentRecoveryPct)}</td>
                     <td style={td}>{pct(r.zeroSellerRecoveryPct)}</td>
-                    <td style={td} title={r.pipConcludedThisMonth > 0 ? `${r.pipConcludedThisMonth} PIP(s) concluded this month` : 'No PIP has concluded this month yet'}>{pct(r.pipRecoveryPct)}</td>
+                    <td style={td} title={(r.pipConcludedThisMonth > 0 ? `${r.pipConcludedThisMonth} PIP(s) concluded this month` : 'No PIP has concluded this month yet')}>{pct(r.pipRecoveryPct)}</td>
                     <td style={{ ...td, whiteSpace: 'normal' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
                         <MiniBar value={r.totalScore} color={status?.color} />
                         {status && (
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: status.color, whiteSpace: 'nowrap' }}>{status.label}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 600, color: status.color, whiteSpace: 'nowrap' }}>{status.label}</span>
                         )}
                       </div>
                     </td>
