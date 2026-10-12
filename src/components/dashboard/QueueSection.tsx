@@ -3,6 +3,7 @@ import { isMissingTargetsSchema, loadQueue, type QueueView } from '@/lib/queue/q
 import { groupKey, rankQueue, ratioPct, summarizeTargets, teamGroupOptions, type QueueRow, type TeamGroupOption } from '@/lib/queue/priority'
 import { loadOjtCandidates, isMissingOjtSchema, type OjtCandidate } from '@/lib/ojt/ojt.service'
 import { AgentQueueTable } from './AgentQueueTable'
+import { TodayActivityStrip } from '@/components/qa-ranking/TodayActivityStrip'
 
 const card: React.CSSProperties = {
   background: 'var(--paper)', borderStyle: 'solid', borderWidth: '1px', borderColor: 'var(--border)',
@@ -131,6 +132,8 @@ export async function QueueSection({ view, base, team }: { view: QueueView; base
 
   return (
     <>
+      <TodayActivityStrip view={view} />
+
       <section style={card} aria-label="Weekly audit target">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>This week&apos;s audit target</h2>

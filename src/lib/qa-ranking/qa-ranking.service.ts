@@ -41,7 +41,7 @@ export interface ImpactWeights {
 
 export function isMissingQaRankingSchema(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err)
-  return /qa_auditor_ranking|qa_coaching_targets|qa_channel_progress|qa_impact_weights/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
+  return /qa_auditor_ranking|qa_coaching_targets|qa_channel_progress|qa_impact_weights|qa_daily_activity/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
 }
 
 function fromRow(r: {
@@ -111,4 +111,36 @@ export async function loadChannelProgress(from: Date, to: Date, view: QaRankingV
     auditTarget: r.audit_target,
     auditsPct: r.audits_pct,
   }))
+}
+
+// ── Daily Activity (schema_095, 2026-10-12) ──
+// A day-by-day breakdown (Sat -> today, the current sales week) of what each QA Auditor
+// actually did — audits, coaching, Sample Checks — not a single "today" number. Used by the
+// QA Auditor dashboard's quick "Today" strip and the "Daily" tab on This Week's QA Progress.
+export type DailyMetric = 'audits' | 'coaching' | 'sampleChecks'
+
+export interface DailyActivityRow {
+  auditorId: string
+  auditorName: string
+  day: string // ISO date, Dhaka calendar day
+  auditsDone: number
+  coachingDone: number
+  sampleChecksDone: number
+}
+
+export async function loadDailyActivity(view: QaRankingView = 'team'): Promise<DailyActivityRow[]> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('qa_daily_activity', { p_view: view })
+  if (error) throw new Error(`Could not load daily activity: ${error.message}`)
+  return (data ?? []).map((r: {
+    auditor_id: string; auditor_name: string; day: string
+    audits_done: number; coaching_done: number; sample_checks_done: number
+  }) => ({
+    auditorId: r.auditor_id, auditorName: r.auditor_name, day: r.day,
+    auditsDone: r.audits_done, coachingDone: r.coaching_done, sampleChecksDone: r.sample_checks_done,
+  }))
+}
+
+export function dailyMetricValue(row: DailyActivityRow, metric: DailyMetric): number {
+  return metric === 'audits' ? row.auditsDone : metric === 'coaching' ? row.coachingDone : row.sampleChecksDone
 }
