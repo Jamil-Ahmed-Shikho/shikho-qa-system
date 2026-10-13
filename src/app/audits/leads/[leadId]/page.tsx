@@ -60,19 +60,27 @@ export default async function LeadCallsPage({ params }: { params: Promise<{ lead
     return owners.get(createdBy.id)!
   }
 
+  // A Team Lead audits only their own team's calls (§2) — and, per Jamil
+  // (2026-10-13), must not see the CALL DETAILS of another team's lead
+  // either, not just be blocked from starting an audit on it. Unknown
+  // owners count as "not yours" — the call can't be shown to be theirs.
+  // For an outside-team call, nothing beyond "a call exists here, hidden"
+  // is ever assembled — no CRM user lookup, no status, no time/duration —
+  // so there is nothing left to leak even if a future caller reads more
+  // off the row than CallList currently renders.
   const isTeamLead = viewer.role === 'team_lead'
   const rows: CallRow[] = await Promise.all(
     calls.map(async (call) => {
-      const status = statusMap.get(String(call.id)) ?? null
-      const { match: matchedAgent, crm: crmAgent } = await resolveOnce(call.created_by)
-      // A Team Lead audits only their own team's calls. Unknown owners
-      // count as "not yours" — the call can't be shown to be theirs.
-      let outsideTeam: boolean | undefined
       if (isTeamLead) {
         const owner = await ownerOnce(call.created_by)
-        outsideTeam = !owner || owner.team_leader_id !== viewer.profile.id
+        const outsideTeam = !owner || owner.team_leader_id !== viewer.profile.id
+        if (outsideTeam) {
+          return { call, status: null, matchedAgent: null, crmAgent: { name: null, email: null, lookupFailed: false }, outsideTeam: true }
+        }
       }
-      return { call, status, matchedAgent, crmAgent, outsideTeam }
+      const status = statusMap.get(String(call.id)) ?? null
+      const { match: matchedAgent, crm: crmAgent } = await resolveOnce(call.created_by)
+      return { call, status, matchedAgent, crmAgent, outsideTeam: false }
     })
   )
 

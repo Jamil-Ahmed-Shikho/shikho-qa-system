@@ -82,6 +82,38 @@ function CallRowItem({
   canManageUsers: boolean
   canCalibrate?: boolean
 }) {
+  // A Team Lead never sees another team's call details at all — not date/time,
+  // duration, destination number, status, or who the CRM says took it — only
+  // that something exists here that isn't theirs (§2; Jamil, 2026-10-13). The
+  // page never assembles that detail for this row in the first place (see
+  // /audits/leads/[leadId]/page.tsx), so this is a second, redundant guard.
+  if (row.outsideTeam) {
+    return (
+      <div style={{
+        background: 'var(--surface-1)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '13px', color: 'var(--text-muted)',
+      }}>
+        A call on this lead that isn&apos;t on your team — details are hidden. You can only audit your own team&apos;s calls.
+      </div>
+    )
+  }
+
+  return <CallRowDetail row={row} leadId={leadId} agentOptions={baseAgentOptions} canManageUsers={canManageUsers} canCalibrate={canCalibrate} />
+}
+
+function CallRowDetail({
+  row,
+  leadId,
+  agentOptions: baseAgentOptions,
+  canManageUsers,
+  canCalibrate = false,
+}: {
+  row: CallRow
+  leadId: string
+  agentOptions: AgentOption[]
+  canManageUsers: boolean
+  canCalibrate?: boolean
+}) {
   const router = useRouter()
   const { call, status, matchedAgent } = row
   // The dropdown only exists for calls we could NOT match to a user (a
@@ -97,9 +129,6 @@ function CallRowItem({
 
   const statusKey = status?.status ?? 'available'
   const badge = STATUS_STYLE[statusKey]
-  // Team Leads audit only their own team's calls (the server enforces it
-  // too — this just says so up front instead of failing on click).
-  const locked = !!row.outsideTeam && statusKey === 'available'
 
   // The CRM's times are zoneless Dhaka local time; parse them as such, not as
   // whatever timezone this browser happens to be in.
@@ -181,7 +210,7 @@ function CallRowItem({
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
-            disabled={statusKey !== 'available' || locked}
+            disabled={statusKey !== 'available'}
             style={{
               padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border)',
               borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', color: 'var(--text-primary)',
@@ -196,12 +225,12 @@ function CallRowItem({
             ))}
           </select>
         )}
-        {!locked && matchedAgent && statusKey === 'available' && (
+        {matchedAgent && statusKey === 'available' && (
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             auto-matched by {matchedAgent.matchedBy === 'crm_agent_id' ? 'cached CRM id' : 'email'}
           </span>
         )}
-        {!locked && !matchedAgent && statusKey === 'available' && !selectedAgentId && (
+        {!matchedAgent && statusKey === 'available' && !selectedAgentId && (
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             {agentOptions.length === 0 ? 'no agents available to select' : 'select the agent to enable Start Audit'}
           </span>
@@ -217,7 +246,7 @@ function CallRowItem({
               Calibrate
             </a>
           )}
-          {statusKey === 'available' && !locked && (
+          {statusKey === 'available' && (
             <>
               <button
                 onClick={() => handleStart('audit')}
@@ -290,16 +319,17 @@ function CallRowItem({
       </div>
 
       {/* Who the CRM says took this call — shown whenever we couldn't tie
-          it to one of our users (or a Team Lead can't act on it), so QA
-          knows exactly who to look for, or that they need a profile. */}
-      {statusKey === 'available' && (locked || !matchedAgent) && (
-        <CrmSaysNote crm={row.crmAgent} locked={locked} canManageUsers={canManageUsers} />
+          it to one of our users, so QA knows exactly who to look for, or
+          that they need a profile. (An outside-team call never reaches
+          this component at all — see the top of CallRowItem.) */}
+      {statusKey === 'available' && !matchedAgent && (
+        <CrmSaysNote crm={row.crmAgent} canManageUsers={canManageUsers} />
       )}
     </div>
   )
 }
 
-function CrmSaysNote({ crm, locked, canManageUsers }: { crm: CrmAgentInfo; locked: boolean; canManageUsers: boolean }) {
+function CrmSaysNote({ crm, canManageUsers }: { crm: CrmAgentInfo; canManageUsers: boolean }) {
   const d = describeUnmatched(crm)
   return (
     <div style={{
@@ -313,10 +343,8 @@ function CrmSaysNote({ crm, locked, canManageUsers }: { crm: CrmAgentInfo; locke
           {' — '}
         </>
       )}
-      {locked
-        ? "not taken by an agent on your team; you can only audit your own team's calls"
-        : d.note}
-      {!locked && d.kind === 'no_profile' && canManageUsers && (
+      {d.note}
+      {d.kind === 'no_profile' && canManageUsers && (
         <>
           {' · '}
           <a href="/admin/users" style={{ color: 'var(--brand)', fontWeight: 600 }}>Add them in Users</a>
