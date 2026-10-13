@@ -49,7 +49,7 @@ export default async function ManagerReviewRequestsPage() {
                 <tr key={a.id}>
                   <td style={td}>
                     {a.agentName ? (
-                      <Link href={`/dashboard/manager/agent/${a.agentId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{a.agentName}</Link>
+                      <Link href={`/dashboard/manager/agent/${a.agentId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{a.agentName}</Link>
                     ) : (
                       <b>Unknown agent</b>
                     )}

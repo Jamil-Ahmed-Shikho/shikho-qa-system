@@ -16,7 +16,7 @@ const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`)
  * 2: "a Manager doesn't audit calls") — only the agent-profile link, same as everywhere else on
  * this dashboard. */
 function AgentLink({ id, name }: { id: string; name: string }) {
-  return <Link href={agentProfileHref(id)} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
+  return <Link href={agentProfileHref(id)} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
 }
 
 export function ManagerDashboardView({ rollup, managerName, overview }: { rollup: ManagerRollup; managerName: string; overview: ManagerOverview }) {
@@ -197,7 +197,7 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
                     <td style={td}>{p.daysLeft}</td>
                     <td style={td}>{p.targetMet ? <span style={{ color: 'var(--status-green)', fontWeight: 600 }}>Target met</span> : p.runRateRequiredUsdPerDay !== null ? formatUsd(p.runRateRequiredUsdPerDay) : '—'}</td>
                     <td style={td}>{p.lastSaleDate ?? 'None on record'}</td>
-                    <td style={td}><Link href={`/pip/${p.candidateId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
+                    <td style={td}><Link href={`/pip/${p.candidateId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
                   </tr>
                 ))}
               </tbody>

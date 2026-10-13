@@ -108,7 +108,7 @@ export function MistakeBreakdownTable({
               {rows.map((r) => (
                 <tr key={r.agentId}>
                   <td style={td}>
-                    <Link href={agentProfileHref(r.agentId)} style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+                    <Link href={agentProfileHref(r.agentId)} prefetch={false} style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
                       {r.agentName}
                     </Link>
                   </td>
@@ -132,7 +132,7 @@ export function MistakeBreakdownTable({
                           {r.lastCheckName} — {r.lastValueLabel}
                         </div>
                         {auditLinksEnabled && r.lastAuditId && (
-                          <Link href={`/audits/${r.lastAuditId}`} style={{ fontSize: '11px', color: 'var(--brand)', textDecoration: 'none' }}>
+                          <Link href={`/audits/${r.lastAuditId}`} prefetch={false} style={{ fontSize: '11px', color: 'var(--brand)', textDecoration: 'none' }}>
                             View audit →
                           </Link>
                         )}

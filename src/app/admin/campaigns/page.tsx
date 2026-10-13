@@ -58,6 +58,7 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
             <Link
               key={tree.id}
               href={`/admin/campaigns/${tree.id}`}
+              prefetch={false}
               style={{
                 display: 'block', padding: '16px 18px', textDecoration: 'none', color: 'var(--text-primary)', background: 'var(--paper)',
                 borderStyle: 'solid', borderWidth: '1px', borderColor: 'var(--border)', borderRadius: 'var(--radius-md)', opacity: tree.is_archived ? 0.75 : 1,

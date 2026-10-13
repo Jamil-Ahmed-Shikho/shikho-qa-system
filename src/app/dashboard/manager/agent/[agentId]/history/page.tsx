@@ -64,7 +64,7 @@ export default async function ManagerAgentAuditHistoryPage({ params }: { params:
                     {a.criticalFail ? 'Critical fatal error' : a.passed ? 'Passed' : 'Did not pass'}
                   </td>
                   {canOpenAudit && (
-                    <td style={td}><Link href={`/audits/${a.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                    <td style={td}><Link href={`/audits/${a.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
                   )}
                 </tr>
               ))}

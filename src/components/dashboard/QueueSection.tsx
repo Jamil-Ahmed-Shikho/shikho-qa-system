@@ -43,6 +43,7 @@ function TeamChips({ options, selected, view, base }: { options: TeamGroupOption
     <Link
       key={key}
       href={href}
+      prefetch={false}
       aria-current={isSelected ? 'page' : undefined}
       style={{
         padding: '6px 14px', fontSize: '13px', textDecoration: 'none', borderRadius: 'var(--radius-pill)',

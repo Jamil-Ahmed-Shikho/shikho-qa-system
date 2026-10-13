@@ -53,7 +53,7 @@ export default async function MyAuditsPage() {
                       </span>
                     ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                   </td>
-                  <td style={td}><Link href={`/my-audits/${a.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                  <td style={td}><Link href={`/my-audits/${a.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
                 </tr>
               ))}
             </tbody>

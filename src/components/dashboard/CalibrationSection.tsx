@@ -48,7 +48,7 @@ export async function CalibrationSection() {
           {upcoming.map((s) => (
             <li key={s.id} style={{ fontSize: '14px' }}>
               <b>{formatDhakaDateTime(s.scheduledAt)}</b> ·{' '}
-              <Link href={`/calibration/${s.id}`} style={{ color: 'var(--brand)', textDecoration: 'none' }}>
+              <Link href={`/calibration/${s.id}`} prefetch={false} style={{ color: 'var(--brand)', textDecoration: 'none' }}>
                 {s.title ?? (s.itemType === 'call' ? `Call ${s.crmCallId}` : s.itemReference)}
               </Link>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>

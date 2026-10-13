@@ -150,7 +150,7 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
                       <DeleteCandidateButton candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} />
                       {(c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (
                         <div style={{ marginTop: '6px' }}>
-                          <Link href={`/pip/${c.id}`} style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Feedback &amp; training →</Link>
+                          <Link href={`/pip/${c.id}`} prefetch={false} style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Feedback &amp; training →</Link>
                         </div>
                       )}
                     </td>

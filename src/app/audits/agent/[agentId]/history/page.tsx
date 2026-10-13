@@ -57,7 +57,7 @@ export default async function AgentAuditHistoryPage({ params }: { params: Promis
                   <td style={{ ...td, color: a.passed ? 'var(--status-green)' : 'var(--alert)', fontWeight: 600 }}>
                     {a.criticalFail ? 'Critical fatal error' : a.passed ? 'Passed' : 'Did not pass'}
                   </td>
-                  <td style={td}><Link href={`/audits/${a.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                  <td style={td}><Link href={`/audits/${a.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
                 </tr>
               ))}
             </tbody>

@@ -22,14 +22,14 @@ import { CollapsibleSection } from '@/components/common/CollapsibleSection'
  * audit next," §9 Part 2) — a Claude-made call, extending that 2026-10-03 feature here too since
  * it was a plain oversight that this dashboard never got it in the first place, not a decision to leave it out. */
 function AgentLink({ id, name }: { id: string; name: string }) {
-  return <Link href={`/audits/agent/${id}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
+  return <Link href={`/audits/agent/${id}/profile`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{name}</Link>
 }
 
 /** Opens exactly this one audit — distinct from AgentLink, which opens the agent's whole profile
  * (every audit). Added 2026-10-11 per Jamil's own feedback: a Team Lead reading "Fatal incidents"
  * or "Recent audits" shouldn't have to search the full profile for the one audit the row is about. */
 function AuditLink({ id }: { id: string }) {
-  return <Link href={`/audits/${id}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link>
+  return <Link href={`/audits/${id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link>
 }
 
 const kpiCard: React.CSSProperties = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 18px', minWidth: '140px', flex: '1 1 140px', borderTop: '3px solid var(--brand)' }
@@ -212,7 +212,7 @@ export function TeamLeadDashboardView({ data, agentPerformance, quickActions }: 
                     <td style={td}>{p.daysLeft}</td>
                     <td style={td}>{p.targetMet ? '—' : p.runRateRequiredUsdPerDay !== null ? formatUsd(p.runRateRequiredUsdPerDay) : '—'}</td>
                     <td style={td}>{p.lastSaleDate ?? 'None on record'}</td>
-                    <td style={td}><Link href={`/pip/${p.candidateId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
+                    <td style={td}><Link href={`/pip/${p.candidateId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
                   </tr>
                 ))}
               </tbody>

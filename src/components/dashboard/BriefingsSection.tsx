@@ -59,7 +59,7 @@ function Tile({ label, value, alert = false }: { label: string; value: number | 
 
 function AuditLink({ id, canOpen, children }: { id: string; canOpen: boolean; children: React.ReactNode }) {
   return canOpen
-    ? <Link href={`/audits/${id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>{children}</Link>
+    ? <Link href={`/audits/${id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>{children}</Link>
     : <>{children}</>
 }
 

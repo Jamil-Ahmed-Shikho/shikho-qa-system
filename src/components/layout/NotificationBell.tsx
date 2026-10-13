@@ -16,7 +16,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadNotificationsAction, markAllNotificationsReadAction, markNotificationsReadAction } from '@/lib/notifications/actions'
 import type { NotificationItem } from '@/lib/notifications/notifications.service'
 
-const POLL_MS = 120_000
+// 300s, not 120s (2026-10-10's own fix) — this bell is mounted for every signed-in person on
+// every page, so even a 2-minute poll adds up to real Vercel Hobby Active CPU/invocation volume
+// across ~100 staff all day (2026-10-13, the same usage-overage investigation that also turned
+// off Link prefetching on every big per-row table). A notification isn't time-critical to the
+// minute — it already refreshes instantly on open and on returning to a hidden tab.
+const POLL_MS = 300_000
 
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))

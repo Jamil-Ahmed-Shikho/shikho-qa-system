@@ -78,7 +78,7 @@ function GroupSection({
                   <span style={{ width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
                   <b style={{ fontSize: '14px' }}>
                     {g.labelHref
-                      ? <Link href={g.labelHref} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--brand)', textDecoration: 'none' }}>{g.label}</Link>
+                      ? <Link href={g.labelHref} prefetch={false} onClick={(e) => e.stopPropagation()} style={{ color: 'var(--brand)', textDecoration: 'none' }}>{g.label}</Link>
                       : g.label}
                   </b>
                   {g.subLabel && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{g.subLabel}</span>}
@@ -103,7 +103,7 @@ function GroupSection({
                           <tr key={`${r.agentId}:${r.parameterId}`}>
                             <td style={td}>
                               {agentColumnLabel === 'Agent'
-                                ? <Link href={r.agentHref} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link>
+                                ? <Link href={r.agentHref} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link>
                                 : r.parameterName}
                             </td>
                             <td style={td}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'}{r.teamLeaderName ? <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>TL: {r.teamLeaderName}</div> : null}</td>

@@ -63,6 +63,7 @@ export default async function RubricsListPage() {
                 <Link
                   key={r.id}
                   href={`/admin/rubrics/${r.id}`}
+                  prefetch={false}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '12px 18px', textDecoration: 'none', color: 'var(--text-primary)',

@@ -38,13 +38,13 @@ export async function AssignedReviewRequestsSection() {
               <tr key={r.id}>
                 <td style={td}>
                   {r.agentName ? (
-                    <Link href={`/audits/agent/${r.agentId}/profile`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link>
+                    <Link href={`/audits/agent/${r.agentId}/profile`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>{r.agentName}</Link>
                   ) : (
                     <b>Unknown agent</b>
                   )}
                 </td>
                 <td style={td}>{r.reason.length > 80 ? `${r.reason.slice(0, 80)}…` : r.reason}</td>
-                <td style={td}><Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open →</Link></td>
+                <td style={td}><Link href={`/audits/${r.auditId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open →</Link></td>
               </tr>
             ))}
           </tbody>

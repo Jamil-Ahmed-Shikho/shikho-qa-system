@@ -71,7 +71,7 @@ function TargetCell({ r }: { r: RankedRow }) {
 
 function ActionButton({ href, label }: { href: string; label: string }) {
   return (
-    <Link href={href} style={{ display: 'inline-block', padding: '6px 14px', fontSize: '13px', fontWeight: 500, color: '#fff', background: 'var(--brand)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' }}>
+    <Link href={href} prefetch={false} style={{ display: 'inline-block', padding: '6px 14px', fontSize: '13px', fontWeight: 500, color: '#fff', background: 'var(--brand)', borderRadius: 'var(--radius-sm)', textDecoration: 'none' }}>
       {label}
     </Link>
   )
@@ -82,7 +82,7 @@ function Row({ r, agentProfileHref, action }: { r: RankedRow; agentProfileHref: 
     <tr>
       <td style={td}>{r.rank}</td>
       <td style={td}>
-        <Link href={agentProfileHref(r.agentId)} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link href={agentProfileHref(r.agentId)} prefetch={false} style={{ color: 'inherit', textDecoration: 'none' }}>
           <b style={{ color: 'var(--brand)' }}>{r.name}</b>
         </Link>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'} · {r.stage === 'ojt' ? 'OJT' : (r.vintageLabel ?? 'vintage n/a')}</div>
@@ -117,7 +117,7 @@ function ReTrainingRow({ c, rowNumber, agentProfileHref, action }: { c: OjtCandi
     <tr>
       <td style={td}>{rowNumber}</td>
       <td style={td}>
-        <Link href={agentProfileHref(c.agentId)} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link href={agentProfileHref(c.agentId)} prefetch={false} style={{ color: 'inherit', textDecoration: 'none' }}>
           <b style={{ color: 'var(--brand)' }}>{c.name}</b>
         </Link>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[c.teamName, c.siteName].filter(Boolean).join(' · ') || '—'} · OJT</div>
@@ -151,7 +151,7 @@ function Card({ r, agentProfileHref, action }: { r: RankedRow; agentProfileHref:
     <div style={cardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
         <div>
-          <Link href={agentProfileHref(r.agentId)} style={{ color: 'var(--brand)', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}>{r.name}</Link>
+          <Link href={agentProfileHref(r.agentId)} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}>{r.name}</Link>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'} · {r.stage === 'ojt' ? 'OJT' : (r.vintageLabel ?? 'vintage n/a')}</div>
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>#{r.rank}</span>
@@ -180,7 +180,7 @@ function ReTrainingCard({ c, rowNumber, agentProfileHref, action }: { c: OjtCand
     <div style={cardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
         <div>
-          <Link href={agentProfileHref(c.agentId)} style={{ color: 'var(--brand)', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}>{c.name}</Link>
+          <Link href={agentProfileHref(c.agentId)} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }}>{c.name}</Link>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{[c.teamName, c.siteName].filter(Boolean).join(' · ') || '—'} · OJT</div>
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>#{rowNumber}</span>

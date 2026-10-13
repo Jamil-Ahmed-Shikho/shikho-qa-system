@@ -182,7 +182,7 @@ function RubricTrendsTable({ rows, sparklines }: { rows: RubricFailTrendRow[]; s
               <td style={td}><TrendBadge points={r.trendPctPoints} /></td>
               <td style={td}><Sparkline points={sparklines.get(r.parameterId) ?? []} /></td>
               <td style={td}>
-                <Link href={`/reports/repeat-mistakes?parameter=${r.parameterId}`} style={{ fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
+                <Link href={`/reports/repeat-mistakes?parameter=${r.parameterId}`} prefetch={false} style={{ fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
                   Who&apos;s failing it →
                 </Link>
               </td>

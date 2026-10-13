@@ -47,7 +47,7 @@ export default async function PipReviewListPage() {
                       <td style={td}><b>{fmtMonth(c.month)}</b></td>
                       <td style={td}>{fmtDate(c.startDate)} – {fmtDate(c.endDate)}</td>
                       <td style={td}>{c.myCount}</td>
-                      <td style={td}><Link href={`/pip/review/${c.cycleId}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Review →</Link></td>
+                      <td style={td}><Link href={`/pip/review/${c.cycleId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Review →</Link></td>
                     </tr>
                   ))}
                 </tbody>

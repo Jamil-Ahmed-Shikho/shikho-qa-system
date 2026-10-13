@@ -28,7 +28,7 @@ function Table({ rows }: { rows: CalibrationSession[] }) {
               </td>
               <td style={td}>{s.teamName} · {s.siteName}</td>
               <td style={td}>{s.schedulerName ?? 'QA team'}</td>
-              <td style={td}><Link href={`/calibration/${s.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+              <td style={td}><Link href={`/calibration/${s.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
             </tr>
           ))}
         </tbody>

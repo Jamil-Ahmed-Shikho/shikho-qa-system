@@ -157,7 +157,7 @@ function FatalSection({ rows }: { rows: FatalIncidentRow[] }) {
               <td style={td}>
                 <span style={{ fontWeight: r.lifetimeFatalCount >= 2 ? 700 : 400, color: r.lifetimeFatalCount >= 2 ? 'var(--alert)' : 'inherit' }}>{r.lifetimeFatalCount}</span>
               </td>
-              <td style={td}><Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>
+              <td style={td}><Link href={`/audits/${r.auditId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>
             </tr>
           ))}
         </tbody>
@@ -236,7 +236,7 @@ function PipLiveSection({ rows }: { rows: PipLiveProgressRow[] }) {
                     : r.runRateRequiredUsdPerDay !== null ? formatUsd(r.runRateRequiredUsdPerDay) : '—'}
                 </td>
                 <td style={td}>{r.lastSaleDate ?? 'None on record'}</td>
-                <td style={td}><Link href={`/pip/${r.candidateId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
+                <td style={td}><Link href={`/pip/${r.candidateId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
               </tr>
             )
           })}

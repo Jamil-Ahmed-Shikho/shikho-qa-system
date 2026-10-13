@@ -63,7 +63,7 @@ export default async function PipAdminPage() {
                         <td style={td}><b>{fmtMonth(c.month)}</b></td>
                         <td style={td}>{fmtDate(c.startDate)} – {fmtDate(c.endDate)}</td>
                         <td style={td}>{c.candidateCount}</td>
-                        <td style={td}><Link href={`/admin/pip/${c.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                        <td style={td}><Link href={`/admin/pip/${c.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
                         <td style={td}>
                           {!c.publishedAt && <DeleteCycleButton cycleId={c.id} candidateCount={c.candidateCount} monthLabel={fmtMonth(c.month)} />}
                         </td>

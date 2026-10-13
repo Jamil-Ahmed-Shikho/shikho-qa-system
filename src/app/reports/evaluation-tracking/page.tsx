@@ -130,7 +130,7 @@ export default async function EvaluationTrackingPage({ searchParams }: { searchP
                         <td style={td}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'}</td>
                         <td style={td}>{formatDhakaDateTime(r.submittedAt)}</td>
                         <td style={td}><ViewedCell r={r} /></td>
-                        <td style={td}><Link href={`/audits/${r.auditId}`} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>
+                        <td style={td}><Link href={`/audits/${r.auditId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>
                       </tr>
                     ))}
                   </tbody>

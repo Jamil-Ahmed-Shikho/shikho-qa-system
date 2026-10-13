@@ -117,7 +117,7 @@ export function CapaPanel({
             {info.linkable.map((r) => (
               <div key={r.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '13px' }}>
-                  <Link href={`/audits/${r.id}`} style={{ color: 'var(--brand)', textDecoration: 'none' }}>Audit of <When r={r} /></Link>
+                  <Link href={`/audits/${r.id}`} prefetch={false} style={{ color: 'var(--brand)', textDecoration: 'none' }}>Audit of <When r={r} /></Link>
                 </span>
                 <LinkReauditButton draftAuditId={audit.id} originalAuditId={r.id} label="Link this audit as the follow-up" />
               </div>

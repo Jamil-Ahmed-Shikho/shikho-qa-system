@@ -41,7 +41,7 @@ export default async function PipListPage() {
                       <td style={td}>{p.siteName ?? '—'}</td>
                       <td style={td}>{fmtDate(p.cycleStart)} – {fmtDate(p.cycleEnd)}</td>
                       <td style={td}><StatusBadge status={p.status} /></td>
-                      <td style={td}><Link href={`/pip/${p.id}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
+                      <td style={td}><Link href={`/pip/${p.id}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>Open</Link></td>
                     </tr>
                   ))}
                 </tbody>
