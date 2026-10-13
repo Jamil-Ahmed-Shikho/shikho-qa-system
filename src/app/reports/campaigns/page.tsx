@@ -75,6 +75,7 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
   // doesn't audit calls"); everyone else allowed on this report can.
   const isManager = user?.role === 'manager'
   const agentProfileHref = (agentId: string) => (isManager ? `/dashboard/manager/agent/${agentId}` : `/audits/agent/${agentId}/profile`)
+  const canManageCampaigns = !!user && ['super_admin', 'qa_manager'].includes(user.role)
 
   const canSendReport = !!user && (MISTAKE_REPORT_SEND_ROLES as readonly string[]).includes(user.role)
   const sendLog = canSendReport && mistakeOptions.length > 0 ? await loadMistakeReportSendLog(selectedId) : []
@@ -84,9 +85,14 @@ export default async function CampaignReportPage({ searchParams }: { searchParam
       <BackLink href="/dashboard" label="Dashboard" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '4px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>Special Check Report</h1>
-        <Link href="/admin/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
-          Manage Special Checks →
-        </Link>
+        {/* Managing Special Checks (/admin/campaigns) is Super Admin/QA Manager only (§4 Part B1)
+            — every other role this report is open to (QA Auditor, Team Lead, Manager) can't reach
+            it, so the link is hidden for them rather than shown and then blocked. */}
+        {canManageCampaigns && (
+          <Link href="/admin/campaigns" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            Manage Special Checks →
+          </Link>
+        )}
       </div>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
         How agents answered a Special Check, over submitted audits only. Never part of the score.
