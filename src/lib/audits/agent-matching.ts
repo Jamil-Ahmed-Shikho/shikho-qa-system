@@ -133,16 +133,27 @@ export async function findCallOwner(
 }
 
 // Active agents, for the manual-confirm dropdown when auto-match
-// fails or needs overriding.
+// fails or needs overriding. Paginated (same shape, and same reason, as
+// listUsers()/bulk-import.ts's existing-users check, CLAUDE.md §14) —
+// unpaginated this would silently cap at PostgREST's default 1000 rows
+// and start dropping real agents from the dropdown once the active-agent
+// count crosses that, with no error to notice it by.
+const LIST_ACTIVE_AGENTS_PAGE_SIZE = 1000
 export async function listActiveAgents(): Promise<{ id: string; name: string; email: string }[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, name, email')
-    .eq('role', 'agent')
-    .eq('is_active', true)
-    .order('name', { ascending: true })
-
-  if (error) throw new Error(error.message)
-  return data ?? []
+  const all: { id: string; name: string; email: string }[] = []
+  for (let from = 0; ; from += LIST_ACTIVE_AGENTS_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('role', 'agent')
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+      .order('id', { ascending: true }) // tiebreak so the sort is deterministic across pages (many agents share a name)
+      .range(from, from + LIST_ACTIVE_AGENTS_PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    all.push(...(data ?? []))
+    if (!data || data.length < LIST_ACTIVE_AGENTS_PAGE_SIZE) break
+  }
+  return all
 }

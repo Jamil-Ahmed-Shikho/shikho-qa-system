@@ -29,6 +29,7 @@ import { validateUserInput, type NormalizedUserInput, type UserInput } from './v
 export const MAX_IMPORT_ROWS = 100
 const TEMPLATE_ROWS = 200 // rows that get dropdowns/formatting in the template
 const CONCURRENCY = 5
+const EXISTING_USERS_PAGE_SIZE = 1000 // PostgREST's own default row cap — see the loop below
 
 const COLUMNS = [
   'Name',
@@ -214,14 +215,27 @@ export async function bulkCreateUsers(
     }
   }
 
+  // Unpaginated, this silently capped at PostgREST's default 1000-row limit
+  // once the roster passed that size — a real Team Leader/Manager/QA Auditor
+  // past row 1000 would come back "not found" even though they exist (the
+  // same bug class fixed in listUsers(), users.service.ts, 2026-10-07; this
+  // query was a separate copy that bug fix never reached). Page through the
+  // whole table the same way.
   const admin = getSupabaseAdmin()
-  const { data: existing, error: existingError } = await admin
-    .from('users')
-    .select('id, email, emp_id, role, is_active')
-  if (existingError) return { ok: false, error: 'Could not load existing users.' }
+  const existing: { id: string; email: string; emp_id: string | null; role: string; is_active: boolean }[] = []
+  for (let from = 0; ; from += EXISTING_USERS_PAGE_SIZE) {
+    const { data, error: existingError } = await admin
+      .from('users')
+      .select('id, email, emp_id, role, is_active')
+      .order('id', { ascending: true }) // deterministic order across pages
+      .range(from, from + EXISTING_USERS_PAGE_SIZE - 1)
+    if (existingError) return { ok: false, error: 'Could not load existing users.' }
+    existing.push(...(data ?? []))
+    if (!data || data.length < EXISTING_USERS_PAGE_SIZE) break
+  }
 
-  const usersByEmail = new Map((existing ?? []).map((u) => [u.email.toLowerCase(), u]))
-  const takenEmpIds = new Set((existing ?? []).map((u) => u.emp_id).filter(Boolean) as string[])
+  const usersByEmail = new Map(existing.map((u) => [u.email.toLowerCase(), u]))
+  const takenEmpIds = new Set(existing.map((u) => u.emp_id).filter(Boolean) as string[])
 
   const results = new Map<number, BulkRowResult>()
   const toCreate: (ParsedRow & { value: NormalizedUserInput })[] = []
