@@ -90,22 +90,47 @@ function leadPill(crmLeadId: string | null): string {
 // ── A clean "label | value" card with an uppercase eyebrow title — the same
 // shape used for both info cards, so Call Details and Agent Information
 // always read as one consistent system, not two different designs. ────────
+// Row padding trimmed 2026-10-14 (alongside the side-by-side layout below) —
+// a secondary, smaller win toward the same goal: less scroll before "What
+// needs attention".
 function infoCard(title: string, rows: { label: string; value: string }[]): string {
   const filled = rows.filter((r) => r.value !== '')
   if (filled.length === 0) return ''
   const rowsHtml = filled
     .map(
       (r, i) => `<tr>
-        <td style="padding:${i === 0 ? '0 10px 7px 0' : '7px 10px 7px 0'};font-size:12px;color:${MUTED};white-space:nowrap;vertical-align:top;width:1%">${escapeHtml(r.label)}</td>
-        <td style="padding:${i === 0 ? '0 0 7px' : '7px 0'};font-size:13px;font-weight:600;color:#1A1D29;vertical-align:top">${r.value}</td>
+        <td style="padding:${i === 0 ? '0 10px 5px 0' : '5px 10px 5px 0'};font-size:12px;color:${MUTED};white-space:nowrap;vertical-align:top;width:1%">${escapeHtml(r.label)}</td>
+        <td style="padding:${i === 0 ? '0 0 5px' : '5px 0'};font-size:13px;font-weight:600;color:#1A1D29;vertical-align:top">${r.value}</td>
       </tr>`
     )
     .join('')
   return `
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${SURFACE};border:1px solid ${BORDER};border-radius:12px;padding:14px 18px;margin-bottom:14px">
-      <tr><td colspan="2" style="padding:0 0 8px;font-size:11px;font-weight:700;color:${INDIGO};text-transform:uppercase;letter-spacing:.06em">${escapeHtml(title)}</td></tr>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:${SURFACE};border:1px solid ${BORDER};border-radius:12px;padding:12px 16px">
+      <tr><td colspan="2" style="padding:0 0 7px;font-size:11px;font-weight:700;color:${INDIGO};text-transform:uppercase;letter-spacing:.06em">${escapeHtml(title)}</td></tr>
       ${rowsHtml}
     </table>`
+}
+
+// Call Details and Employee Information side by side (2026-10-14, Jamil's feedback: stacked,
+// they pushed the actual parameter breakdown too far below the fold). Built as a "fluid
+// hybrid" pair of inline-block divs, NOT a <table><td> pair — a rigid two-column table would
+// stay two columns even on a phone, where this email's own fluid width (emailShell's
+// `max-width:100%`) has already shrunk the whole layout, squeezing values like a long
+// Distribution List name into an unreadably narrow column. inline-block + min-width degrades
+// gracefully instead: side by side when there's room (desktop/webmail), and the second card
+// naturally wraps below the first — back to today's single-column read — the moment the
+// container is too narrow to fit both at their minimum width, no media query required (email
+// clients, Outlook especially, don't reliably support those). Outlook's own weak inline-block
+// support falls back to the same stacked result, not a broken one.
+// No whitespace between the two closing/opening tags below — inline-block elements render any
+// source whitespace between them as a visible gap, so the deliberate gap comes only from the
+// first div's own margin-right.
+function sideBySideCards(a: string, b: string): string {
+  if (!a && !b) return ''
+  if (!a) return `<div style="margin-bottom:14px">${b}</div>`
+  if (!b) return `<div style="margin-bottom:14px">${a}</div>`
+  return `<div style="display:inline-block;width:48%;min-width:230px;vertical-align:top;margin-right:4%;margin-bottom:14px">${a}</div>` +
+    `<div style="display:inline-block;width:48%;min-width:230px;vertical-align:top;margin-bottom:14px">${b}</div>`
 }
 
 function callDetailsCard(d: AuditEmailData): string {
@@ -224,8 +249,7 @@ export function auditResultHtml(d: AuditEmailData): string {
     </table>
 
     ${fatalsHtml}
-    ${callDetailsCard(d)}
-    ${agentInfoCard(d, false)}
+    ${sideBySideCards(callDetailsCard(d), agentInfoCard(d, false))}
 
     ${performanceSection}
     ${overallFeedback}
