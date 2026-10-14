@@ -1,6 +1,9 @@
 import Link from 'next/link'
 
-export function NavCard({ href, title, description }: { href: string; title: string; description: string }) {
+// `icon` is optional (Tabler class suffix, e.g. "ti-users") so every existing
+// call site across the app keeps compiling unchanged — added for the Admin
+// Dashboard's categorized sections, 2026-10-14.
+export function NavCard({ href, title, description, icon }: { href: string; title: string; description: string; icon?: string }) {
   return (
     <Link
       href={href}
@@ -15,7 +18,10 @@ export function NavCard({ href, title, description }: { href: string; title: str
         color: 'var(--text-primary)',
       }}
     >
-      <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{title}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '6px' }}>
+        {icon && <i className={`ti ${icon}`} aria-hidden style={{ fontSize: '15px', color: 'var(--brand)' }} />}
+        <div style={{ fontSize: '15px', fontWeight: 600 }}>{title}</div>
+      </div>
       <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{description}</div>
     </Link>
   )

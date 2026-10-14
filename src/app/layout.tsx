@@ -22,8 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Tabler Icons — used throughout the app */}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/tabler-icons.min.css" />
+        {/* Tabler Icons — used throughout the app. Found 2026-10-14: this URL was missing
+            "/dist/" (the package root 404s — jsdelivr serves the built CSS from dist/),
+            so no ti-* icon anywhere in the app had ever actually rendered. */}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
         {/* Shikho brand fonts — Poppins (English UI), Hind Siliguri (Bangla) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
