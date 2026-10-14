@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { recordAuditResultView, verifyAuditViewToken } from '@/lib/audits/view-tracking'
 
 // ============================================================
-// The evaluation email's "View full result" button lands here FIRST, not
+// The evaluation email's "I've seen this" button (and its portal link) land here FIRST, not
 // directly on /my-audits/{id} — a real click is the trustworthy signal
 // (§ view-tracking.ts). No login is required to hit this route (the agent
 // may not have an activated account yet, §2) — recording a click never

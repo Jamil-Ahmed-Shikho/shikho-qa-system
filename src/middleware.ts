@@ -50,7 +50,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Evaluation-email click tracking (schema_092, 2026-10-12) — reached from the email's
-  // "View full result" button, which an agent clicks from their inbox, very possibly with no
+  // "I've seen this" button or its portal link (renamed 2026-10-14), which an agent clicks
+  // from their inbox, very possibly with no
   // active portal session (many agents have no login activated at all, §2). The route verifies
   // its own signed token and never exposes anything sensitive, so it must not force a login wall
   // before the click is even recorded — that would silently break tracking for exactly the agents

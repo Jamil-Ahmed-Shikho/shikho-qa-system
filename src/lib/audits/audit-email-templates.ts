@@ -51,9 +51,15 @@ function appUrl(path: string): string {
   return base ? `${base}${path}` : path
 }
 
-// The "View full result" link goes through the click-tracking redirect (schema_092,
-// 2026-10-12) rather than straight to /my-audits/{id} — the agent clicks exactly the same
-// button they always would; the click itself is what gets recorded. See view-tracking.ts.
+// Both the "I've seen this" button and the plain "Open it here" portal link go through the
+// click-tracking redirect (schema_092, 2026-10-12) rather than straight to /my-audits/{id} —
+// either one is a real click-through, so either should count. See view-tracking.ts.
+//
+// Renamed from "View full result" (2026-10-14, Jamil's feedback): the email already shows
+// every failed parameter, fatal and overall feedback, so "full result" oversold what clicking
+// through actually reveals — most of the time, not much. "I've seen this" is honest about what
+// the click is really for (the tracked acknowledgement), and the separate portal link next to
+// it is there for the one thing that's genuinely only in the portal: requesting a review.
 function trackedResultUrl(auditId: string): string {
   return appUrl(`/api/audits/${auditId}/view?t=${signAuditViewToken(auditId)}`)
 }
@@ -224,11 +230,11 @@ export function auditResultHtml(d: AuditEmailData): string {
     ${performanceSection}
     ${overallFeedback}
 
-    <p style="margin:24px 0 12px;font-size:12.5px;color:${MUTED};text-align:center">If you think any score here isn't correct, you can request a review from the full result page.</p>
-    <p style="margin:0 0 12px;font-size:12.5px;color:${MUTED};text-align:center">Clicking &ldquo;View full result&rdquo; below lets us know you&rsquo;ve seen this evaluation.</p>
+    <p style="margin:24px 0 12px;font-size:12.5px;color:${MUTED};text-align:center">Clicking below lets us know you&rsquo;ve seen this evaluation.</p>
     <div style="text-align:center">
-      ${ctaButton(trackedResultUrl(d.auditId), 'View full result')}
-    </div>`
+      ${ctaButton(trackedResultUrl(d.auditId), "I've seen this")}
+    </div>
+    <p style="margin:14px 0 0;font-size:12.5px;color:${MUTED};text-align:center">Want to request a review, or see more in the portal? <a href="${escapeHtml(trackedResultUrl(d.auditId))}" style="color:${INDIGO};font-weight:600;text-decoration:underline">Open it here →</a></p>`
 
   return emailShell('New audit result', `${resultLabel(d)} · ${d.agentTeamName ?? 'Shikho'}`, scoreAccent(d), body, 580)
 }
@@ -272,8 +278,7 @@ export function auditResultText(d: AuditEmailData): string {
     for (const p of failedParams) lines.push(`  FAIL  ${p.name} (${p.pointsAwarded}/${p.points})${p.feedback ? ` — ${p.feedback}` : ''}`)
   }
   if (d.overallFeedback) lines.push('', 'Overall feedback:', d.overallFeedback)
-  lines.push('', "If you think any score here isn't correct, you can request a review from the full result page.")
-  lines.push('', "Opening the link below lets us know you've seen this evaluation.")
-  lines.push(`View full result: ${trackedResultUrl(d.auditId)}`)
+  lines.push('', "Opening the link below lets us know you've seen this evaluation. It's also where you can request a review or see more in the portal.")
+  lines.push(`I've seen this: ${trackedResultUrl(d.auditId)}`)
   return lines.join('\n')
 }

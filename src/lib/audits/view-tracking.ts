@@ -1,7 +1,8 @@
 // ============================================================
 // SHIKHO QA SYSTEM — evaluation-email click tracking (2026-10-12).
-// The email's "View full result" button routes through
-// /api/audits/[id]/view?t=<token> before landing on /my-audits/{id}. The
+// The email's "I've seen this" button (and the plain portal link beside it,
+// 2026-10-14) route through /api/audits/[id]/view?t=<token> before landing
+// on /my-audits/{id}. The
 // token is an HMAC of the audit id, derived from the service-role key (no
 // new secret to add/deploy) — it authorizes nothing sensitive, it only lets
 // the redirect route tell "a real emailed link" apart from someone guessing
