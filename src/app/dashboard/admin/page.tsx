@@ -5,6 +5,7 @@ import { CalibrationSection } from '@/components/dashboard/CalibrationSection'
 import { DashboardSection } from '@/components/dashboard/DashboardSection'
 import { NavCard } from '@/components/dashboard/NavCard'
 import { PendingReauditsSection } from '@/components/dashboard/PendingReauditsSection'
+import { getAuthUser } from '@/lib/auth/auth.service'
 import { countReviewRequestsAwaitingDecision } from '@/lib/review-requests/review-requests.service'
 
 // ============================================================
@@ -33,9 +34,14 @@ import { countReviewRequestsAwaitingDecision } from '@/lib/review-requests/revie
 //     needs the title; the explanation shows once you're actually there,
 //     not twice.
 //
-// Super Admin and QA Manager share this exact page today (zero role
-// branching) — trimming it to QA Manager's actual entitlements is a
-// separate, later task, not part of this redesign.
+// Super Admin and QA Manager share this exact page — trimmed per role
+// (2026-10-14, confirmed with Jamil): every rubric/policy/report/workflow
+// screen here is already explicitly "Super Admin / QA Manager" throughout
+// CLAUDE.md, so QA Manager keeps everything except Users (staff account
+// administration — not listed under QA Manager's own role description,
+// §2). This hides the entry point only; it does not change `/admin/users`
+// RLS/middleware access, which QA Manager still technically has today —
+// a real access-control change wasn't asked for, only the dashboard card.
 // ============================================================
 
 const ctaStyle: React.CSSProperties = {
@@ -45,13 +51,19 @@ const ctaStyle: React.CSSProperties = {
 }
 
 export default async function AdminDashboardPage() {
-  const waiting = await countReviewRequestsAwaitingDecision().catch(() => null)
+  const [user, waiting] = await Promise.all([
+    getAuthUser(),
+    countReviewRequestsAwaitingDecision().catch(() => null),
+  ])
+  const isSuperAdmin = user?.role === 'super_admin'
 
   return (
     <div>
-      <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Admin Dashboard</h1>
+      <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
+        {isSuperAdmin ? 'Admin Dashboard' : 'QA Manager Dashboard'}
+      </h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 24px' }}>
-        Rubric, policy, and org administration.
+        {isSuperAdmin ? 'Rubric, policy, and org administration.' : 'Rubric, policy, and QA administration.'}
       </p>
 
       {/* 1. Live snapshot — today, this week, status overview, auditor progress & impact */}
@@ -90,7 +102,7 @@ export default async function AdminDashboardPage() {
 
       {/* 6. Maintenance & Configuration */}
       <DashboardSection title="Maintenance & Configuration" icon="ti-settings" description="Rarely-touched setup." muted>
-        <NavCard href="/admin/users" icon="ti-users" title="Users" />
+        {isSuperAdmin && <NavCard href="/admin/users" icon="ti-users" title="Users" />}
         <NavCard href="/admin/rubrics" icon="ti-clipboard-list" title="Rubrics" />
         <NavCard href="/admin/campaigns" icon="ti-list-check" title="Special Checks" />
         <NavCard href="/admin/targets" icon="ti-target" title="Audit & revenue targets" />
