@@ -99,7 +99,7 @@ export async function AdminLiveSnapshot() {
 
       {/* This week, by channel */}
       <div style={{ marginBottom: '20px' }}>
-        <SectionLabel>This week's audit progress</SectionLabel>
+        <SectionHeader title="This week's audit progress" href="/reports/qa-team-progress" />
         {channel.status === 'rejected' ? (
           <LoadFailed />
         ) : (
@@ -122,7 +122,7 @@ export async function AdminLiveSnapshot() {
 
       {/* Status overview */}
       <div style={{ marginBottom: '20px' }}>
-        <SectionLabel>Status overview</SectionLabel>
+        <SectionHeader title="Status overview" href="/reports/qa-status-overview" />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           {rygCounts ? (
             <>
@@ -160,12 +160,7 @@ export async function AdminLiveSnapshot() {
 
       {/* Auditor progress & impact */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-          <SectionLabel>Auditor progress &amp; impact</SectionLabel>
-          <Link href="/reports/qa-auditor-ranking" style={{ fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
-            View full report →
-          </Link>
-        </div>
+        <SectionHeader title="Auditor progress & impact" href="/reports/qa-auditor-ranking" />
         {auditors.status === 'rejected' ? (
           <LoadFailed />
         ) : auditors.value.length === 0 ? (
@@ -218,8 +213,15 @@ const pillStyle: React.CSSProperties = {
 const th: React.CSSProperties = { padding: '9px 14px', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }
 const td: React.CSSProperties = { padding: '10px 14px' }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', margin: '0 0 8px' }}>{children}</h3>
+function SectionHeader({ title, href }: { title: string; href: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+      <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', margin: 0 }}>{title}</h3>
+      <Link href={href} style={{ fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
+        View full report →
+      </Link>
+    </div>
+  )
 }
 
 function LoadFailed() {
