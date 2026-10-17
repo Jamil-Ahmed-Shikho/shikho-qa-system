@@ -334,13 +334,13 @@ export async function setAccountActive(
   actor: AuthUser,
   id: string,
   active: boolean
-): Promise<Result<{ before: boolean }>> {
+): Promise<Result<{ before: boolean; stageChanged: boolean; beforeStage: string; afterStage: string }>> {
   if (id === actor.profile.id) return { ok: false, error: "You can't deactivate your own account." }
 
   const admin = getSupabaseAdmin()
   const { data: target } = await admin
     .from('users')
-    .select('auth_id, role, is_active, team_leader_id')
+    .select('auth_id, role, is_active, team_leader_id, employment_stage')
     .eq('id', id)
     .single()
   if (!target) return { ok: false, error: 'User not found.' }
@@ -362,9 +362,27 @@ export async function setAccountActive(
     if (banError) return { ok: false, error: 'Could not update the login account.' }
   }
 
-  const { error } = await admin.from('users').update({ is_active: active }).eq('id', id)
+  // Deactivating someone now also discontinues them (Jamil, 2026-10-17) — without this, a
+  // departed agent's row sat as employment_stage='active' forever (confirmed live: it never broke
+  // a live number since every eligibility check already requires is_active too, but it left
+  // agent_weekly_audit_target rows un-frozen by §9.5, which only fires on 'discontinued'). Skipped
+  // for ojt/re_training (that lifecycle has its own Certify/Not Certify/Discontinue flow via OJT
+  // Management, employmentStageChangeAllowed() blocks a direct edit anyway) and for a no-op
+  // (already discontinued, or reactivating — reactivation never touches employment_stage, that's
+  // a separate decision nobody asked for).
+  const willDiscontinue = !active && !OJT_STAGES.has(target.employment_stage) && target.employment_stage !== 'discontinued'
+  const update: { is_active: boolean; employment_stage?: string } = { is_active: active }
+  if (willDiscontinue) update.employment_stage = 'discontinued'
+
+  const { error } = await admin.from('users').update(update).eq('id', id)
   if (error) return { ok: false, error: error.message }
-  return { ok: true, before: target.is_active }
+  return {
+    ok: true,
+    before: target.is_active,
+    stageChanged: willDiscontinue,
+    beforeStage: target.employment_stage,
+    afterStage: willDiscontinue ? 'discontinued' : target.employment_stage,
+  }
 }
 
 // ── Reset password ───────────────────────────────────────────

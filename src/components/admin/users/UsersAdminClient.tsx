@@ -123,7 +123,10 @@ export function UsersAdminClient({
 
   function toggleActive(u: UserProfile) {
     const next = !u.is_active
-    if (!next && !confirm(`Deactivate ${u.name}? They will be signed out and unable to log in.`)) return
+    const willDiscontinue = !next && !['ojt', 're_training', 'discontinued'].includes(u.employment_stage)
+    const confirmMsg = `Deactivate ${u.name}? They will be signed out and unable to log in.`
+      + (willDiscontinue ? ' Their Employment Stage will also be set to Discontinued.' : '')
+    if (!next && !confirm(confirmMsg)) return
     startTransition(async () => {
       const res = await setUserActiveAction(u.id, next)
       setNotice(res.ok

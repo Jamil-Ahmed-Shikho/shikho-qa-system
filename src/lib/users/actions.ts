@@ -112,8 +112,8 @@ export async function setUserActiveAction(id: string, active: boolean): Promise<
     action: active ? 'user.reactivated' : 'user.deactivated',
     table_name: 'users',
     record_id: id,
-    before_data: { is_active: result.before },
-    after_data: { is_active: active },
+    before_data: { is_active: result.before, employment_stage: result.beforeStage },
+    after_data: { is_active: active, employment_stage: result.afterStage },
   }])
 
   revalidatePath('/admin/users')
