@@ -16,6 +16,7 @@ export interface HolidayInput {
   name: string
   note: string | null
   site: string | null // null = every site
+  kind: 'holiday' | 'working_day' // schema_098 — the opposite of a holiday: a normally-off day on duty
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -35,14 +36,14 @@ export async function addHolidayAction(input: HolidayInput): Promise<{ ok: true;
     const supabase = await getSupabaseServer()
     const { data, error } = await supabase
       .from('holidays')
-      .insert({ holiday_date: input.date, name, note, site_name: input.site, created_by: user.profile.id })
+      .insert({ holiday_date: input.date, name, note, site_name: input.site, kind: input.kind, created_by: user.profile.id })
       .select('id')
       .single()
     if (error) {
-      if (error.code === '23505') return { ok: false, error: `${input.site ?? 'All sites'} already has a holiday marked on ${input.date}.` }
+      if (error.code === '23505') return { ok: false, error: `${input.site ?? 'All sites'} already has an entry marked on ${input.date}.` }
       return { ok: false, error: error.message }
     }
-    await writeAuditLogs([{ actor_id: user.profile.id, action: 'holiday.added', table_name: 'holidays', record_id: data.id, after_data: { date: input.date, name, site: input.site } }])
+    await writeAuditLogs([{ actor_id: user.profile.id, action: 'holiday.added', table_name: 'holidays', record_id: data.id, after_data: { date: input.date, name, site: input.site, kind: input.kind } }])
     revalidatePath('/admin/holidays')
     return { ok: true, id: data.id as string }
   } catch (err) {

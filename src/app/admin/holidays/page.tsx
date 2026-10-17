@@ -17,11 +17,13 @@ export default async function HolidaysAdminPage() {
       <BackLink href="/admin/targets" label="Targets" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Holiday calendar</h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px', maxWidth: '680px' }}>
-        Click a date to mark it as a holiday, with an optional note — for one site or both. The current sales
-        week&apos;s audit targets shrink automatically to match the fewer working days (§9.4): the shortfall is
-        trimmed from the healthiest agents first (Green, no flags, best revenue) — Red, PIP and zero-seller agents
-        keep their full target as long as mathematically possible, and every agent keeps a floor of 1. A holiday
-        never changes a week that has already finished.
+        Click a date to mark a Holiday or a Working day (a swap, e.g. working Saturday instead of Thursday),
+        with an optional note — for one site or both. The current sales week&apos;s audit targets adjust
+        automatically (§9.4): a same-week swap nets to no change, while an un-offset holiday shrinks the week
+        — the shortfall is trimmed from the healthiest agents first (Green, no flags, best revenue), Red/PIP/
+        zero-seller agents keep their full target as long as mathematically possible, and every agent keeps a
+        floor of 1. The same entries also open or close that date for coaching-session scheduling (§5). Neither
+        ever changes a week that has already finished.
       </p>
 
       {failure || !holidays ? (

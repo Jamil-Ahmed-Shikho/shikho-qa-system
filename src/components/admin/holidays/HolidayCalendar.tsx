@@ -38,12 +38,18 @@ function inSalesWeekOf(date: string, today: string): boolean {
   return d >= weekStart && d < weekEnd
 }
 
+const KIND_OPTIONS: { value: HolidayRow['kind']; label: string }[] = [
+  { value: 'holiday', label: 'Holiday' },
+  { value: 'working_day', label: 'Working day' },
+]
+
 export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
   const today = new Date()
   const [year, setYear] = useState(today.getUTCFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
   const [site, setSite] = useState<string | null>(null)
+  const [kind, setKind] = useState<HolidayRow['kind']>('holiday')
   const [name, setName] = useState('')
   const [note, setNote] = useState('')
   const [pending, start] = useTransition()
@@ -86,7 +92,7 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
 
   function pickDate(d: number) {
     setSelected(ymd(year, month, d))
-    setName(''); setNote(''); setSite(null); setMsg(null)
+    setName(''); setNote(''); setSite(null); setKind('holiday'); setMsg(null)
   }
 
   const selectedList = selected ? (byDate.get(selected) ?? []) : []
@@ -97,13 +103,13 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
     e.preventDefault()
     if (!selected) return
     setMsg(null)
-    if (!name.trim()) { setMsg({ ok: false, text: 'Give the holiday a name.' }); return }
+    if (!name.trim()) { setMsg({ ok: false, text: `Give the ${kind === 'holiday' ? 'holiday' : 'working day'} a name.` }); return }
     start(async () => {
-      const res = await addHolidayAction({ date: selected, name, note: note || null, site })
+      const res = await addHolidayAction({ date: selected, name, note: note || null, site, kind })
       if (!res.ok) { setMsg({ ok: false, text: res.error }); return }
-      setRows((prev) => [...prev, { id: res.id, date: selected, name: name.trim(), note: note.trim() || null, siteName: site, createdAt: new Date().toISOString() }])
-      setName(''); setNote(''); setSite(null)
-      setMsg({ ok: true, text: 'Holiday added.' })
+      setRows((prev) => [...prev, { id: res.id, date: selected, name: name.trim(), note: note.trim() || null, siteName: site, kind, createdAt: new Date().toISOString() }])
+      setName(''); setNote(''); setSite(null); setKind('holiday')
+      setMsg({ ok: true, text: `${kind === 'holiday' ? 'Holiday' : 'Working day'} added.` })
     })
   }
 
@@ -145,6 +151,11 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
             const isToday = dateStr === todayStr
             const isSelected = dateStr === selected
             const isCurrentSalesWeek = inSalesWeekOf(dateStr, todayStr)
+            // A holiday is the more attention-worthy state — if a date has both kinds (e.g. an
+            // all-sites holiday overridden to open for one specific site), the cell still reads red.
+            const hasHoliday = entries.some((h) => h.kind === 'holiday')
+            const hasWorkingDay = entries.some((h) => h.kind === 'working_day')
+            const cellBg = hasHoliday ? 'var(--alert-light, #FDEAEE)' : hasWorkingDay ? 'var(--status-green-light)' : isCurrentSalesWeek ? 'var(--surface-0)' : 'var(--paper)'
             return (
               <button
                 key={i}
@@ -153,13 +164,13 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
                 style={{
                   minHeight: '64px', padding: '6px', borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left',
                   border: isSelected ? '2px solid var(--brand)' : isToday ? '1px solid var(--brand)' : '1px solid var(--border)',
-                  background: entries.length > 0 ? 'var(--alert-light, #FDEAEE)' : isCurrentSalesWeek ? 'var(--surface-0)' : 'var(--paper)',
+                  background: cellBg,
                   display: 'flex', flexDirection: 'column', gap: '2px',
                 }}
               >
                 <span style={{ fontSize: '13px', fontWeight: isToday ? 700 : 500 }}>{d}</span>
                 {entries.slice(0, 2).map((h) => (
-                  <span key={h.id} style={{ fontSize: '10px', color: 'var(--alert)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span key={h.id} style={{ fontSize: '10px', color: h.kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {h.siteName ? `${h.siteName}: ` : ''}{h.name}
                   </span>
                 ))}
@@ -170,8 +181,11 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
         </div>
 
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '12px 0 0' }}>
-          The shaded week is the current sales week (Sat–Fri) — a holiday marked there adjusts this week&apos;s live
-          audit targets; any other week is stored for when it arrives.
+          The shaded week is the current sales week (Sat–Fri). Mark a <b>Holiday</b> on a day that would
+          normally be worked, or a <b>Working day</b> on a day that normally wouldn&apos;t (a swap, like
+          working Saturday instead of Thursday) — within the same week the two offset each other for audit
+          targets, and both open or close that date for coaching-session scheduling. Any other week is
+          stored for when it arrives.
         </p>
 
         {upcoming.length > 0 && (
@@ -181,6 +195,13 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
               {upcoming.map((h) => (
                 <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', padding: '6px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-0)' }}>
                   <span style={{ minWidth: '92px', color: 'var(--text-muted)' }}>{h.date}</span>
+                  <span style={{
+                    fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+                    color: h.kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)',
+                    background: h.kind === 'holiday' ? 'var(--alert-light)' : 'var(--status-green-light)',
+                  }}>
+                    {h.kind === 'holiday' ? 'Holiday' : 'Working day'}
+                  </span>
                   <span style={{ fontWeight: 600 }}>{h.name}</span>
                   <span style={{ color: 'var(--text-muted)' }}>{h.siteName ?? 'All sites'}</span>
                   <button type="button" onClick={() => remove(h.id)} disabled={pending}
@@ -196,7 +217,7 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
 
       <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-lg)', background: 'var(--surface)', border: '1px solid var(--border)', position: 'sticky', top: '16px' }}>
         {!selected ? (
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Click a date on the calendar to mark it as a holiday, or manage one already set.</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Click a date on the calendar to mark a holiday or working day, or manage one already set.</div>
         ) : (
           <>
             <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '10px' }}>{selected}</div>
@@ -207,6 +228,14 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
                   <div key={h.id} style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-0)', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '8px' }}>
                       <div>
+                        <span style={{
+                          display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+                          color: h.kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)',
+                          background: h.kind === 'holiday' ? 'var(--alert-light)' : 'var(--status-green-light)',
+                          marginBottom: '4px',
+                        }}>
+                          {h.kind === 'holiday' ? 'Holiday' : 'Working day'}
+                        </span>
                         <div style={{ fontSize: '13px', fontWeight: 600 }}>{h.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{h.siteName ?? 'All sites'}</div>
                         {h.note && <div style={{ fontSize: '12px', marginTop: '4px' }}>{h.note}</div>}
@@ -224,6 +253,26 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
             {availableSiteOptions.length > 0 ? (
               <form onSubmit={submit}>
                 <div style={{ marginBottom: '10px' }}>
+                  <label style={label} htmlFor="h-kind">Type</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {KIND_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setKind(opt.value)}
+                        style={{
+                          flex: 1, padding: '8px 10px', fontSize: '13px', fontWeight: 600, borderRadius: 'var(--radius-md)',
+                          cursor: 'pointer', border: kind === opt.value ? '2px solid currentColor' : '1px solid var(--border)',
+                          color: kind === opt.value ? (opt.value === 'holiday' ? 'var(--alert)' : 'var(--status-green)') : 'var(--text-muted)',
+                          background: kind === opt.value ? (opt.value === 'holiday' ? 'var(--alert-light)' : 'var(--status-green-light)') : 'var(--surface)',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom: '10px' }}>
                   <label style={label} htmlFor="h-site">Applies to</label>
                   <select id="h-site" style={field} value={site ?? ''} onChange={(e) => setSite(e.target.value || null)}>
                     {availableSiteOptions.map((s) => (
@@ -233,15 +282,15 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <label style={label} htmlFor="h-name">Name</label>
-                  <input id="h-name" style={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Eid-ul-Fitr" maxLength={100} />
+                  <input id="h-name" style={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'holiday' ? 'e.g. Eid-ul-Fitr' : 'e.g. Duty swap for Durga Puja'} maxLength={100} />
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <label style={label} htmlFor="h-note">Note (optional)</label>
                   <textarea id="h-note" style={{ ...field, minHeight: '60px', resize: 'vertical' }} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
                 </div>
                 <button type="submit" disabled={pending}
-                  style={{ width: '100%', padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--brand)', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: pending ? 'wait' : 'pointer' }}>
-                  {pending ? 'Saving…' : 'Add holiday'}
+                  style={{ width: '100%', padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none', background: kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: pending ? 'wait' : 'pointer' }}>
+                  {pending ? 'Saving…' : kind === 'holiday' ? 'Add holiday' : 'Add working day'}
                 </button>
               </form>
             ) : (

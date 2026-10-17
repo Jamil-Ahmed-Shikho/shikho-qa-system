@@ -12,8 +12,24 @@
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import type { AuthUser } from '@/types/database.types'
-import { isValidSlot, upcomingBusinessDays, slotsForDay } from './rules'
+import { isBusinessDay, isValidSlot, upcomingBusinessDays, slotsForDay, type DayException } from './rules'
+import { loadHolidayExceptions } from '@/lib/holidays/holidays.service'
 import { buildBriefingsView, type BriefingListItem, type BriefingsView } from './view'
+
+// How far ahead to fetch holiday-calendar overrides for scheduling — comfortably covers the
+// `days`-business-day scan in loadSchedulerData() even through a holiday cluster, and the single
+// target date scheduleBriefing/rescheduleBriefing validate (schema_098, 2026-10-17).
+const EXCEPTIONS_WINDOW_DAYS = 60
+
+async function loadSchedulingExceptions(siteName: string | null, from: Date = new Date()): Promise<DayException[]> {
+  const fromStr = from.toISOString().slice(0, 10)
+  const toStr = new Date(from.getTime() + EXCEPTIONS_WINDOW_DAYS * 86400000).toISOString().slice(0, 10)
+  try {
+    return await loadHolidayExceptions(fromStr, toStr, siteName)
+  } catch {
+    return [] // the holiday calendar is supplementary here — a failed read must not block scheduling
+  }
+}
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -87,6 +103,9 @@ export async function loadAgentCoachingHistory(agentId: string): Promise<Coachin
 export interface DayOfSlots {
   dayLabel: string
   slots: SlotOption[]
+  /** Set when this day is only open because of a working_day calendar override (schema_098) —
+   *  a holiday-closed day simply doesn't appear in the list at all, so only this case needs a label. */
+  isExtraWorkingDay?: boolean
 }
 
 /**
@@ -127,10 +146,15 @@ export async function loadSchedulerData(auditId: string, days = 10) {
   // "taken" against itself.
   if (existing) takenIso.delete(new Date(existing.scheduled_at).toISOString())
 
+  // Day swaps (schema_098) — scoped to the SCHEDULER's own site, since it's their physical
+  // attendance/grid that determines whether a given calendar date is actually open for them.
+  const exceptions = await loadSchedulingExceptions(actor.profile.site_name)
+
   const now = Date.now()
-  const dayList = upcomingBusinessDays(new Date(), days).map((day): DayOfSlots => ({
+  const dayList = upcomingBusinessDays(new Date(), days, exceptions).map((day): DayOfSlots => ({
     dayLabel: day.toISOString(),
-    slots: slotsForDay(day)
+    isExtraWorkingDay: !isBusinessDay(day) ? true : undefined,
+    slots: slotsForDay(day, exceptions)
       .filter((s) => s.getTime() > now) // never offer an already-past slot (matters for "today")
       .map((s) => ({
         iso: s.toISOString(),
@@ -187,8 +211,10 @@ async function loadNotifyInfo(auditId: string): Promise<NotifyInfo | null> {
 
 export async function scheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<NotifyInfo>> {
   const actor = await requireScheduler()
-  if (!isValidSlot(new Date(scheduledAt))) {
-    return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).' }
+  const target = new Date(scheduledAt)
+  const exceptions = await loadSchedulingExceptions(actor.profile.site_name, target)
+  if (!isValidSlot(target, exceptions)) {
+    return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time — unless a holiday-calendar swap opens or closes that date).' }
   }
 
   const supabase = await getSupabaseServer()
@@ -206,8 +232,10 @@ export async function scheduleBriefing(auditId: string, scheduledAt: string): Pr
 
 export async function rescheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<NotifyInfo>> {
   const actor = await requireScheduler()
-  if (!isValidSlot(new Date(scheduledAt))) {
-    return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).' }
+  const target = new Date(scheduledAt)
+  const exceptions = await loadSchedulingExceptions(actor.profile.site_name, target)
+  if (!isValidSlot(target, exceptions)) {
+    return { ok: false, error: 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time — unless a holiday-calendar swap opens or closes that date).' }
   }
 
   const supabase = await getSupabaseServer()
@@ -271,6 +299,11 @@ function friendlyError(message: string, code?: string): string {
   }
   if (code === '23514' && message.includes('briefings_valid_slot')) {
     return 'That is not a valid coaching slot (11:00 AM-3:00 PM, Sunday-Thursday, Dhaka time).'
+  }
+  // The enforce_briefing_day_open trigger (schema_098) — day validity, now holiday-calendar-aware,
+  // can no longer live in the CHECK above.
+  if (code === 'P0001' && message.includes('not open for coaching sessions')) {
+    return 'That date is closed for coaching sessions — check the holiday calendar for a swap on that day.'
   }
   return message
 }

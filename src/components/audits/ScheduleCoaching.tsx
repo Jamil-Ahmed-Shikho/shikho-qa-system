@@ -208,6 +208,7 @@ export function ScheduleCoaching({
                   <>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
                       {existing?.status === 'scheduled' ? 'Pick a new slot to reschedule into:' : 'Pick a slot from your own coaching grid (11:00 AM-3:00 PM, Sun-Thu):'}
+                      {data.days.some((d) => d.isExtraWorkingDay) && ' A day marked • is open because of a holiday-calendar swap.'}
                     </p>
                     <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '12px', paddingBottom: '4px' }}>
                       {data.days.map((d, i) => (
@@ -215,13 +216,14 @@ export function ScheduleCoaching({
                           key={d.dayLabel}
                           disabled={busy}
                           onClick={() => setDayIndex(i)}
+                          title={d.isExtraWorkingDay ? 'Open because of a holiday-calendar swap' : undefined}
                           style={{
                             ...ghostBtn, whiteSpace: 'nowrap',
                             ...(i === dayIndex ? { background: 'var(--brand)', color: 'white', borderColor: 'var(--brand)' } : {}),
                             ...(busy ? { cursor: 'not-allowed', opacity: 0.6 } : {}),
                           }}
                         >
-                          {formatSlotDay(new Date(d.dayLabel))}
+                          {formatSlotDay(new Date(d.dayLabel))}{d.isExtraWorkingDay ? ' •' : ''}
                         </button>
                       ))}
                     </div>
