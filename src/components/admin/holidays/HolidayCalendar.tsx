@@ -138,12 +138,12 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
           <button type="button" onClick={() => goMonth(1)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', cursor: 'pointer', fontSize: '14px' }}>Next ›</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginBottom: '4px' }}>
           {WEEKDAY_LABELS.map((w) => (
             <div key={w} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', padding: '4px 0' }}>{w}</div>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px' }}>
           {grid.map((d, i) => {
             if (d === null) return <div key={i} />
             const dateStr = ymd(year, month, d)
@@ -162,15 +162,15 @@ export function HolidayCalendar({ holidays }: { holidays: HolidayRow[] }) {
                 type="button"
                 onClick={() => pickDate(d)}
                 style={{
-                  minHeight: '64px', padding: '6px', borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left',
+                  minHeight: '64px', minWidth: 0, padding: '6px', borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left',
                   border: isSelected ? '2px solid var(--brand)' : isToday ? '1px solid var(--brand)' : '1px solid var(--border)',
                   background: cellBg,
-                  display: 'flex', flexDirection: 'column', gap: '2px',
+                  display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden',
                 }}
               >
                 <span style={{ fontSize: '13px', fontWeight: isToday ? 700 : 500 }}>{d}</span>
                 {entries.slice(0, 2).map((h) => (
-                  <span key={h.id} style={{ fontSize: '10px', color: h.kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span key={h.id} style={{ fontSize: '10px', color: h.kind === 'holiday' ? 'var(--alert)' : 'var(--status-green)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, maxWidth: '100%' }}>
                     {h.siteName ? `${h.siteName}: ` : ''}{h.name}
                   </span>
                 ))}
