@@ -24,6 +24,7 @@
 import { BRAND, emailShell, escapeHtml, type EmailAccent } from '@/lib/users/mailer'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
+import { isLikelyUrl, itemReferenceLabel } from './item-reference'
 import { signAuditViewToken } from './view-tracking'
 import type { AuditEmailData } from './audit-notifications'
 
@@ -87,6 +88,13 @@ function leadPill(crmLeadId: string | null): string {
   return `<a href="${escapeHtml(crmLeadUrl(crmLeadId))}" style="display:inline-block;background:#fff;border:1px solid ${INDIGO};color:${INDIGO};text-decoration:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600">Open lead →</a>`
 }
 
+// A chat/complaint audit has no CRM lead — just the pasted ticket/chat reference (§ item-reference.ts).
+function referencePill(itemReference: string, auditType: string): string {
+  if (!isLikelyUrl(itemReference)) return `<span style="font-size:12.5px;font-weight:600;color:#1A1D29;word-break:break-all">${escapeHtml(itemReference)}</span>`
+  const label = auditType === 'complaint' ? 'Open complaint' : 'Open chat'
+  return `<a href="${escapeHtml(itemReference)}" style="display:inline-block;background:#fff;border:1px solid ${INDIGO};color:${INDIGO};text-decoration:none;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600">${label} →</a>`
+}
+
 // ── A clean "label | value" card with an uppercase eyebrow title — the same
 // shape used for both info cards, so Call Details and Agent Information
 // always read as one consistent system, not two different designs. ────────
@@ -134,6 +142,12 @@ function sideBySideCards(a: string, b: string): string {
 }
 
 function callDetailsCard(d: AuditEmailData): string {
+  if (d.auditType !== 'call') {
+    return infoCard(itemReferenceLabel(d.auditType).replace('reference', 'details'), [
+      { label: 'Auditor', value: escapeHtml(d.auditorName) },
+      { label: 'Reference', value: d.itemReference ? referencePill(d.itemReference, d.auditType) : '' },
+    ])
+  }
   return infoCard('Call details', [
     { label: 'Phone number', value: d.callDestination ? escapeHtml(d.callDestination) : '' },
     { label: 'Call date', value: d.callStartedAt ? escapeHtml(formatDhakaDateTime(d.callStartedAt)) : '' },
@@ -171,6 +185,7 @@ export function auditResultSubject(d: AuditEmailData): string {
   const parts = ['New Evaluation Arrived', scorePart, d.agentName]
   if (d.callDestination) parts.push(d.callDestination)
   else if (d.crmLeadId) parts.push(`Lead ${d.crmLeadId}`)
+  else if (d.auditType !== 'call') parts.push(d.auditType === 'complaint' ? 'Complaint' : 'Chat')
   return parts.join(' | ')
 }
 
@@ -270,7 +285,7 @@ export function auditResultText(d: AuditEmailData): string {
   const lines = [
     `Hi ${d.agentName},`,
     '',
-    `Your recent call was audited. Result: ${d.scorePercent}% — ${resultLabel(d)}`,
+    `Your recent ${d.auditType === 'call' ? 'call' : d.auditType} was audited. Result: ${d.scorePercent}% — ${resultLabel(d)}`,
     '',
   ]
   if (d.fatals.length) {
@@ -278,14 +293,25 @@ export function auditResultText(d: AuditEmailData): string {
     for (const f of d.fatals) lines.push(`  [${f.severity.toUpperCase()}] ${f.description}${f.feedback ? ` — ${f.feedback}` : ''}`)
     lines.push('')
   }
+  if (d.auditType === 'call') {
+    lines.push(
+      'CALL DETAILS',
+      `Phone number: ${d.callDestination ?? '—'}`,
+      `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
+      `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
+      `Auditor: ${d.auditorName}`,
+      ...(d.crmLeadId ? [`Lead: ${crmLeadUrl(d.crmLeadId)}`] : []),
+      ''
+    )
+  } else {
+    lines.push(
+      itemReferenceLabel(d.auditType).replace('reference', 'details').toUpperCase(),
+      `Auditor: ${d.auditorName}`,
+      `Reference: ${d.itemReference ?? '—'}`,
+      ''
+    )
+  }
   lines.push(
-    'CALL DETAILS',
-    `Phone number: ${d.callDestination ?? '—'}`,
-    `Call date: ${d.callStartedAt ? formatDhakaDateTime(d.callStartedAt) : '—'}`,
-    `Call duration: ${durationLabel(d.callStartedAt, d.callEndedAt) ?? '—'}`,
-    `Auditor: ${d.auditorName}`,
-    ...(d.crmLeadId ? [`Lead: ${crmLeadUrl(d.crmLeadId)}`] : []),
-    '',
     'EMPLOYEE INFORMATION',
     `Agent ID: ${d.agentEmpId ?? '—'}`,
     `Team: ${d.agentTeamName ?? '—'}`,

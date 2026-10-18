@@ -8,6 +8,7 @@ import { getAuthUser } from '@/lib/auth/auth.service'
 import { loadScorecard } from '@/lib/audits/scorecard.service'
 import { isRecordingFilename, recordingConfigured } from '@/lib/crm/recording'
 import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
+import { isLikelyUrl, itemReferenceLabel } from '@/lib/audits/item-reference'
 import { formatDhakaDateTime } from '@/lib/dates/format'
 import { isMissingReviewRequestSchema, loadEffectiveResult, loadReviewRequestForAudit, type ReviewRequestView } from '@/lib/review-requests/review-requests.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
@@ -30,7 +31,7 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
       .from('audits')
       .select(
         `id, status, rubric_id, score_percent, passed, critical_fail, pass_mark_used, submitted_at, overall_feedback,
-        call_started_at, call_status, call_recording_url, crm_lead_id, superseded_by,
+        call_started_at, call_status, call_recording_url, crm_lead_id, superseded_by, audit_type, item_reference,
         auditor:users!audits_auditor_id_fkey(name)`
       )
       .eq('id', id)
@@ -82,24 +83,44 @@ export default async function MyAuditPage({ params }: { params: Promise<{ id: st
       <BackLink href="/my-audits" label="My audits" size="lg" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Audit of your call</h1>
+          <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>
+            {audit.audit_type === 'call' ? 'Audit of your call' : audit.audit_type === 'complaint' ? 'Audit of your complaint' : 'Audit of your chat'}
+          </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
-            Call on {formatDhakaDateTime(audit.call_started_at)} · audited {formatDhakaDateTime(audit.submitted_at)}
+            {audit.audit_type === 'call' && <>Call on {formatDhakaDateTime(audit.call_started_at)} · </>}
+            audited {formatDhakaDateTime(audit.submitted_at)}
             {auditorName && <> · by {auditorName}</>}
           </p>
-          {audit.crm_lead_id && (
-            <a
-              href={crmLeadUrl(audit.crm_lead_id)}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
-                fontSize: '13px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none',
-                padding: '7px 14px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)',
-              }}
-            >
-              View lead in CRM →
-            </a>
+          {audit.audit_type === 'call' ? (
+            audit.crm_lead_id && (
+              <a
+                href={crmLeadUrl(audit.crm_lead_id)}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
+                  fontSize: '13px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none',
+                  padding: '7px 14px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)',
+                }}
+              >
+                View lead in CRM →
+              </a>
+            )
+          ) : (
+            audit.item_reference && isLikelyUrl(audit.item_reference) && (
+              <a
+                href={audit.item_reference}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
+                  fontSize: '13px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none',
+                  padding: '7px 14px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)',
+                }}
+              >
+                View {itemReferenceLabel(audit.audit_type).toLowerCase()} →
+              </a>
+            )
           )}
         </div>
         <span style={{ fontSize: '12px', fontWeight: 600, padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--brand-light)', color: 'var(--brand)', textTransform: 'capitalize' }}>

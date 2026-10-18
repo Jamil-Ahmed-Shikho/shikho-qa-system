@@ -32,6 +32,8 @@ export interface FatalRow {
 
 export interface AuditEmailData {
   auditId: string
+  auditType: string
+  itemReference: string | null
   agentId: string
   agentName: string
   agentEmail: string | null
@@ -80,7 +82,7 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
   const { data: audit, error } = await supabase
     .from('audits')
     .select(`
-      id, agent_id, auditor_id, rubric_id, call_started_at, call_ended_at, call_destination, crm_lead_id, submitted_at,
+      id, audit_type, item_reference, agent_id, auditor_id, rubric_id, call_started_at, call_ended_at, call_destination, crm_lead_id, submitted_at,
       score_percent, passed, critical_fail, pass_mark_used, overall_feedback,
       agent:users!audits_agent_id_fkey(id, name, email, emp_id, team_name, joining_date, employment_stage, is_active, account_status, team_leader_id),
       auditor:users!audits_auditor_id_fkey(name),
@@ -194,6 +196,8 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
 
   return {
     auditId: audit.id,
+    auditType: audit.audit_type as string,
+    itemReference: audit.item_reference as string | null,
     agentId: agent.id,
     agentName: agent.name,
     agentEmail: hasRealLogin(agent) ? agent.email : null,

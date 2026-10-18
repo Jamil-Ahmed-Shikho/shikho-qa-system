@@ -58,6 +58,10 @@ export default async function AgentCallBrowserPage({
         <a href={`/audits?agent=${encodeURIComponent(agent.id)}`} style={{ color: 'var(--brand)', textDecoration: 'none' }}>
           Prefer to paste a lead ID or URL manually?
         </a>
+        {' · '}
+        <a href="/audits/non-voice/new" style={{ color: 'var(--brand)', textDecoration: 'none' }}>
+          Auditing a chat/ticket instead?
+        </a>
       </p>
 
       {agent.crmAgentId === null ? (
@@ -78,6 +82,11 @@ function NotMatchedState({ agentId }: { agentId: string }) {
       <div style={{ marginTop: '10px' }}>
         <a href={`/audits?agent=${encodeURIComponent(agentId)}`} style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>
           Go to the manual lead lookup →
+        </a>
+      </div>
+      <div style={{ marginTop: '6px' }}>
+        <a href="/audits/non-voice/new" style={{ color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>
+          Auditing a chat/ticket instead? →
         </a>
       </div>
     </div>

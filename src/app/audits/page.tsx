@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { BackLink } from '@/components/common/BackLink'
 import { LeadLookupForm } from '@/components/audits/LeadLookupForm'
 import { getSupabaseServer } from '@/lib/supabase/server'
@@ -27,6 +28,10 @@ export default async function AuditsLookupPage({ searchParams }: { searchParams:
         </p>
       )}
       <LeadLookupForm />
+      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '16px 0 0' }}>
+        Auditing a non-voice interaction (chat/ticket) instead?{' '}
+        <Link href="/audits/non-voice/new" style={{ color: 'var(--brand)', fontWeight: 500 }}>Start one here →</Link>
+      </p>
     </div>
   )
 }

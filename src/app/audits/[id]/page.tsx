@@ -26,6 +26,7 @@ import { loadSampleCheck } from '@/lib/audits/sample-check.service'
 import { SampleCheckForm } from '@/components/audits/SampleCheckForm'
 import { SampleCheckSummary } from '@/components/audits/SampleCheckSummary'
 import { crmLeadUrl } from '@/lib/crm/lead-id-parser'
+import { isLikelyUrl, itemReferenceLabel } from '@/lib/audits/item-reference'
 
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -193,7 +194,21 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 4px', wordBreak: 'break-all' }}>
-            {audit.crm_lead_id ? (
+            {audit.audit_type !== 'call' ? (
+              isLikelyUrl(audit.item_reference ?? '') ? (
+                <a
+                  href={audit.item_reference}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--brand)', textDecoration: 'underline' }}
+                  title={`Open this ${audit.audit_type} (new tab)`}
+                >
+                  {audit.item_reference} ↗
+                </a>
+              ) : (
+                audit.item_reference || itemReferenceLabel(audit.audit_type)
+              )
+            ) : audit.crm_lead_id ? (
               <a
                 href={crmLeadUrl(audit.crm_lead_id)}
                 target="_blank"
@@ -239,17 +254,19 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
           <div style={{ fontWeight: 600 }}>{auditor?.name}</div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{auditor?.email}</div>
         </InfoCard>
-        <InfoCard title="Call">
-          <div style={{ fontSize: '13px' }}>{formatDhakaDateTime(audit.call_started_at)}</div>
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
-            {audit.call_destination && <span>{audit.call_destination}</span>}
-            <CallStatusPill status={audit.call_status} />
-          </div>
-          <div style={{ fontSize: '13px', marginTop: '8px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Duration: </span>
-            <b>{formatCallDuration(audit.call_started_at, audit.call_ended_at)}</b>
-          </div>
-        </InfoCard>
+        {audit.audit_type === 'call' && (
+          <InfoCard title="Call">
+            <div style={{ fontSize: '13px' }}>{formatDhakaDateTime(audit.call_started_at)}</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+              {audit.call_destination && <span>{audit.call_destination}</span>}
+              <CallStatusPill status={audit.call_status} />
+            </div>
+            <div style={{ fontSize: '13px', marginTop: '8px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Duration: </span>
+              <b>{formatCallDuration(audit.call_started_at, audit.call_ended_at)}</b>
+            </div>
+          </InfoCard>
+        )}
         <AuditContextCards
           showLead={!!audit.crm_lead_id}
           lead={leadInfo.lead}

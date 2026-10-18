@@ -152,6 +152,97 @@ async function loadActiveRubricMappings(): Promise<Map<string, { rubric_id: stri
   return pickNewestMappings((data ?? []) as unknown as MappingRow[])
 }
 
+const LIST_NON_VOICE_AGENTS_PAGE_SIZE = 1000
+
+// CX Non-Voice (and anyone else with no CRM call record — app/web chat, YouTube, Instagram,
+// Email, Facebook, social groups, all handled through a third-party tool this system has no API
+// for, 2026-10-19) needs a plain agent picker, not a CRM lookup. Paginated the same way
+// listActiveAgents() (agent-matching.ts) is — PostgREST's 1000-row cap, §14 — kept as its own
+// small query rather than widening that function, which is used elsewhere with a different
+// (team_name-less) 3-field shape.
+export async function listAgentsForNonVoiceAudit(): Promise<{ id: string; name: string; email: string; team_name: string | null }[]> {
+  await requireAuditor()
+  const supabase = await getSupabaseServer()
+  const all: { id: string; name: string; email: string; team_name: string | null }[] = []
+  for (let from = 0; ; from += LIST_NON_VOICE_AGENTS_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, team_name')
+      .eq('role', 'agent')
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + LIST_NON_VOICE_AGENTS_PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    all.push(...(data ?? []))
+    if (!data || data.length < LIST_NON_VOICE_AGENTS_PAGE_SIZE) break
+  }
+  return all
+}
+
+const ITEM_REFERENCE_MAX = 500
+
+// The manual counterpart to startAudit() above, for a channel with no CRM call at all. Same
+// rubric-resolution and team-scoping rules, just without the CRM/owner-matching steps that don't
+// apply when there's no call to look up. Throws (not {ok,error}) to match startAudit's own
+// convention in this file — the client form wraps it in the identical try/catch CallList.tsx uses.
+export async function startNonVoiceAudit(
+  agentId: string,
+  itemReference: string,
+  auditType: 'chat' | 'complaint'
+): Promise<string> {
+  const user = await requireAuditor()
+
+  const reference = itemReference.trim()
+  if (!reference) throw new Error('Paste the ticket link or ID first.')
+  if (reference.length > ITEM_REFERENCE_MAX) throw new Error(`That reference is too long (${ITEM_REFERENCE_MAX} characters max).`)
+
+  const supabase = await getSupabaseServer()
+
+  const { data: agent, error: agentError } = await supabase
+    .from('users')
+    .select('team_name, team_leader_id')
+    .eq('id', agentId)
+    .eq('role', 'agent')
+    .eq('is_active', true)
+    .single()
+  if (agentError || !agent) throw new Error('Could not load the selected agent.')
+  if (!agent.team_name) throw new Error('This agent has no team assigned — set one before auditing them.')
+
+  // Same two restrictions startAudit() applies (§2/§9) — a Team Lead only their own team, a
+  // QA Auditor restricted to one team only that team. Defense-in-depth: audits_insert_own (RLS)
+  // enforces both identically regardless of how the audit got here.
+  if (user.role === 'team_lead' && agent.team_leader_id !== user.profile.id) {
+    throw new Error('You can only audit your own team.')
+  }
+  if (user.role === 'qa_auditor' && user.profile.team_name && user.profile.team_name !== agent.team_name) {
+    throw new Error(`You are restricted to auditing ${user.profile.team_name} — this agent is on ${agent.team_name}.`)
+  }
+
+  const mappings = await loadActiveRubricMappings()
+  const mapping = mappings.get(agent.team_name)
+  if (!mapping) {
+    throw new Error(`No active rubric is mapped to "${agent.team_name}" — set one up in Rubric Admin first.`)
+  }
+
+  const { data, error } = await supabase
+    .from('audits')
+    .insert({
+      audit_type: auditType,
+      agent_id: agentId,
+      auditor_id: user.profile.id,
+      rubric_id: mapping.rubric_id,
+      item_reference: reference,
+      status: 'draft',
+      check_mode: 'audit',
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+
+  return data.id as string
+}
+
 export async function releaseDraft(auditId: string, leadId: string) {
   await requireAuditor()
   const supabase = await getSupabaseServer()
