@@ -5,13 +5,15 @@ import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/d
 import type { QaRankingView } from '@/lib/qa-ranking/qa-ranking.service'
 import { TEAM_NAMES, type TeamName } from '@/types/database.types'
 import {
-  buildCategoryRollup, buildSparkline, failRateSeverity, isSmallSample, trailingWeekStarts,
-  type CategoryRollupRow, type SparklinePoint,
+  buildSparkline, failRateSeverity, isSmallSample, trailingWeekStarts, weekOverWeek,
+  type SparklinePoint, type WeekOverWeek,
 } from '@/lib/qa-rubric-trends/analysis'
 import {
   isMissingQaRubricTrendsSchema,
+  loadParameterCoachingList,
   loadRubricFailTrendHistory,
   loadRubricFailTrends,
+  type ParameterCoachingRow,
   type RubricFailTrendRow,
 } from '@/lib/qa-rubric-trends/qa-rubric-trends.service'
 
@@ -74,7 +76,8 @@ function TrendBadge({ points }: { points: number | null }) {
   return <span style={{ color: 'var(--text-muted)' }}>— steady</span>
 }
 
-function FailRateCell({ failRatePct, totalScored }: { failRatePct: number; totalScored: number }) {
+function FailRateCell({ failRatePct, totalScored }: { failRatePct: number | null; totalScored: number }) {
+  if (failRatePct === null) return <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No calls scored</span>
   const severity = failRateSeverity(failRatePct)
   return (
     <div>
@@ -85,6 +88,32 @@ function FailRateCell({ failRatePct, totalScored }: { failRatePct: number; total
         </div>
       )}
     </div>
+  )
+}
+
+const COACHING_LIMIT = 10
+
+/** A plain <details>/<summary> disclosure — click to expand, no client JS needed. Lists the agents
+ *  who failed this parameter in the current sales week, worst first, capped so a parameter nearly
+ *  everyone is failing doesn't produce an unreadably long list. */
+function CoachingList({ rows }: { rows: ParameterCoachingRow[] }) {
+  if (rows.length === 0) return <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Nobody failed this this week</span>
+  const shown = rows.slice(0, COACHING_LIMIT)
+  const extra = rows.length - shown.length
+  return (
+    <details>
+      <summary style={{ cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, color: 'var(--brand)' }}>
+        Needs coaching ({rows.length}) — show names
+      </summary>
+      <ul style={{ margin: '8px 0 0', paddingLeft: '18px', fontSize: '12.5px' }}>
+        {shown.map((a) => (
+          <li key={a.agentId} style={{ marginBottom: '2px' }}>
+            {a.agentName} <span style={{ color: 'var(--text-muted)' }}>({a.failCount}×{a.teamLeaderName ? ` · TL: ${a.teamLeaderName}` : ''})</span>
+          </li>
+        ))}
+      </ul>
+      {extra > 0 && <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>+{extra} more</div>}
+    </details>
   )
 }
 
@@ -120,39 +149,14 @@ function Sparkline({ points }: { points: SparklinePoint[] }) {
   )
 }
 
-function CategoryRollupTable({ rows }: { rows: CategoryRollupRow[] }) {
-  if (rows.length === 0) return <p style={empty}>No audits scored in this period.</p>
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
-        <thead>
-          <tr>
-            <th style={th}>Category</th>
-            <th style={th}>Rubric</th>
-            <th style={th}>Scored</th>
-            <th style={th}>Failed</th>
-            <th style={th}>Fail rate</th>
-            <th style={th}>Trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((c) => (
-            <tr key={c.categoryId}>
-              <td style={{ ...td, fontWeight: 600 }}>{c.categoryName}</td>
-              <td style={td}>{c.rubricName}</td>
-              <td style={td}>{c.totalScored}</td>
-              <td style={td}>{c.totalFailed}</td>
-              <td style={{ ...td, fontWeight: 700, color: SEVERITY_COLOR[failRateSeverity(c.failRatePct)] }}>{c.failRatePct}%</td>
-              <td style={td}><TrendBadge points={c.trendPctPoints} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function RubricTrendsTable({ rows, sparklines }: { rows: RubricFailTrendRow[]; sparklines: Map<string, SparklinePoint[]> }) {
+function RubricTrendsTable({
+  rows, sparklines, wow, coaching,
+}: {
+  rows: RubricFailTrendRow[]
+  sparklines: Map<string, SparklinePoint[]>
+  wow: Map<string, WeekOverWeek>
+  coaching: Map<string, ParameterCoachingRow[]>
+}) {
   if (rows.length === 0) return <p style={empty}>No audits scored in this period.</p>
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -161,33 +165,28 @@ function RubricTrendsTable({ rows, sparklines }: { rows: RubricFailTrendRow[]; s
           <tr>
             <th style={th}>Parameter</th>
             <th style={th}>Category / Rubric</th>
-            <th style={th}>Scored</th>
-            <th style={th}>Failed</th>
-            <th style={th}>Fail rate</th>
-            <th style={th}>Prior period</th>
+            <th style={th}>Last week</th>
+            <th style={th}>This week</th>
             <th style={th}>Trend</th>
             <th style={th}>Last {HISTORY_WEEKS} weeks</th>
-            <th style={th} />
+            <th style={th}>Who needs coaching (this week)</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.parameterId}>
-              <td style={{ ...td, fontWeight: 600 }}>{r.parameterName}</td>
-              <td style={td}>{r.categoryName}<div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.rubricName}</div></td>
-              <td style={td}>{r.totalScored}</td>
-              <td style={td}>{r.totalFailed}</td>
-              <td style={td}><FailRateCell failRatePct={r.failRatePct} totalScored={r.totalScored} /></td>
-              <td style={td}>{r.priorFailRatePct !== null ? `${r.priorFailRatePct}%` : '—'}</td>
-              <td style={td}><TrendBadge points={r.trendPctPoints} /></td>
-              <td style={td}><Sparkline points={sparklines.get(r.parameterId) ?? []} /></td>
-              <td style={td}>
-                <Link href={`/reports/repeat-mistakes?parameter=${r.parameterId}`} prefetch={false} style={{ fontSize: '12.5px', color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>
-                  Who&apos;s failing it →
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const w = wow.get(r.parameterId)
+            return (
+              <tr key={r.parameterId}>
+                <td style={{ ...td, fontWeight: 600 }}>{r.parameterName}</td>
+                <td style={td}>{r.categoryName}<div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{r.rubricName}</div></td>
+                <td style={td}><FailRateCell failRatePct={w?.lastWeekPct ?? null} totalScored={w?.lastWeekScored ?? 0} /></td>
+                <td style={td}><FailRateCell failRatePct={w?.thisWeekPct ?? null} totalScored={w?.thisWeekScored ?? 0} /></td>
+                <td style={td}><TrendBadge points={w?.trendDeltaPct ?? null} /></td>
+                <td style={td}><Sparkline points={sparklines.get(r.parameterId) ?? []} /></td>
+                <td style={td}><CoachingList rows={coaching.get(r.parameterId) ?? []} /></td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -209,29 +208,46 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
 
   let rows: RubricFailTrendRow[] = []
   let sparklines = new Map<string, SparklinePoint[]>()
+  let wow = new Map<string, WeekOverWeek>()
+  let coaching = new Map<string, ParameterCoachingRow[]>()
   let failure: unknown = null
   try {
     const weekStarts = trailingWeekStarts(HISTORY_WEEKS)
-    const [trendRows, history] = await Promise.all([
+    const [trendRows, history, coachingRows] = await Promise.all([
       loadRubricFailTrends(range.from, range.to, view, effectiveChannel),
       loadRubricFailTrendHistory(HISTORY_WEEKS, view, effectiveChannel),
+      loadParameterCoachingList(view, effectiveChannel),
     ])
-    rows = trendRows
-    sparklines = new Map(rows.map((r) => [r.parameterId, buildSparkline(r.parameterId, history, weekStarts)]))
+    sparklines = new Map(trendRows.map((r) => [r.parameterId, buildSparkline(r.parameterId, history, weekStarts)]))
+    wow = new Map(trendRows.map((r) => [r.parameterId, weekOverWeek(r.parameterId, history, weekStarts)]))
+    for (const c of coachingRows) {
+      const list = coaching.get(c.parameterId) ?? []
+      list.push(c)
+      coaching.set(c.parameterId, list)
+    }
+    // Jamil's own ask: sort by decline first — the parameter that got worse the most sits on top.
+    // Parameters with no comparable week (nothing scored one of the two weeks) sink to the bottom,
+    // falling back to the usual worst-fail-rate-first order among themselves.
+    rows = [...trendRows].sort((a, b) => {
+      const da = wow.get(a.parameterId)?.trendDeltaPct ?? null
+      const db = wow.get(b.parameterId)?.trendDeltaPct ?? null
+      if (da === null && db === null) return b.failRatePct - a.failRatePct
+      if (da === null) return 1
+      if (db === null) return -1
+      if (db !== da) return db - da
+      return b.failRatePct - a.failRatePct
+    })
   } catch (err) {
     failure = err
     if (!isMissingQaRubricTrendsSchema(err)) console.error(err)
   }
-
-  const categoryRows = buildCategoryRollup(rows)
 
   return (
     <div>
       <BackLink href="/dashboard" label="Dashboard" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Rubric Fail Trends</h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px', maxWidth: '680px' }}>
-        Which rubric parameters are failing most often, which skill area they fall under, and whether each one is
-        getting better or worse
+        Last week vs this week for every rubric parameter, worst decline first — and who needs coaching on each one
         {user?.role === 'team_lead' ? ' — scoped to your own team.' : user?.role === 'manager' ? ' — scoped to your own reporting chain.' : ' — for the channel you pick below.'}
       </p>
 
@@ -256,7 +272,7 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
       {failure ? (
         isMissingQaRubricTrendsSchema(failure) ? (
           <div role="alert" style={{ padding: '16px 20px', borderRadius: 'var(--radius-md)', background: 'var(--highlight-light)', border: '1px solid var(--highlight)', fontSize: '14px' }}>
-            <b>This database change hasn&apos;t been applied yet.</b> Run <code>supabase/schema_090_qa_rubric_trends_v2.sql</code> (after 089), then reload.
+            <b>This database change hasn&apos;t been applied yet.</b> Run <code>supabase/schema_090_qa_rubric_trends_v2.sql</code> (after 089) and <code>supabase/schema_099_qa_parameter_coaching_list.sql</code> (after 098), then reload.
           </div>
         ) : (
           <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px' }}>Could not be loaded right now. Try again shortly.</div>
@@ -264,20 +280,16 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
       ) : (
         <>
           <div style={card}>
-            <h2 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 2px' }}>By skill area</h2>
-            <p style={sectionNote}>Every parameter in a category rolled up together — the widest training gaps, before the detail below.</p>
-            <CategoryRollupTable rows={categoryRows} />
-          </div>
-
-          <div style={card}>
             <p style={sectionNote}>
-              Sorted worst fail rate first. Fail rate is colored <span style={{ color: SEVERITY_COLOR.high, fontWeight: 600 }}>red at 40%+</span>,{' '}
+              Sorted worst decline first — the parameter that got worse the most since last sales week sits on top. &ldquo;Last week&rdquo;
+              and &ldquo;This week&rdquo; are colored <span style={{ color: SEVERITY_COLOR.high, fontWeight: 600 }}>red at 40%+</span>,{' '}
               <span style={{ color: SEVERITY_COLOR.moderate, fontWeight: 600 }}>amber at 20–39%</span>, otherwise{' '}
-              <span style={{ color: SEVERITY_COLOR.low, fontWeight: 600 }}>green</span>. A rate based on fewer than 10 scored audits is
-              flagged &ldquo;small sample&rdquo; — treat it with caution. The last-{HISTORY_WEEKS}-weeks column always shows the trailing weeks
-              regardless of the period picked above. &ldquo;Who&apos;s failing it&rdquo; opens the Repeat-Mistake Report filtered to that parameter.
+              <span style={{ color: SEVERITY_COLOR.low, fontWeight: 600 }}>green</span>; a rate based on fewer than 10 scored audits is
+              flagged &ldquo;small sample&rdquo; — treat it with caution. The last-{HISTORY_WEEKS}-weeks column shows the longer trend
+              regardless of the period picked above. Click &ldquo;Needs coaching&rdquo; on any parameter to see exactly who failed it
+              this sales week, worst first.
             </p>
-            <RubricTrendsTable rows={rows} sparklines={sparklines} />
+            <RubricTrendsTable rows={rows} sparklines={sparklines} wow={wow} coaching={coaching} />
           </div>
         </>
       )}

@@ -12,7 +12,7 @@ import type { TeamName } from '@/types/database.types'
 
 export function isMissingQaRubricTrendsSchema(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err)
-  return /qa_rubric_fail_trend/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
+  return /qa_rubric_fail_trend|qa_parameter_coaching_list/i.test(m) && /(does not exist|schema cache|could not find)/i.test(m)
 }
 
 export interface RubricFailTrendRow {
@@ -73,5 +73,27 @@ export async function loadRubricFailTrendHistory(
   if (error) throw new Error(`Could not load rubric fail trend history: ${error.message}`)
   return (data ?? []).map((r: { parameter_id: string; week_start: string; total_scored: number; total_failed: number; fail_rate_pct: number }) => ({
     parameterId: r.parameter_id, weekStart: r.week_start, totalScored: r.total_scored, totalFailed: r.total_failed, failRatePct: r.fail_rate_pct,
+  }))
+}
+
+export interface ParameterCoachingRow {
+  parameterId: string
+  agentId: string
+  agentName: string
+  teamLeaderName: string | null
+  failCount: number
+}
+
+/** Every agent who failed ANY rubric parameter in the current sales week, for every parameter at
+ *  once (schema_099) — "who needs coaching, on what" for the Rubric Fail Trends page's per-row
+ *  expand. One call, not one per parameter, so expanding a row needs no further network round trip. */
+export async function loadParameterCoachingList(
+  view: QaRankingView = 'team', teamName: TeamName | null = null
+): Promise<ParameterCoachingRow[]> {
+  const supabase = await getSupabaseServer()
+  const { data, error } = await supabase.rpc('qa_parameter_coaching_list', { p_view: view, p_team_name: teamName })
+  if (error) throw new Error(`Could not load the parameter coaching list: ${error.message}`)
+  return (data ?? []).map((r: { parameter_id: string; agent_id: string; agent_name: string; team_leader_name: string | null; fail_count: number }) => ({
+    parameterId: r.parameter_id, agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name, failCount: r.fail_count,
   }))
 }

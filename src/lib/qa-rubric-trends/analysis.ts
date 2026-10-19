@@ -1,6 +1,6 @@
 // ============================================================
-// SHIKHO QA SYSTEM — Rubric Fail Trends: pure analysis helpers (category
-// rollup, severity thresholds, small-sample flag, sparkline shaping). No
+// SHIKHO QA SYSTEM — Rubric Fail Trends: pure analysis helpers (severity
+// thresholds, small-sample flag, sparkline shaping). No
 // server imports — same "pure, unit-testable" convention as
 // src/lib/queue/priority.ts and src/lib/manager/rollup.ts. The SQL
 // (qa_rubric_fail_trends / qa_rubric_fail_trend_history, schema_090) returns
@@ -35,51 +35,6 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
-export interface CategoryRollupRow {
-  categoryId: string
-  categoryName: string
-  rubricName: string
-  totalScored: number
-  totalFailed: number
-  failRatePct: number
-  priorTotalScored: number
-  priorTotalFailed: number
-  priorFailRatePct: number | null
-  trendPctPoints: number | null
-}
-
-/** Rolls the already-filtered/scoped parameter rows up to their rubric category, summing raw counts
- *  (not averaging percentages — a category with one parameter scored 1000 times and another scored
- *  10 times must not weight them equally). Sorted worst fail rate first, same convention as the
- *  parameter table. */
-export function buildCategoryRollup(rows: RubricFailTrendRow[]): CategoryRollupRow[] {
-  const map = new Map<string, CategoryRollupRow>()
-  for (const r of rows) {
-    const existing = map.get(r.categoryId)
-    if (existing) {
-      existing.totalScored += r.totalScored
-      existing.totalFailed += r.totalFailed
-      existing.priorTotalScored += r.priorTotalScored
-      existing.priorTotalFailed += r.priorTotalFailed
-    } else {
-      map.set(r.categoryId, {
-        categoryId: r.categoryId, categoryName: r.categoryName, rubricName: r.rubricName,
-        totalScored: r.totalScored, totalFailed: r.totalFailed,
-        priorTotalScored: r.priorTotalScored, priorTotalFailed: r.priorTotalFailed,
-        failRatePct: 0, priorFailRatePct: null, trendPctPoints: null,
-      })
-    }
-  }
-  return [...map.values()]
-    .map((c) => {
-      const failRatePct = c.totalScored > 0 ? round1((c.totalFailed / c.totalScored) * 100) : 0
-      const priorFailRatePct = c.priorTotalScored > 0 ? round1((c.priorTotalFailed / c.priorTotalScored) * 100) : null
-      const trendPctPoints = priorFailRatePct !== null ? round1(failRatePct - priorFailRatePct) : null
-      return { ...c, failRatePct, priorFailRatePct, trendPctPoints }
-    })
-    .sort((a, b) => b.failRatePct - a.failRatePct)
-}
-
 export interface SparklinePoint {
   weekStart: string
   /** null = no scored audits that week — a gap, not a 0% fail rate. */
@@ -97,6 +52,37 @@ export function buildSparkline(parameterId: string, history: WeeklyFailPoint[], 
     const h = byWeek.get(weekStart)
     return { weekStart, failRatePct: h ? h.failRatePct : null, totalScored: h ? h.totalScored : 0 }
   })
+}
+
+export interface WeekOverWeek {
+  lastWeekPct: number | null
+  lastWeekScored: number
+  thisWeekPct: number | null
+  thisWeekScored: number
+  /** this week minus last week, in percentage points — null when either week has nothing scored. */
+  trendDeltaPct: number | null
+}
+
+/** Reads the last two points of the same trailing-weeks history already fetched for the sparkline —
+ *  the most recently completed sales week ("last week") and the current, possibly in-progress one
+ *  ("this week") — and derives a simple, always-the-same-two-weeks comparison, independent of
+ *  whatever period (This week / Last week / Last 30 days) is picked for the rest of the page. Jamil's
+ *  own ask: "last week vs current week ... where performance down" — a fixed, easy-to-read pair, not
+ *  a period-relative one. `weekStarts` must be the same oldest-first list `buildSparkline()` uses, so
+ *  the two series never disagree about which week is "this week". */
+export function weekOverWeek(parameterId: string, history: WeeklyFailPoint[], weekStarts: string[]): WeekOverWeek {
+  const thisWeekStart = weekStarts[weekStarts.length - 1]
+  const lastWeekStart = weekStarts[weekStarts.length - 2]
+  const byWeek = new Map(history.filter((h) => h.parameterId === parameterId).map((h) => [h.weekStart, h]))
+  const thisWeek = thisWeekStart ? byWeek.get(thisWeekStart) : undefined
+  const lastWeek = lastWeekStart ? byWeek.get(lastWeekStart) : undefined
+  const thisWeekPct = thisWeek ? thisWeek.failRatePct : null
+  const lastWeekPct = lastWeek ? lastWeek.failRatePct : null
+  return {
+    lastWeekPct, lastWeekScored: lastWeek?.totalScored ?? 0,
+    thisWeekPct, thisWeekScored: thisWeek?.totalScored ?? 0,
+    trendDeltaPct: thisWeekPct !== null && lastWeekPct !== null ? round1(thisWeekPct - lastWeekPct) : null,
+  }
 }
 
 /** The trailing N sales-week start dates (oldest first), as 'YYYY-MM-DD' Dhaka calendar dates, ending
