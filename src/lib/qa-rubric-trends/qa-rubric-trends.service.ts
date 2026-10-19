@@ -81,19 +81,22 @@ export interface ParameterCoachingRow {
   agentId: string
   agentName: string
   teamLeaderName: string | null
+  totalCount: number
   failCount: number
 }
 
 /** Every agent who failed ANY rubric parameter in the current sales week, for every parameter at
- *  once (schema_099) — "who needs coaching, on what" for the Rubric Fail Trends page's per-row
- *  expand. One call, not one per parameter, so expanding a row needs no further network round trip. */
+ *  once (schema_099/100) — "who needs coaching, on what" for the Rubric Fail Trends page and its
+ *  per-parameter coaching page. One call, not one per parameter — the per-parameter page just
+ *  filters this same result set rather than re-querying. */
 export async function loadParameterCoachingList(
   view: QaRankingView = 'team', teamName: TeamName | null = null
 ): Promise<ParameterCoachingRow[]> {
   const supabase = await getSupabaseServer()
   const { data, error } = await supabase.rpc('qa_parameter_coaching_list', { p_view: view, p_team_name: teamName })
   if (error) throw new Error(`Could not load the parameter coaching list: ${error.message}`)
-  return (data ?? []).map((r: { parameter_id: string; agent_id: string; agent_name: string; team_leader_name: string | null; fail_count: number }) => ({
-    parameterId: r.parameter_id, agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name, failCount: r.fail_count,
+  return (data ?? []).map((r: { parameter_id: string; agent_id: string; agent_name: string; team_leader_name: string | null; total_count: number; fail_count: number }) => ({
+    parameterId: r.parameter_id, agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name,
+    totalCount: r.total_count, failCount: r.fail_count,
   }))
 }

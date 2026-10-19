@@ -91,29 +91,14 @@ function FailRateCell({ failRatePct, totalScored }: { failRatePct: number | null
   )
 }
 
-const COACHING_LIMIT = 10
-
-/** A plain <details>/<summary> disclosure — click to expand, no client JS needed. Lists the agents
- *  who failed this parameter in the current sales week, worst first, capped so a parameter nearly
- *  everyone is failing doesn't produce an unreadably long list. */
-function CoachingList({ rows }: { rows: ParameterCoachingRow[] }) {
-  if (rows.length === 0) return <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Nobody failed this this week</span>
-  const shown = rows.slice(0, COACHING_LIMIT)
-  const extra = rows.length - shown.length
+/** A link to this parameter's own coaching page — not an inline list, so a parameter with dozens of
+ *  names doesn't blow up the table (Jamil's own feedback on the first version). */
+function CoachingLink({ count, href }: { count: number; href: string }) {
+  if (count === 0) return <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Nobody failed this this week</span>
   return (
-    <details>
-      <summary style={{ cursor: 'pointer', fontSize: '12.5px', fontWeight: 600, color: 'var(--brand)' }}>
-        Needs coaching ({rows.length}) — show names
-      </summary>
-      <ul style={{ margin: '8px 0 0', paddingLeft: '18px', fontSize: '12.5px' }}>
-        {shown.map((a) => (
-          <li key={a.agentId} style={{ marginBottom: '2px' }}>
-            {a.agentName} <span style={{ color: 'var(--text-muted)' }}>({a.failCount}×{a.teamLeaderName ? ` · TL: ${a.teamLeaderName}` : ''})</span>
-          </li>
-        ))}
-      </ul>
-      {extra > 0 && <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>+{extra} more</div>}
-    </details>
+    <Link href={href} prefetch={false} style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>
+      Needs coaching ({count}) →
+    </Link>
   )
 }
 
@@ -150,12 +135,15 @@ function Sparkline({ points }: { points: SparklinePoint[] }) {
 }
 
 function RubricTrendsTable({
-  rows, sparklines, wow, coaching,
+  rows, sparklines, wow, coaching, period, view, channel,
 }: {
   rows: RubricFailTrendRow[]
   sparklines: Map<string, SparklinePoint[]>
   wow: Map<string, WeekOverWeek>
   coaching: Map<string, ParameterCoachingRow[]>
+  period: string
+  view: string
+  channel: string
 }) {
   if (rows.length === 0) return <p style={empty}>No audits scored in this period.</p>
   return (
@@ -183,7 +171,12 @@ function RubricTrendsTable({
                 <td style={td}><FailRateCell failRatePct={w?.thisWeekPct ?? null} totalScored={w?.thisWeekScored ?? 0} /></td>
                 <td style={td}><TrendBadge points={w?.trendDeltaPct ?? null} /></td>
                 <td style={td}><Sparkline points={sparklines.get(r.parameterId) ?? []} /></td>
-                <td style={td}><CoachingList rows={coaching.get(r.parameterId) ?? []} /></td>
+                <td style={td}>
+                  <CoachingLink
+                    count={(coaching.get(r.parameterId) ?? []).length}
+                    href={`/reports/qa-rubric-trends/${r.parameterId}?period=${period}&view=${view}&channel=${encodeURIComponent(channel)}`}
+                  />
+                </td>
               </tr>
             )
           })}
@@ -272,7 +265,7 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
       {failure ? (
         isMissingQaRubricTrendsSchema(failure) ? (
           <div role="alert" style={{ padding: '16px 20px', borderRadius: 'var(--radius-md)', background: 'var(--highlight-light)', border: '1px solid var(--highlight)', fontSize: '14px' }}>
-            <b>This database change hasn&apos;t been applied yet.</b> Run <code>supabase/schema_090_qa_rubric_trends_v2.sql</code> (after 089) and <code>supabase/schema_099_qa_parameter_coaching_list.sql</code> (after 098), then reload.
+            <b>This database change hasn&apos;t been applied yet.</b> Run <code>supabase/schema_090_qa_rubric_trends_v2.sql</code> (after 089) and <code>supabase/schema_100_qa_parameter_coaching_list_counts.sql</code> (after 099, which it supersedes), then reload.
           </div>
         ) : (
           <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px' }}>Could not be loaded right now. Try again shortly.</div>
@@ -286,10 +279,10 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
               <span style={{ color: SEVERITY_COLOR.moderate, fontWeight: 600 }}>amber at 20–39%</span>, otherwise{' '}
               <span style={{ color: SEVERITY_COLOR.low, fontWeight: 600 }}>green</span>; a rate based on fewer than 10 scored audits is
               flagged &ldquo;small sample&rdquo; — treat it with caution. The last-{HISTORY_WEEKS}-weeks column shows the longer trend
-              regardless of the period picked above. Click &ldquo;Needs coaching&rdquo; on any parameter to see exactly who failed it
-              this sales week, worst first.
+              regardless of the period picked above. &ldquo;Needs coaching&rdquo; opens the full list for that parameter — who failed
+              it this sales week, worst first, with how many audits they had and how many they failed.
             </p>
-            <RubricTrendsTable rows={rows} sparklines={sparklines} wow={wow} coaching={coaching} />
+            <RubricTrendsTable rows={rows} sparklines={sparklines} wow={wow} coaching={coaching} period={period} view={view} channel={channel ?? 'all'} />
           </div>
         </>
       )}
