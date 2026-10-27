@@ -18,6 +18,14 @@ function whenWord(d: Digest, now: Date): string {
   return rel === 'tomorrow' || rel === 'today' ? rel : `on ${d.dayLabel}`
 }
 
+// Who the sessions are FOR (2026-10-27, Jamil's wording fix): the attendee is always the
+// AGENT, never the Team Lead — the earlier "for the Team Leaders you manage" read as if the
+// Team Leads themselves were being coached. "Team Lead(s)" here names the reporting line the
+// recipient is scoped by, not who attends.
+function scopeLabel(role: Digest['recipient']['role']): string {
+  return role === 'manager' ? 'agents from the Team Leaders you manage' : 'agents in your team'
+}
+
 export function digestSubject(d: Digest, now: Date = new Date()): string {
   const n = d.total
   const who = d.recipient.role === 'manager' ? (n === 1 ? 'agent in your teams' : 'agents in your teams') : (n === 1 ? 'of your agents' : 'of your agents')
@@ -50,8 +58,7 @@ function tableHtml(rows: DigestRow[], showTeamLeader: boolean): string {
 
 export function digestHtml(d: Digest, now: Date = new Date(), appUrl: string | null = process.env.NEXT_PUBLIC_APP_URL ?? null): string {
   const showTeamLeader = d.recipient.role === 'manager'
-  const scope = d.recipient.role === 'manager' ? 'the Team Leaders you manage' : 'your team'
-  const intro = `<p style="margin:0 0 16px">Hi ${escapeHtml(d.recipient.name)}, here ${d.total === 1 ? 'is the coaching session' : 'are the coaching sessions'} scheduled ${escapeHtml(whenWord(d, now))} (<b>${escapeHtml(d.dayLabel)}</b>, Dhaka time) for ${scope} — <b>${d.total}</b> in all.</p>`
+  const intro = `<p style="margin:0 0 16px">Hi ${escapeHtml(d.recipient.name)}, here ${d.total === 1 ? 'is the coaching session' : 'are the coaching sessions'} scheduled ${escapeHtml(whenWord(d, now))} (<b>${escapeHtml(d.dayLabel)}</b>, Dhaka time) for ${scopeLabel(d.recipient.role)} — <b>${d.total}</b> in all.</p>`
   const body = d.groups
     .map((g) => `${g.label ? `<div style="font-size:13px;font-weight:700;color:${INDIGO};margin:0 0 6px">${escapeHtml(g.label)}'s team <span style="font-weight:400;color:#898EA4">(${g.rows.length})</span></div>` : ''}${tableHtml(g.rows, showTeamLeader)}`)
     .join('')
@@ -63,7 +70,7 @@ export function digestHtml(d: Digest, now: Date = new Date(), appUrl: string | n
 export function digestText(d: Digest, now: Date = new Date()): string {
   const showTeamLeader = d.recipient.role === 'manager'
   const lines: string[] = [
-    `Hi ${d.recipient.name}, here ${d.total === 1 ? 'is the coaching session' : 'are the coaching sessions'} scheduled ${whenWord(d, now)} (${d.dayLabel}, Dhaka time) for ${d.recipient.role === 'manager' ? 'the Team Leaders you manage' : 'your team'} — ${d.total} in all.`,
+    `Hi ${d.recipient.name}, here ${d.total === 1 ? 'is the coaching session' : 'are the coaching sessions'} scheduled ${whenWord(d, now)} (${d.dayLabel}, Dhaka time) for ${scopeLabel(d.recipient.role)} — ${d.total} in all.`,
     '',
   ]
   for (const g of d.groups) {

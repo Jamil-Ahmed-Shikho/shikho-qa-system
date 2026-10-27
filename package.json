@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "check:nav": "node scripts/check-back-links.mjs"
+    "check:nav": "node scripts/check-back-links.mjs",
+    "test:email-wording": "npx tsx scripts/test-email-wording.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

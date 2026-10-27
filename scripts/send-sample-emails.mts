@@ -23,14 +23,14 @@
 process.env.NEXT_PUBLIC_APP_URL = 'https://shikho-qa-system.vercel.app'
 
 import nodemailer from 'nodemailer'
-import { BRAND, emailShell, escapeHtml, subjectLine } from '@/lib/users/mailer'
-import { auditResultHtml, auditResultText } from '@/lib/audits/audit-email-templates'
+import { BRAND, emailShell, escapeHtml } from '@/lib/users/mailer'
+import { auditResultHtml, auditResultSubject, auditResultText } from '@/lib/audits/audit-email-templates'
 import type { AuditEmailData } from '@/lib/audits/audit-notifications'
-import { digestHtml, digestText } from '@/lib/briefings/digest-email'
+import { digestHtml, digestSubject, digestText } from '@/lib/briefings/digest-email'
 import type { Digest } from '@/lib/briefings/digest'
-import { reportHtml, reportText } from '@/lib/calibration/report-email'
+import { reportHtml, reportSubject, reportText } from '@/lib/calibration/report-email'
 import type { VarianceReport } from '@/lib/calibration/variance'
-import { agentNotificationHtml, agentNotificationText, staffNotificationHtml, staffNotificationText } from '@/lib/pip/notification-email'
+import { agentNotificationHtml, agentNotificationSubject, agentNotificationText, staffNotificationHtml, staffNotificationSubject, staffNotificationText } from '@/lib/pip/notification-email'
 import type { AgentNotification, StaffNotification } from '@/lib/pip/notifications'
 
 const TO = process.argv[2]
@@ -160,7 +160,7 @@ async function main() {
   // 1. Welcome
   await send(
     'Account welcome',
-    subjectLine('Your account is ready'),
+    'Your account is ready',
     emailShell('Welcome to Shikho QA', 'Your account is ready', 'indigo',
       credentialsBody('Hi Example User, an account has been created for you.', TO, 'Sample#TempPass123')),
   )
@@ -168,7 +168,7 @@ async function main() {
   // 2. Password reset
   await send(
     'Password reset',
-    subjectLine('Your password was reset'),
+    'Your password was reset',
     emailShell('Password reset', 'A new temporary password has been issued', 'indigo',
       credentialsBody('Hi Example User, an administrator reset your password.', TO, 'Sample#NewPass456')),
   )
@@ -187,13 +187,13 @@ async function main() {
         <tr><td style="font-size:16px;font-weight:700">${escapeHtml(label)} (Dhaka time)</td></tr>
       </table>`
   }
-  await send('Briefing scheduled', subjectLine('Coaching session with Example Auditor scheduled'),
+  await send('Briefing scheduled', 'Coaching session with Example Auditor scheduled',
     emailShell('Coaching session scheduled', 'With Example Auditor', 'indigo',
       briefingTimeBody('Hi Example Agent, you have a coaching session with <b>Example Auditor</b>.', 'Example Auditor', iso(2, 12, 0))))
-  await send('Briefing rescheduled', subjectLine('Coaching session with Example Auditor rescheduled'),
+  await send('Briefing rescheduled', 'Coaching session with Example Auditor rescheduled',
     emailShell('Coaching session rescheduled', 'With Example Auditor — new time', 'indigo',
       briefingTimeBody('Hi Example Agent, your coaching session with <b>Example Auditor</b> has a new time.', 'Example Auditor', iso(3, 13, 30))))
-  await send('Briefing cancelled', subjectLine('Coaching session with Example Auditor cancelled'),
+  await send('Briefing cancelled', 'Coaching session with Example Auditor cancelled',
     emailShell('Coaching session cancelled', 'With Example Auditor', 'sunrise',
       `<p style="margin:0">Hi Example Agent, your scheduled coaching session with <b>Example Auditor</b> has been cancelled. A new time may be booked later.</p>`))
 
@@ -211,7 +211,7 @@ async function main() {
       ],
     }],
   }
-  await send('Briefing daily digest — Team Lead', digestSubjectSample(tlDigest), digestHtml(tlDigest), digestText(tlDigest))
+  await send('Briefing daily digest — Team Lead', digestSubject(tlDigest, now), digestHtml(tlDigest, now), digestText(tlDigest, now))
 
   // 6b. Briefings daily digest — Manager's own (2026-10-03: same email, now with a Team
   // Leader column beside each agent, since a Manager's list spans several Team Leads' people).
@@ -229,11 +229,7 @@ async function main() {
       ],
     }],
   }
-  await send('Briefing daily digest — Manager', digestSubjectSample(managerDigest), digestHtml(managerDigest), digestText(managerDigest))
-  function digestSubjectSample(d: Digest) {
-    const who = d.recipient.role === 'manager' ? (d.total === 1 ? 'agent in your teams' : 'agents in your teams') : 'of your agents'
-    return subjectLine(`Coaching sessions tomorrow (${d.dayLabel}): ${d.total} ${who}`)
-  }
+  await send('Briefing daily digest — Manager', digestSubject(managerDigest, now), digestHtml(managerDigest, now), digestText(managerDigest, now))
 
   // 7. Calibration report
   const variance: VarianceReport = {
@@ -249,23 +245,19 @@ async function main() {
     allParameters: [],
     fatals: [],
   }
-  await send('Calibration report', reportSubjectSample(), reportHtml({
+  const calibInput = {
     title: 'Weekly Telesales Calibration', whenLabel: 'Mon 5 Oct, 11:00 AM', scope: 'Telesales · Dhaka',
     rubricName: 'Telesales Scorecard', report: variance, notSubmitted: ['Example Auditor D'],
     url: `${process.env.NEXT_PUBLIC_APP_URL}/calibration/sample`,
-  }), reportText({
-    title: 'Weekly Telesales Calibration', whenLabel: 'Mon 5 Oct, 11:00 AM', scope: 'Telesales · Dhaka',
-    rubricName: 'Telesales Scorecard', report: variance, notSubmitted: ['Example Auditor D'],
-    url: `${process.env.NEXT_PUBLIC_APP_URL}/calibration/sample`,
-  }))
-  function reportSubjectSample() { return subjectLine('Calibration report: Weekly Telesales Calibration (Mon 5 Oct, 11:00 AM)') }
+  }
+  await send('Calibration report', reportSubject(calibInput), reportHtml(calibInput), reportText(calibInput))
 
   // 8-10. Audit result — passed / failed / critical fatal
   const passedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 100, passed: true, criticalFail: false, overallFeedback: 'Strong call overall — confident pitch and good objection handling.', parameters: paramsPassing, fatals: [] }
-  await send('Audit result — passed', auditSubject(passedAudit), auditResultHtml(passedAudit), auditResultText(passedAudit))
+  await send('Audit result — passed', auditResultSubject(passedAudit), auditResultHtml(passedAudit), auditResultText(passedAudit))
 
   const failedAudit: AuditEmailData = { ...baseAuditData, scorePercent: 53, passed: false, criticalFail: false, overallFeedback: 'Several core pitch and closing steps were missed — needs coaching on sales closing.', parameters: paramsWithFailures, fatals: [] }
-  await send('Audit result — failed', auditSubject(failedAudit), auditResultHtml(failedAudit), auditResultText(failedAudit))
+  await send('Audit result — failed', auditResultSubject(failedAudit), auditResultHtml(failedAudit), auditResultText(failedAudit))
 
   const criticalAudit: AuditEmailData = {
     ...baseAuditData, scorePercent: 0, passed: false, criticalFail: true,
@@ -273,11 +265,7 @@ async function main() {
     parameters: paramsWithFailures,
     fatals: [{ description: 'Made a false commitment about a guaranteed outcome not covered by the course', severity: 'critical', feedback: 'Told the student "you will definitely get an A+" — not a claim we can make.' }],
   }
-  await send('Audit result — critical fatal', auditSubject(criticalAudit), auditResultHtml(criticalAudit), auditResultText(criticalAudit))
-  function auditSubject(d: AuditEmailData) {
-    const label = d.criticalFail ? 'Critical fatal error' : d.passed ? 'Passed' : 'Did not pass'
-    return subjectLine(`Your audit result: ${d.scorePercent}% — ${label}`)
-  }
+  await send('Audit result — critical fatal', auditResultSubject(criticalAudit), auditResultHtml(criticalAudit), auditResultText(criticalAudit))
   // NOTE: as of 2026-10-03 there is no separate Manager/QA-Manager alert template — the two
   // emails above (failed / critical fatal) ARE what the Manager and every QA Manager see too,
   // via Cc on this exact send, not a second email (scoring-actions.ts decides the Cc list).
@@ -287,10 +275,8 @@ async function main() {
     recipient: { id: 'a1', name: 'Example Agent', email: TO },
     targetRevenue: 300, incentiveDowngraded: true,
   }
-  await send('PIP — agent placed', agentNotificationSubjectSample(),
-    agentNotificationHtml({ n: agentNotif, achievementUsd: 142.5, label: '12 Oct 2026 – 1 Nov 2026' }),
-    agentNotificationText({ n: agentNotif, achievementUsd: 142.5, label: '12 Oct 2026 – 1 Nov 2026' }))
-  function agentNotificationSubjectSample() { return subjectLine('You have been placed on a Performance Improvement Plan (PIP)') }
+  const agentNotifInput = { n: agentNotif, achievementUsd: 142.5, label: '12 Oct 2026 – 1 Nov 2026' }
+  await send('PIP — agent placed', agentNotificationSubject(agentNotifInput), agentNotificationHtml(agentNotifInput), agentNotificationText(agentNotifInput))
 
   // 12. PIP — staff (Team Lead / Manager) summary
   const staffNotif: StaffNotification = {
@@ -298,12 +284,8 @@ async function main() {
     groups: [{ teamLeadName: null, agentNames: ['Example Agent One', 'Example Agent Two'] }],
     total: 2,
   }
-  await send('PIP — staff summary', staffNotificationSubjectSample(staffNotif),
-    staffNotificationHtml({ n: staffNotif, label: '12 Oct 2026 – 1 Nov 2026' }),
-    staffNotificationText({ n: staffNotif, label: '12 Oct 2026 – 1 Nov 2026' }))
-  function staffNotificationSubjectSample(n: StaffNotification) {
-    return subjectLine(`PIP list published — ${n.total} of your ${n.total === 1 ? 'people is' : 'people are'} on it`)
-  }
+  const staffNotifInput = { n: staffNotif, label: '12 Oct 2026 – 1 Nov 2026' }
+  await send('PIP — staff summary', staffNotificationSubject(staffNotifInput), staffNotificationHtml(staffNotifInput), staffNotificationText(staffNotifInput))
 
   console.log('\nAll sample emails sent.')
   transporter.close()
