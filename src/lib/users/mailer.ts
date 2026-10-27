@@ -190,13 +190,17 @@ async function sendBriefingMail(
   accent: EmailAccent,
   body: string,
   agentEmail: string,
-  teamLeaderEmail: string | null
+  teamLeaderEmail: string | null,
+  managerEmail: string | null = null
 ) {
   const html = emailShell(title, subtitle, accent, body)
+  // Dedup in case the same address somehow appears twice (defensive — TL and Manager are always
+  // different people in practice, same caution loadAuditEmailData() takes with its own Cc list).
+  const cc = [...new Set([teamLeaderEmail, managerEmail].filter((e): e is string => !!e))]
   await getTransporter().sendMail({
     from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
     to: agentEmail,
-    cc: teamLeaderEmail ?? undefined,
+    cc: cc.length ? cc : undefined,
     subject,
     html,
   })
@@ -216,7 +220,11 @@ export async function sendBriefingScheduledEmail(agentName: string, agentEmail: 
   )
 }
 
-export async function sendBriefingRescheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string) {
+// Manager Cc'd on Reschedule/Cancel but NOT on the initial Schedule (Jamil, 2026-10-27): the
+// Manager already sees tomorrow's newly-scheduled sessions in their own daily digest (§5 Part C) —
+// but a reschedule or cancellation can happen AFTER that digest already went out, which is exactly
+// when a direct notification matters.
+export async function sendBriefingRescheduledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, scheduledAtIso: string, conductorName: string, managerEmail: string | null = null) {
   await sendBriefingMail(
     `Coaching Session Rescheduled | ${agentName} | New Time: ${briefingDateLabel(scheduledAtIso)}`,
     'Coaching session rescheduled',
@@ -224,11 +232,12 @@ export async function sendBriefingRescheduledEmail(agentName: string, agentEmail
     'indigo',
     briefingTimeBody(`Hi ${escapeHtml(agentName)}, your coaching session with <b>${escapeHtml(conductorName)}</b> has a new time.`, conductorName, scheduledAtIso),
     agentEmail,
-    teamLeaderEmail
+    teamLeaderEmail,
+    managerEmail
   )
 }
 
-export async function sendBriefingCancelledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, conductorName: string) {
+export async function sendBriefingCancelledEmail(agentName: string, agentEmail: string, teamLeaderEmail: string | null, conductorName: string, managerEmail: string | null = null) {
   await sendBriefingMail(
     `Coaching Session Cancelled | ${agentName}`,
     'Coaching session cancelled',
@@ -236,7 +245,8 @@ export async function sendBriefingCancelledEmail(agentName: string, agentEmail: 
     'sunrise',
     `<p style="margin:0">Hi ${escapeHtml(agentName)}, your scheduled coaching session with <b>${escapeHtml(conductorName)}</b> has been cancelled. A new time may be booked later.</p>`,
     agentEmail,
-    teamLeaderEmail
+    teamLeaderEmail,
+    managerEmail
   )
 }
 

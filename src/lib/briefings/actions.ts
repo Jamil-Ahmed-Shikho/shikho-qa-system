@@ -120,7 +120,7 @@ export async function rescheduleBriefingAction(auditId: string, scheduledAtIso: 
   }])
 
   sendAfterResponse(g.actor.profile.id, auditId, 'rescheduled', () =>
-    sendBriefingRescheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso, result.conductorName)
+    sendBriefingRescheduledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, scheduledAtIso, result.conductorName, result.managerEmail)
   )
 
   revalidatePath('/audits')
@@ -143,7 +143,7 @@ export async function cancelBriefingAction(auditId: string): Promise<{ ok: true 
 
   if (result.agentEmail) {
     sendAfterResponse(g.actor.profile.id, auditId, 'cancelled', () =>
-      sendBriefingCancelledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, result.conductorName)
+      sendBriefingCancelledEmail(result.agentName, result.agentEmail, result.teamLeaderEmail, result.conductorName, result.managerEmail)
     )
   }
 

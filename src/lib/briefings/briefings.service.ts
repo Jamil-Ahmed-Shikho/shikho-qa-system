@@ -75,6 +75,7 @@ export interface NotifyInfo {
   agentName: string
   agentEmail: string
   teamLeaderEmail: string | null
+  managerEmail: string | null
   conductorName: string
 }
 
@@ -202,11 +203,19 @@ async function loadNotifyInfo(auditId: string): Promise<NotifyInfo | null> {
   if (!conductorName) return null
 
   let teamLeaderEmail: string | null = null
+  let managerEmail: string | null = null
   if (agent.team_leader_id) {
-    const { data: tl } = await supabase.from('users').select('email').eq('id', agent.team_leader_id).single()
+    const { data: tl } = await supabase.from('users').select('email, manager_id').eq('id', agent.team_leader_id).single()
     teamLeaderEmail = tl?.email ?? null
+    if (tl?.manager_id) {
+      const { data: mgr } = await supabase.from('users').select('email, is_active, account_status').eq('id', tl.manager_id).single()
+      // Same "a real login exists" eligibility rule used everywhere else an email goes out
+      // (Briefings digest, audit-notifications.ts, PIP) — a profile_only Manager hasn't been
+      // invited to the system yet, so a direct notification about it would be confusing.
+      if (mgr?.is_active && mgr.account_status === 'active' && mgr.email) managerEmail = mgr.email
+    }
   }
-  return { agentName: agent.name, agentEmail: agent.email, teamLeaderEmail, conductorName }
+  return { agentName: agent.name, agentEmail: agent.email, teamLeaderEmail, managerEmail, conductorName }
 }
 
 export async function scheduleBriefing(auditId: string, scheduledAt: string): Promise<Result<NotifyInfo>> {
@@ -271,7 +280,7 @@ export async function cancelBriefing(auditId: string): Promise<Result<NotifyInfo
   if (error) return { ok: false, error: friendlyError(error.message, error.code) }
 
   const info = await loadNotifyInfo(auditId)
-  if (!info) return { ok: true, agentName: '', agentEmail: '', teamLeaderEmail: null, conductorName: '' }
+  if (!info) return { ok: true, agentName: '', agentEmail: '', teamLeaderEmail: null, managerEmail: null, conductorName: '' }
   return { ok: true, ...info }
 }
 
