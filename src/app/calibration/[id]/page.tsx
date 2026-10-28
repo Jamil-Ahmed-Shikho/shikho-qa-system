@@ -168,7 +168,9 @@ export default async function CalibrationDetailPage({ params }: { params: Promis
         <section style={card} aria-label="Send report">
           <h2 style={{ fontSize: '15px', margin: '0 0 4px' }}>Email the report</h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
-            Sends the variance report to all {participants.length} participants. Nothing is sent unless you press the button.
+            Sends the variance report to all {participants.length} participants
+            {participants.some((p) => p.role === 'team_lead') ? ", each participating Team Lead's own Manager," : ''}
+            {' '}and the Quality team (qat@shikho.com). Nothing is sent unless you press the button.
             {reportSentAt ? ` Last sent ${formatDhakaDateTime(reportSentAt)}.` : ''}
           </p>
           <SendReportButton id={s.id} alreadySentLabel={reportSentAt ? formatDhakaDateTime(reportSentAt) : null} participantCount={participants.length} />

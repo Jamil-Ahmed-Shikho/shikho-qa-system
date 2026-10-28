@@ -18,6 +18,7 @@
 //   - Any other team (CX Non-Voice, CX Inbound, Engagement, Retention, TS3P)
 //     -> To: each flagged agent's own real Team Lead; Cc: that Team Lead's own Manager
 //   - Cc, always: every real QA Manager / Super Admin (company-wide QA leadership)
+//   - Cc, always: qat@shikho.com (the Quality team's own group inbox, 2026-10-28)
 // If nothing resolves a To address at all (e.g. no mistakes this run), the
 // QA-leadership Cc list is used as To instead, so the email never gets sent
 // with an empty To.
@@ -35,6 +36,11 @@ type Fail = { ok: false; error: string }
 
 const DHAKA_GROUP = 'dhakaleaders@shikho.com'
 const JASHORE_GROUP = 'jashoreleaders@shikho.com'
+
+// Override lets local testing point this at a disposable address instead of the real shared
+// inbox (same pattern as AUDIT_EMAIL_QA_TEAM_CC, scoring-actions.ts) — unset, it's the real one.
+// Only reached in live mode; the 'test' branch below never calls resolveRecipients() at all.
+const QA_TEAM_EMAIL = (process.env.CAMPAIGN_MISTAKE_QA_TEAM_CC ?? '').trim() || 'qat@shikho.com'
 
 function hasRealLogin(u: { is_active: boolean | null; account_status: string | null; email: string | null }): boolean {
   return !!u.is_active && u.account_status === 'active' && !!u.email
@@ -61,7 +67,7 @@ async function resolveRecipients(rows: MistakeRow[]): Promise<{ to: string[]; cc
   const qaLeadershipEmails = [...new Set((leadership ?? []).filter(hasRealLogin).map((u) => u.email as string))]
 
   const to = new Set<string>()
-  const ccSet = new Set<string>(qaLeadershipEmails)
+  const ccSet = new Set<string>([...qaLeadershipEmails, QA_TEAM_EMAIL])
 
   if (rows.length > 0) {
     const agentIds = [...new Set(rows.map((r) => r.agentId))]
@@ -90,10 +96,11 @@ async function resolveRecipients(rows: MistakeRow[]): Promise<{ to: string[]; cc
   }
 
   // Nothing resolved a To (no mistakes this run, or no resolvable addresses) — fall back to
-  // the QA leadership list as To rather than ever sending with an empty To.
+  // the QA leadership list as To rather than ever sending with an empty To. qat@shikho.com still
+  // gets its own Cc either way (Jamil, 2026-10-28: on every report sent from a "Send" button).
   if (to.size === 0) {
     for (const e of qaLeadershipEmails) to.add(e)
-    return { to: [...to], cc: [] }
+    return { to: [...to], cc: [QA_TEAM_EMAIL] }
   }
   return { to: [...to], cc: [...ccSet] }
 }
