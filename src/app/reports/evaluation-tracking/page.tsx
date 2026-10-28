@@ -114,10 +114,10 @@ export default async function EvaluationTrackingPage({ searchParams }: { searchP
             <p style={sectionNote}>Sorted newest first.</p>
             {rows.length === 0 ? <p style={empty}>No evaluation emails in this period.</p> : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
                   <thead>
                     <tr>
-                      <th style={th}>Agent</th><th style={th}>Team / Site</th><th style={th}>Sent</th><th style={th}>Status</th><th style={th}></th>
+                      <th style={th}>Agent</th><th style={th}>Team / Site</th><th style={th}>QA Auditor</th><th style={th}>Sent</th><th style={th}>Status</th><th style={th}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -128,6 +128,7 @@ export default async function EvaluationTrackingPage({ searchParams }: { searchP
                           {r.teamLeaderName && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>TL: {r.teamLeaderName}</div>}
                         </td>
                         <td style={td}>{[r.teamName, r.siteName].filter(Boolean).join(' · ') || '—'}</td>
+                        <td style={td}>{r.auditorName ?? '—'}</td>
                         <td style={td}>{formatDhakaDateTime(r.submittedAt)}</td>
                         <td style={td}><ViewedCell r={r} /></td>
                         <td style={td}><Link href={`/audits/${r.auditId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>View audit →</Link></td>

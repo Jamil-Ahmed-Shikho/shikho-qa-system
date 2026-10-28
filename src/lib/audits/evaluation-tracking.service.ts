@@ -20,6 +20,7 @@ export interface EvaluationTrackingRow {
   teamName: string | null
   siteName: string | null
   teamLeaderName: string | null
+  auditorName: string | null
   submittedAt: string
   viewedAt: string | null
   viewCount: number
@@ -35,10 +36,10 @@ export async function loadEvaluationTrackingReport(
   if (error) throw new Error(`Could not load the evaluation tracking report: ${error.message}`)
   return (data ?? []).map((r: {
     audit_id: string; agent_id: string; agent_name: string; team_name: string | null; site_name: string | null
-    team_leader_name: string | null; submitted_at: string; viewed_at: string | null; view_count: number
+    team_leader_name: string | null; auditor_name: string | null; submitted_at: string; viewed_at: string | null; view_count: number
   }) => ({
     auditId: r.audit_id, agentId: r.agent_id, agentName: r.agent_name, teamName: r.team_name, siteName: r.site_name,
-    teamLeaderName: r.team_leader_name, submittedAt: r.submitted_at, viewedAt: r.viewed_at, viewCount: r.view_count,
+    teamLeaderName: r.team_leader_name, auditorName: r.auditor_name, submittedAt: r.submitted_at, viewedAt: r.viewed_at, viewCount: r.view_count,
   }))
 }
 
