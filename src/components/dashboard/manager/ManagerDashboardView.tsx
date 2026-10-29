@@ -221,7 +221,11 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
       </tr>
       {isOpen && (
         <tr>
-          <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
+          {/* width:1px — without it, this colSpan cell's wide nested table blows out the outer
+           *  table's own columns, so scrolling right drags the summary rows' own name column out
+           *  of view too (cut-off text). Keeps the cell's width to what the other rows need,
+           *  letting the inner table scroll independently instead. */}
+          <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)', width: '1px' }}>
             <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." />
           </td>
         </tr>
@@ -249,7 +253,7 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
       </tr>
       {isOpen && (
         <tr>
-          <td colSpan={8} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
+          <td colSpan={8} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)', width: '1px' }}>
             <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." />
           </td>
         </tr>

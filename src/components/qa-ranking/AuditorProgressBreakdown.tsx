@@ -105,7 +105,13 @@ function AuditorRow({
       </tr>
       {isOpen && (
         <tr>
-          <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)' }}>
+          {/* width:1px — without it, a colSpan cell containing a wide independently-scrolling
+           *  table makes the OUTER table's own columns blow out to match, so scrolling right to
+           *  see the inner table's data columns also drags the outer summary row's own name
+           *  column out of view (the exact bug Jamil reported — names cut off mid-word). This
+           *  keeps the cell's rendered width to what the other (narrower) rows actually need,
+           *  letting the inner table's own overflow-x:auto scroll independently instead. */}
+          <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)', width: '1px' }}>
             <AgentQueueTable
               ranked={group?.rankedAgents ?? []}
               reTraining={group?.reTraining ?? []}
