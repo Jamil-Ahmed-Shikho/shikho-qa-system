@@ -48,6 +48,8 @@ export async function loadQueue(view: QueueView): Promise<QueueRow[]> {
     stage: r.employment_stage,
     vintageLabel: r.vintage_label,
     teamLeaderId: r.team_leader_id,
+    qualityAuditorId: r.quality_auditor_id,
+    qualityAuditorName: r.quality_auditor_name,
     hasTarget: r.has_target,
     baseTarget: num(r.base_target),
     bonusApplied: r.bonus_applied,

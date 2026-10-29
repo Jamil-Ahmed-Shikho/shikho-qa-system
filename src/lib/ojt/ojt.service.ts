@@ -19,6 +19,8 @@ export interface OjtCandidate {
   teamLeaderId: string | null
   teamLeaderName: string | null
   trainerName: string | null
+  qualityAuditorId: string | null
+  qualityAuditorName: string | null
   stage: OjtStage
   ojtStartDate: string | null
   daysInStage: number | null
@@ -76,6 +78,8 @@ export async function loadOjtCandidates(view: 'mine' | 'team' = 'team'): Promise
     teamLeaderId: r.team_leader_id,
     teamLeaderName: r.team_leader_name,
     trainerName: r.trainer_name,
+    qualityAuditorId: r.quality_auditor_id,
+    qualityAuditorName: r.quality_auditor_name,
     stage: r.employment_stage,
     ojtStartDate: r.ojt_start_date,
     daysInStage: num(r.days_in_stage),

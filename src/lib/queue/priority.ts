@@ -26,6 +26,10 @@ export interface QueueRow {
   /** Carried through so a Manager caller (whose scope spans several Team Leads) can group rows
    *  client-side, the same way manager_agent_stats() rows already do (rollup.ts). */
   teamLeaderId: string | null
+  /** Denormalized (schema_103), same convention — lets a QA Manager/Super Admin caller group rows
+   *  by QA Auditor client-side without a separate auditor-roster query. */
+  qualityAuditorId: string | null
+  qualityAuditorName: string | null
   hasTarget: boolean
   baseTarget: number | null
   bonusApplied: boolean

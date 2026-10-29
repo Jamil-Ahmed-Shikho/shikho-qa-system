@@ -13,6 +13,9 @@ import {
 } from '@/lib/qa-ranking/qa-ranking.service'
 import { DailyActivityChart, DailyActivityTable, DailyMetricSwitch } from '@/components/qa-ranking/DailyActivity'
 import { isMissingOjtSchema, loadOjtCandidates, type OjtCandidate } from '@/lib/ojt/ojt.service'
+import { isMissingTargetsSchema, loadQueue } from '@/lib/queue/queue.service'
+import { groupQueueByAuditor } from '@/lib/qa-ranking/auditor-queue-rollup'
+import { AuditorProgressBreakdown } from '@/components/qa-ranking/AuditorProgressBreakdown'
 import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/dates/sales-week'
 import Link from 'next/link'
 
@@ -61,7 +64,9 @@ function ProgressTabSwitch({ tab, base, period, view }: { tab: ProgressTab; base
   return <div style={{ display: 'flex', gap: '8px' }} role="tablist" aria-label="Weekly or Daily">{link('weekly', 'Weekly')}{link('daily', 'Daily')}</div>
 }
 
-function AuditorProgressTable({ rows }: { rows: AuditorRankingRow[] }) {
+// A qa_auditor's own My View shows just their one row — the "click to see agents" drill-down
+// adds nothing there (it's already their own un-grouped list), so this flat table stands in.
+function SimpleAuditorTable({ rows }: { rows: AuditorRankingRow[] }) {
   if (rows.length === 0) {
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nothing to show for this period.</p>
   }
@@ -192,9 +197,25 @@ export default async function QaTeamProgressPage({ searchParams }: { searchParam
   const tab: ProgressTab = sp.tab === 'daily' ? 'daily' : 'weekly'
   const metric: DailyMetric = DAILY_METRICS.includes(sp.metric as DailyMetric) ? (sp.metric as DailyMetric) : 'audits'
 
+  let ojtCandidates: OjtCandidate[] = []
+  let ojtFailure: unknown = null
+  try {
+    ojtCandidates = await loadOjtCandidates()
+  } catch (err) {
+    ojtFailure = err
+    if (!isMissingOjtSchema(err)) console.error(err)
+  }
+
+  // "By QA Auditor" agent-wise drill-down is pointless in a qa_auditor's own My View — it would
+  // just show their one portfolio, the same list they already see unwrapped (same rule
+  // evaluation-tracking's "By QA Auditor" summary already follows).
+  const showAuditorBreakdown = !(isAuditor && view === 'mine')
+
   let auditorRows: AuditorRankingRow[] = []
   let channelRows: ChannelProgressRow[] = []
+  let auditorGroups: ReturnType<typeof groupQueueByAuditor> = []
   let rankingFailure: unknown = null
+  let queueFailure: unknown = null
   if (tab === 'weekly') {
     try {
       ;[auditorRows, channelRows] = await Promise.all([
@@ -204,6 +225,15 @@ export default async function QaTeamProgressPage({ searchParams }: { searchParam
     } catch (err) {
       rankingFailure = err
       if (!isMissingQaRankingSchema(err)) console.error(err)
+    }
+    if (showAuditorBreakdown) {
+      try {
+        const queueRows = await loadQueue(view)
+        auditorGroups = groupQueueByAuditor(queueRows, ojtCandidates)
+      } catch (err) {
+        queueFailure = err
+        if (!isMissingTargetsSchema(err)) console.error(err)
+      }
     }
   }
 
@@ -216,15 +246,6 @@ export default async function QaTeamProgressPage({ searchParams }: { searchParam
       dailyFailure = err
       if (!isMissingQaRankingSchema(err)) console.error(err)
     }
-  }
-
-  let ojtCandidates: OjtCandidate[] = []
-  let ojtFailure: unknown = null
-  try {
-    ojtCandidates = await loadOjtCandidates()
-  } catch (err) {
-    ojtFailure = err
-    if (!isMissingOjtSchema(err)) console.error(err)
   }
 
   return (
@@ -257,7 +278,10 @@ export default async function QaTeamProgressPage({ searchParams }: { searchParam
 
           <div style={card}>
             <h2 style={sectionTitle}>Per-auditor progress</h2>
-            <p style={sectionNote}>Audit and coaching completion against target, for the selected period.</p>
+            <p style={sectionNote}>
+              Audit and coaching completion against target, for the selected period.
+              {showAuditorBreakdown && ' Click an auditor to see their agents — the same agent-wise view their own queue and a Team Lead/Manager drill-down already use.'}
+            </p>
             {rankingFailure ? (
               isMissingQaRankingSchema(rankingFailure) ? (
                 <div role="alert" style={{ padding: '14px 16px', borderRadius: 'var(--radius-sm)', background: 'var(--highlight-light)', border: '1px solid var(--highlight)', fontSize: '13px' }}>
@@ -266,8 +290,17 @@ export default async function QaTeamProgressPage({ searchParams }: { searchParam
               ) : (
                 <div role="alert" style={{ color: 'var(--alert)', fontSize: '13px' }}>Could not be loaded right now. Try again shortly.</div>
               )
+            ) : showAuditorBreakdown ? (
+              <>
+                {queueFailure && (
+                  <div role="alert" style={{ marginBottom: '10px', fontSize: '12.5px', color: 'var(--alert)' }}>
+                    Agent-wise detail could not be loaded right now — this does not mean nobody is assigned. The numbers above are still correct.
+                  </div>
+                )}
+                <AuditorProgressBreakdown rows={auditorRows} groups={auditorGroups} />
+              </>
             ) : (
-              <AuditorProgressTable rows={auditorRows} />
+              <SimpleAuditorTable rows={auditorRows} />
             )}
           </div>
 
