@@ -41,14 +41,23 @@ const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short'
 const fmtDay = (iso: string | null) => (iso ? dayFmt.format(new Date(iso)) : 'Never')
 const fmtScore = (v: number | null) => (v === null ? '—' : `${v}%`)
 
-/** Which chip tone a ranked row's top-priority reason deserves — a finer-grained read than the old
- *  flat two-color scheme: Yellow now reads as a warning (not neutral), Green as a quiet success,
- *  so the chip's color actually tracks the agent's real standing, not just "flagged or not". */
+/** Which chip tone a ranked row's top-priority reason deserves. MUST mirror reason() in
+ *  priority.ts exactly, stage for stage — that function stops at the first true condition and
+ *  returns ITS text; this one has to stop at the same point and return a tone for THAT text, not
+ *  re-check a later-stage condition (e.g. ryg === 'red') that reason() never even reached. Before
+ *  this fix, an agent shown "Zero-seller N weeks" (zeroStreak > 0, so reason() stopped there)
+ *  could still render in alert-red purely because they ALSO happened to be ryg === 'red' for an
+ *  unrelated reason (e.g. a low 4-week score) — a hidden signal with no connection to the
+ *  displayed streak length, so a 1-week streak could show redder than someone else's 2-week one
+ *  (found by Jamil, 2026-11-02, from a real screenshot). */
 function reasonTone(r: Pick<RankedRow, 'criticalRecent' | 'onPip' | 'zeroStreak' | 'ryg'>): ChipTone {
-  if (r.criticalRecent || r.ryg === 'red') return 'alert'
-  if (r.onPip || r.zeroStreak > 0 || r.ryg === 'yellow') return 'warning'
-  if (r.ryg === 'green') return 'success'
-  return 'neutral'
+  if (r.criticalRecent) return 'alert'
+  if (r.onPip) return 'warning'
+  if (r.zeroStreak > 0) return 'warning'
+  if (r.ryg === 'red') return 'alert'
+  if (r.ryg === 'unrated' || r.ryg === null) return 'neutral'
+  if (r.ryg === 'yellow') return 'warning'
+  return 'success'
 }
 
 export interface AgentQueueTableProps {
