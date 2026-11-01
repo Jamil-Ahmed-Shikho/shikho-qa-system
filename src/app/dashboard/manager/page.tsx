@@ -56,6 +56,9 @@ export default async function ManagerDashboardPage({
           <Link href="/reports/evaluation-tracking" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             Evaluation Email Tracking →
           </Link>
+          <Link href="/reports/audit-export" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
+            Raw Audit Data Export →
+          </Link>
           <Link href="/pip" style={{ fontSize: '13px', color: 'var(--brand)', textDecoration: 'none', fontWeight: 500 }}>
             PIPs in your chain →
           </Link>

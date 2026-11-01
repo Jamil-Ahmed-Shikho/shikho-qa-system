@@ -98,6 +98,7 @@ export default async function AdminDashboardPage() {
         <NavCard href="/reports/campaigns" icon="ti-chart-pie" title="Special Check Report" />
         <NavCard href="/reports/qa-impact" icon="ti-trending-up" title="Coaching Impact & Revenue Growth" />
         <NavCard href="/reports/qa-oversight" icon="ti-scale" title="Review Request & Calibration Oversight" />
+        <NavCard href="/reports/audit-export" icon="ti-file-spreadsheet" title="Raw Audit Data Export" />
       </DashboardSection>
 
       {/* 6. Maintenance & Configuration */}
