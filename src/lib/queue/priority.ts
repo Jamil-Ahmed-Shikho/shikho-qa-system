@@ -5,11 +5,24 @@
 // read in one place.
 //
 // Confirmed tier order (§9.3), applied strictly top to bottom:
-//   1. critical fatal error in the trailing period      — unconditionally first
+//   0. still owed audits this week (doneThisWeek < finalTarget) ranks above anyone who has fully
+//      met their target this week — a fully-covered agent has no actionable work left, so they
+//      sink below EVERY still-owed agent regardless of tier (2026-11-01, Jamil — otherwise a
+//      fully-done critical-fatal agent would keep sitting at #1 with nothing left to audit).
+//   1. critical fatal error in the trailing period      — unconditionally first among still-owed agents
 //   2. active PIP                                        — above non-PIP
 //   3. zero-seller streak, longest first
 //   4. RYG: Red, then Yellow, then Green
-//   5. revenue achievement % (last completed week's revenue / that week's target), lowest first
+//   5. fewest audits done this week first (within the same tier) — "every audit nudges them down"
+//      (2026-11-01, Jamil): once an agent gets a touch this week, a same-tier peer who hasn't been
+//      touched at all yet moves ahead of them, so coverage spreads across the whole tier before
+//      anyone gets a second pass.
+//   6. longest since last audited first, never-audited first (tiebreak within the same doneThisWeek
+//      count) — reproduces the real QA practice of spacing a flagged agent's required audits across
+//      different days (e.g. Sun/Tue/Thu) rather than clearing them all in one sitting: an agent
+//      audited today drops behind a same-tier peer not yet touched today, then rises back up as
+//      days pass without a new audit.
+//   7. revenue achievement % (last completed week's revenue / that week's target), lowest first
 // ASSUMPTION (not specified — flagged in docs/questions): an agent with NO RYG status yet (no audit in the window)
 // ranks right after Red and before Yellow — someone nobody has audited recently should not sink to the bottom.
 // Agents with no achievement figure (no target set, or no revenue data for last week) sort after those with one.
@@ -85,14 +98,30 @@ function reason(r: QueueRow): string {
   return 'Green'
 }
 
+/** Has this agent fully met their weekly audit target already? No target at all (nothing to measure
+ *  against) counts as "still owed" — same as today, never silently treated as done. */
+function metTarget(r: Pick<QueueRow, 'hasTarget' | 'finalTarget' | 'doneThisWeek'>): boolean {
+  return r.hasTarget && r.finalTarget !== null && r.doneThisWeek >= r.finalTarget
+}
+
+/** Sortable instant for `lastAuditedAt` — never-audited sorts first (most overdue), same as the
+ *  oldest possible real timestamp would. */
+function auditTime(iso: string | null): number {
+  return iso === null ? -Infinity : new Date(iso).getTime()
+}
+
 export function rankQueue(rows: QueueRow[]): RankedRow[] {
-  const withAch = rows.map((r) => ({ r, ach: achievementPct(r) }))
+  const withAch = rows.map((r) => ({ r, ach: achievementPct(r), done: metTarget(r) }))
   withAch.sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1
     if (a.r.criticalRecent !== b.r.criticalRecent) return a.r.criticalRecent ? -1 : 1
     if (a.r.onPip !== b.r.onPip) return a.r.onPip ? -1 : 1
     if (a.r.zeroStreak !== b.r.zeroStreak) return b.r.zeroStreak - a.r.zeroStreak
     const ra = RYG_ORDER[a.r.ryg ?? 'none'], rb = RYG_ORDER[b.r.ryg ?? 'none']
     if (ra !== rb) return ra - rb
+    if (a.r.doneThisWeek !== b.r.doneThisWeek) return a.r.doneThisWeek - b.r.doneThisWeek
+    const ta = auditTime(a.r.lastAuditedAt), tb = auditTime(b.r.lastAuditedAt)
+    if (ta !== tb) return ta - tb
     if (a.ach !== b.ach) {
       if (a.ach === null) return 1
       if (b.ach === null) return -1
