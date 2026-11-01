@@ -105,6 +105,9 @@ export function DailyActivityTable({ rows, metric }: { rows: DailyActivityRow[];
   })
   auditors.sort((a, b) => a.todayValue - b.todayValue || a.auditorName.localeCompare(b.auditorName))
 
+  const dayTotals = new Map(days.map((d) => [d, auditors.reduce((sum, a) => sum + (a.byDay.get(d) ? dailyMetricValue(a.byDay.get(d)!, metric) : 0), 0)]))
+  const grandTotal = auditors.reduce((sum, a) => sum + a.total, 0)
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -139,6 +142,13 @@ export function DailyActivityTable({ rows, metric }: { rows: DailyActivityRow[];
               <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{a.total}</td>
             </tr>
           ))}
+          <tr style={{ background: 'var(--highlight-light)' }}>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>Total</td>
+            {days.map((d) => (
+              <td key={d} style={{ ...td, textAlign: 'center', fontWeight: 700, borderBottom: 'none' }}>{dayTotals.get(d) ?? 0}</td>
+            ))}
+            <td style={{ ...td, textAlign: 'center', fontWeight: 700, borderBottom: 'none' }}>{grandTotal}</td>
+          </tr>
         </tbody>
       </table>
     </div>
