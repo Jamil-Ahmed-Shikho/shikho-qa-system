@@ -28,6 +28,14 @@ const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeigh
 const td: React.CSSProperties = { fontSize: '13px', padding: '9px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }
 const pct = (v: number | null) => (v === null ? '—' : `${v}%`)
 
+// This card's own background (page.tsx's `card` style) — pinned so the caret+Auditor columns
+// stay readable while scrolling right, same reasoning/pattern as AgentQueueTable's own sticky
+// columns below.
+const CARET_COL_WIDTH = 34
+const CARD_BG = 'var(--paper)'
+const stickyCaretStyle: React.CSSProperties = { position: 'sticky', left: 0, width: CARET_COL_WIDTH, minWidth: CARET_COL_WIDTH, background: CARD_BG, zIndex: 1 }
+const stickyAuditorStyle: React.CSSProperties = { position: 'sticky', left: CARET_COL_WIDTH, background: CARD_BG, zIndex: 1, boxShadow: '2px 0 4px -2px rgba(15, 19, 34, 0.12)' }
+
 export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankingRow[]; groups: AuditorAgentGroup[] }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = (key: string) =>
@@ -50,8 +58,8 @@ export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankin
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
         <thead>
           <tr>
-            <th style={th} />
-            <th style={th}>Auditor</th>
+            <th style={{ ...th, ...stickyCaretStyle }} />
+            <th style={{ ...th, ...stickyAuditorStyle }}>Auditor</th>
             <th style={th}>Agents</th>
             <th style={th}>Audits done / target</th>
             <th style={th}>Audit %</th>
@@ -62,7 +70,7 @@ export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankin
         <tbody>
           {rows.map((r) => (
             <AuditorRow key={r.auditorId} isOpen={open.has(r.auditorId)} onToggle={() => toggle(r.auditorId)} group={byAuditorId.get(r.auditorId)}>
-              <td style={td}><b>{r.auditorName}</b></td>
+              <td style={{ ...td, ...stickyAuditorStyle }}><b>{r.auditorName}</b></td>
               <td style={td}>{r.agentsAssigned}</td>
               <td style={td}>{r.auditsDone} / {r.auditTarget}</td>
               <td style={td}>{pct(r.auditPct)}</td>
@@ -72,7 +80,7 @@ export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankin
           ))}
           {unassigned && (unassigned.rankedAgents.length > 0 || unassigned.reTraining.length > 0) && (
             <AuditorRow isOpen={open.has(UNASSIGNED_AUDITOR_ID)} onToggle={() => toggle(UNASSIGNED_AUDITOR_ID)} group={unassigned}>
-              <td style={td}>
+              <td style={{ ...td, ...stickyAuditorStyle }}>
                 <b>Unassigned</b>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No QA Auditor set on these agents&apos; profile</div>
               </td>
@@ -100,7 +108,7 @@ function AuditorRow({
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
-        <td style={td}><span style={{ display: 'inline-block', width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span></td>
+        <td style={{ ...td, ...stickyCaretStyle }}><span style={{ display: 'inline-block', width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span></td>
         {children}
       </tr>
       {isOpen && (
@@ -118,6 +126,8 @@ function AuditorRow({
               agentProfileHref={agentProfileHref}
               action={auditAction}
               emptyMessage="No agents currently assigned to this auditor."
+              stickyBg="var(--surface-0)"
+              ownScroll={false}
             />
           </td>
         </tr>

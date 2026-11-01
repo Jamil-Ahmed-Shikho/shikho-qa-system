@@ -27,6 +27,16 @@ const th: React.CSSProperties = {
 }
 const td: React.CSSProperties = { fontSize: '13px', padding: '9px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }
 
+// A wide table (9 data columns + an action button) needs horizontal scroll on most real screens
+// no matter how it's trimmed — but losing sight of WHICH agent a row belongs to while scrolling
+// right to read their numbers is the actual problem (Jamil, 2026-11-01: "need to move left/right
+// to see the full report"). Standard fix: pin the # and Agent columns so they stay visible while
+// the rest of the row scrolls underneath. The rank column's width is fixed (not content-sized) so
+// the Agent column's own `left` offset is a known constant, not something computed per-render.
+const RANK_COL_WIDTH = 34
+const stickyRankStyle = (bg: string): React.CSSProperties => ({ position: 'sticky', left: 0, width: RANK_COL_WIDTH, minWidth: RANK_COL_WIDTH, background: bg, zIndex: 1 })
+const stickyAgentStyle = (bg: string): React.CSSProperties => ({ position: 'sticky', left: RANK_COL_WIDTH, background: bg, zIndex: 1, boxShadow: '2px 0 4px -2px rgba(15, 19, 34, 0.12)' })
+
 const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dhaka' })
 const fmtDay = (iso: string | null) => (iso ? dayFmt.format(new Date(iso)) : 'Never')
 const fmtScore = (v: number | null) => (v === null ? '—' : `${v}%`)
@@ -53,6 +63,20 @@ export interface AgentQueueTableProps {
    *  entirely for a view-only viewer (Manager) rather than rendered disabled. */
   action?: { label: string; href: (agentId: string) => string }
   emptyMessage?: string
+  /** The card/cell background behind this table — the pinned #/Agent columns need an explicit,
+   *  opaque match or scrolled-under content would show through them. Defaults to the ordinary
+   *  card background (`var(--paper)`); pass the real background when embedding this table inside
+   *  something else's differently-colored container (e.g. an expandable detail row). */
+  stickyBg?: string
+  /** False when this table is nested inside a <td> of an ALREADY horizontally-scrollable outer
+   *  table (the Manager/Auditor-breakdown expandable rows). A `position: sticky` column sticks to
+   *  its NEAREST scrolling ancestor — giving this table its own overflow-x:auto in that situation
+   *  creates two nested scroll containers, and the inner one's sticky column pins to its own
+   *  (non-scrolling) box while the outer scroll carries that whole box out of view, defeating the
+   *  point. With no scroll container of its own, this table's sticky columns correctly pin
+   *  relative to the SAME outer scroll the rest of the row already uses. Default true (own scroll)
+   *  for the two call sites that render this table directly, with no outer scrollable wrapper. */
+  ownScroll?: boolean
 }
 
 function TargetCell({ r }: { r: RankedRow }) {
@@ -77,11 +101,11 @@ function ActionButton({ href, label }: { href: string; label: string }) {
   )
 }
 
-function Row({ r, agentProfileHref, action }: { r: RankedRow; agentProfileHref: (id: string) => string; action?: AgentQueueTableProps['action'] }) {
+function Row({ r, agentProfileHref, action, stickyBg }: { r: RankedRow; agentProfileHref: (id: string) => string; action?: AgentQueueTableProps['action']; stickyBg: string }) {
   return (
     <tr>
-      <td style={td}>{r.rank}</td>
-      <td style={td}>
+      <td style={{ ...td, ...stickyRankStyle(stickyBg) }}>{r.rank}</td>
+      <td style={{ ...td, ...stickyAgentStyle(stickyBg) }}>
         <Link href={agentProfileHref(r.agentId)} prefetch={false} style={{ color: 'inherit', textDecoration: 'none' }}>
           <b style={{ color: 'var(--brand)' }}>{r.name}</b>
         </Link>
@@ -108,15 +132,15 @@ function Row({ r, agentProfileHref, action }: { r: RankedRow; agentProfileHref: 
 // don't fit the Done/Target column or the RYG-driven priority order at all — but shown at
 // the BOTTOM of the same table, flagged, rather than invisible. Last Audited/Last
 // Coached/Last Week/This Week are real facts (schema_068/071), not placeholders.
-function ReTrainingRow({ c, rowNumber, agentProfileHref, action }: { c: OjtCandidate; rowNumber: number; agentProfileHref: (id: string) => string; action?: AgentQueueTableProps['action'] }) {
+function ReTrainingRow({ c, rowNumber, agentProfileHref, action, stickyBg }: { c: OjtCandidate; rowNumber: number; agentProfileHref: (id: string) => string; action?: AgentQueueTableProps['action']; stickyBg: string }) {
   const ended = c.reTrainingDaysLeft !== null && c.reTrainingDaysLeft <= 0
   const flagText = ended
     ? `Re-training ended ${fmtDay(c.reTrainingEndDate)} — awaiting certify/discontinue decision`
     : `Re-training — ends ${fmtDay(c.reTrainingEndDate)} (${c.reTrainingDaysLeft ?? '?'} day${c.reTrainingDaysLeft === 1 ? '' : 's'} left)`
   return (
     <tr>
-      <td style={td}>{rowNumber}</td>
-      <td style={td}>
+      <td style={{ ...td, ...stickyRankStyle(stickyBg) }}>{rowNumber}</td>
+      <td style={{ ...td, ...stickyAgentStyle(stickyBg) }}>
         <Link href={agentProfileHref(c.agentId)} prefetch={false} style={{ color: 'inherit', textDecoration: 'none' }}>
           <b style={{ color: 'var(--brand)' }}>{c.name}</b>
         </Link>
@@ -198,7 +222,7 @@ function ReTrainingCard({ c, rowNumber, agentProfileHref, action }: { c: OjtCand
   )
 }
 
-export function AgentQueueTable({ ranked, reTraining = [], agentProfileHref, action, emptyMessage = 'No agents to show.' }: AgentQueueTableProps) {
+export function AgentQueueTable({ ranked, reTraining = [], agentProfileHref, action, emptyMessage = 'No agents to show.', stickyBg = 'var(--paper)', ownScroll = true }: AgentQueueTableProps) {
   if (ranked.length === 0 && reTraining.length === 0) {
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{emptyMessage}</p>
   }
@@ -213,18 +237,18 @@ export function AgentQueueTable({ ranked, reTraining = [], agentProfileHref, act
         }
       `}</style>
 
-      <div className="aqt-table-view" style={{ overflowX: 'auto' }}>
+      <div className="aqt-table-view" style={ownScroll ? { overflowX: 'auto' } : undefined}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
           <thead>
             <tr>
-              <th style={th}>#</th><th style={th}>Agent</th><th style={th}>Done / target</th><th style={th}>Last audited</th>
+              <th style={{ ...th, ...stickyRankStyle(stickyBg) }}>#</th><th style={{ ...th, ...stickyAgentStyle(stickyBg) }}>Agent</th><th style={th}>Done / target</th><th style={th}>Last audited</th>
               <th style={th}>Last coached</th><th style={th}>Last week ($)</th><th style={th}>This week ($)</th>
               <th style={th}>Last week (score)</th><th style={th}>This week (score)</th>{action && <th style={th} />}
             </tr>
           </thead>
           <tbody>
-            {ranked.map((r) => <Row key={r.agentId} r={r} agentProfileHref={agentProfileHref} action={action} />)}
-            {reTraining.map((c, i) => <ReTrainingRow key={c.agentId} c={c} rowNumber={ranked.length + i + 1} agentProfileHref={agentProfileHref} action={action} />)}
+            {ranked.map((r) => <Row key={r.agentId} r={r} agentProfileHref={agentProfileHref} action={action} stickyBg={stickyBg} />)}
+            {reTraining.map((c, i) => <ReTrainingRow key={c.agentId} c={c} rowNumber={ranked.length + i + 1} agentProfileHref={agentProfileHref} action={action} stickyBg={stickyBg} />)}
           </tbody>
         </table>
       </div>

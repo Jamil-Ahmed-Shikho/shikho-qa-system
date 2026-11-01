@@ -81,7 +81,7 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
           <thead>
             <tr style={{ background: 'var(--surface-1)', textAlign: 'left' }}>
               {['Team Lead', 'Team / Site', 'Agents', 'Coverage', 'Audits', 'Avg score', 'Pass rate', 'Critical'].map((h, i) => (
-                <th key={h} style={{ ...th, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</th>
+                <th key={h} style={{ ...th, textAlign: i >= 2 ? 'right' : 'left', ...(i === 0 ? stickyFirstCol('var(--surface-1)') : {}) }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -94,7 +94,7 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
               )
             })}
             <tr style={{ borderTop: '2px solid var(--border-strong)', background: 'var(--surface-0)', fontWeight: 600 }}>
-              <td style={td} colSpan={2}>Total</td>
+              <td style={{ ...td, ...stickyFirstCol('var(--surface-0)') }} colSpan={2}>Total</td>
               <MetricCells m={metricsOverview} />
             </tr>
           </tbody>
@@ -115,7 +115,7 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
           <thead>
             <tr style={{ background: 'var(--surface-1)', textAlign: 'left' }}>
               {['Channel', 'Agents', 'Coverage', 'Audits', 'Avg score', 'Pass rate', 'Critical'].map((h, i) => (
-                <th key={h} style={{ ...th, textAlign: i >= 1 ? 'right' : 'left' }}>{h}</th>
+                <th key={h} style={{ ...th, textAlign: i >= 1 ? 'right' : 'left', ...(i === 0 ? stickyFirstCol('var(--surface-1)') : {}) }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -124,7 +124,7 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
               <ChannelGroupRows key={g.channel} group={g} isOpen={openChannel.has(g.channel)} onToggle={() => toggleChannel(g.channel)} />
             ))}
             <tr style={{ borderTop: '2px solid var(--border-strong)', background: 'var(--surface-0)', fontWeight: 600 }}>
-              <td style={td}>Total</td>
+              <td style={{ ...td, ...stickyFirstCol('var(--surface-0)') }}>Total</td>
               <MetricCells m={metricsOverview} />
             </tr>
           </tbody>
@@ -213,7 +213,7 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
   return (
     <>
       <tr onClick={onToggle} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
-        <td style={td}>
+        <td style={{ ...td, ...stickyFirstCol('var(--paper)') }}>
           <span style={{ display: 'inline-block', width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
           <b>{group.channel}</b>
         </td>
@@ -226,7 +226,7 @@ function ChannelGroupRows({ group, isOpen, onToggle }: { group: ChannelGroup; is
            *  of view too (cut-off text). Keeps the cell's width to what the other rows need,
            *  letting the inner table scroll independently instead. */}
           <td colSpan={7} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)', width: '1px' }}>
-            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." />
+            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents in this channel." stickyBg="var(--surface-0)" ownScroll={false} />
           </td>
         </tr>
       )}
@@ -242,7 +242,7 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
         onClick={onToggle}
         style={{ borderTop: '1px solid var(--border)', cursor: 'pointer', opacity: tl && !tl.is_active ? 0.65 : 1 }}
       >
-        <td style={td}>
+        <td style={{ ...td, ...stickyFirstCol('var(--paper)') }}>
           <span style={{ display: 'inline-block', width: '14px', color: 'var(--text-muted)' }}>{isOpen ? '▾' : '▸'}</span>
           <b>{tl ? tl.name : 'Other agents'}</b>
           {tl && !tl.is_active && <span style={{ color: 'var(--text-muted)' }}> (deactivated)</span>}
@@ -254,7 +254,7 @@ function GroupRows({ group, isOpen, onToggle }: { group: TeamLeadGroup; isOpen: 
       {isOpen && (
         <tr>
           <td colSpan={8} style={{ padding: '10px 10px 10px 26px', background: 'var(--surface-0)', width: '1px' }}>
-            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." />
+            <AgentQueueTable ranked={group.rankedAgents} reTraining={group.reTraining} agentProfileHref={agentProfileHref} emptyMessage="No agents under this Team Lead." stickyBg="var(--surface-0)" ownScroll={false} />
           </td>
         </tr>
       )}
@@ -290,6 +290,13 @@ function Card({ label, value, sub, color }: { label: string; value: string; sub?
 
 const th: React.CSSProperties = { padding: '10px 12px', fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }
 const td: React.CSSProperties = { padding: '10px 12px' }
+// Pins the first column (Team Lead / Channel name, caret included in the same cell here — unlike
+// AuditorProgressBreakdown there's no separate caret column) so it stays visible while scrolling
+// right to read the metric columns (Jamil, 2026-11-01: "need to move left/right to see the full
+// report"). bg must match whatever that row would otherwise show through — the ordinary row
+// background (var(--paper), the card's own), the header's (var(--surface-1)), or the Total row's
+// (var(--surface-0)).
+const stickyFirstCol = (bg: string): React.CSSProperties => ({ position: 'sticky', left: 0, background: bg, zIndex: 1, boxShadow: '2px 0 4px -2px rgba(15, 19, 34, 0.12)' })
 const emptyBox: React.CSSProperties = {
   background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
   padding: '24px', color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', lineHeight: 1.6,
