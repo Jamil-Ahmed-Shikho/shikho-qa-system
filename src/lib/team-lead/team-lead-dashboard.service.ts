@@ -120,7 +120,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
     }
   }
 
-  const [slabs, auditsRes, targetsRes, statusRes, zeroSellerRes, fatalsRes, reviewRes, recentRes, cycleRes] = await Promise.all([
+  const [slabs, auditsRes, targetsRes, statusRes, zeroSellerRes, noTargetRes, fatalsRes, reviewRes, recentRes, cycleRes] = await Promise.all([
     loadVintageSlabs().catch(() => DEFAULT_VINTAGE_SLABS),
     // check_mode = 'audit' — a Sample Check has no score and must not inflate "audits done" or
     // (worse) drag down avgScore/passRate by counting toward the denominator with a null score.
@@ -130,6 +130,9 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
       .gte('week_start', from.toISOString().slice(0, 10)).lt('week_start', to.toISOString().slice(0, 10)),
     supabase.from('agent_current_status').select('agent_id, status, avg_audit_score').in('agent_id', agentIds),
     supabase.from('agent_zero_seller_status').select('agent_id, current_streak_weeks, last_sale_date').in('agent_id', agentIds).gt('current_streak_weeks', 0),
+    // A zero-seller streak means nothing for a team with no configured revenue target (CX
+    // Non-Voice right now) — $0 there isn't underperformance, schema_104.
+    supabase.rpc('agents_without_revenue_target', { p_agent_ids: agentIds }),
     supabase.from('audits').select('id, agent_id, auditor_id, submitted_at').eq('status', 'submitted').eq('critical_fail', true).in('agent_id', agentIds)
       .gte('submitted_at', from.toISOString()).lt('submitted_at', to.toISOString()),
     supabase.from('review_requests').select('id, agent_id, status, created_at').in('agent_id', agentIds).neq('status', 'resolved'),
@@ -143,9 +146,11 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
   if (targetsRes.error) throw new Error(`Could not load audit targets: ${targetsRes.error.message}`)
   if (statusRes.error) throw new Error(`Could not load RYG status: ${statusRes.error.message}`)
   if (zeroSellerRes.error) throw new Error(`Could not load zero-seller status: ${zeroSellerRes.error.message}`)
+  if (noTargetRes.error) throw new Error(`Could not load revenue-target coverage: ${noTargetRes.error.message}`)
   if (fatalsRes.error) throw new Error(`Could not load fatal incidents: ${fatalsRes.error.message}`)
   if (reviewRes.error) throw new Error(`Could not load Review Requests: ${reviewRes.error.message}`)
   if (recentRes.error) throw new Error(`Could not load recent audits: ${recentRes.error.message}`)
+  const noTargetIds = new Set((noTargetRes.data ?? []).map((r: { agent_id: string }) => r.agent_id))
 
   // Evaluation-email click tracking (schema_092, 2026-10-12) — a nice-to-have count for the
   // attention strip, not core dashboard data, so a failure here degrades to 0 rather than
@@ -262,6 +267,7 @@ export async function loadTeamLeadDashboard(teamLeadId: string, teamLeadName: st
 
   const nowMs = Date.now()
   const zeroSellers: ZeroSellerRow[] = (zeroSellerRes.data ?? [])
+    .filter((z) => !noTargetIds.has(z.agent_id))
     .map((z) => ({
       agentId: z.agent_id,
       agentName: rosterById.get(z.agent_id)?.name ?? 'Unknown',

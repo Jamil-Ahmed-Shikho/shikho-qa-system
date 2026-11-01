@@ -72,10 +72,13 @@ export async function loadManagerOverview(agentIds: string[], from: Date, to: Da
   if (agentIds.length === 0) return { fatalIncidents: [], zeroSellers: [], pipLive: [] }
   const supabase = await getSupabaseServer()
 
-  const [slabs, rosterRes, zeroSellerRes, fatalsRes, cycleRes] = await Promise.all([
+  const [slabs, rosterRes, zeroSellerRes, noTargetRes, fatalsRes, cycleRes] = await Promise.all([
     loadVintageSlabs().catch(() => DEFAULT_VINTAGE_SLABS),
     supabase.from('users').select('id, name, employment_stage, joining_date').in('id', agentIds),
     supabase.from('agent_zero_seller_status').select('agent_id, current_streak_weeks, last_sale_date').in('agent_id', agentIds).gt('current_streak_weeks', 0),
+    // A zero-seller streak means nothing for a team with no configured revenue target (CX
+    // Non-Voice right now) — $0 there isn't underperformance, schema_104.
+    supabase.rpc('agents_without_revenue_target', { p_agent_ids: agentIds }),
     // check_mode = 'audit' — a Sample Check never carries critical_fail=true, but stays explicit
     // for consistency with every other "is this a real audit" filter in this system.
     supabase.from('audits').select('id, agent_id, auditor_id, submitted_at').eq('status', 'submitted').eq('check_mode', 'audit').eq('critical_fail', true).in('agent_id', agentIds)
@@ -85,7 +88,9 @@ export async function loadManagerOverview(agentIds: string[], from: Date, to: Da
   ])
   if (rosterRes.error) throw new Error(`Could not load your chain's agents: ${rosterRes.error.message}`)
   if (zeroSellerRes.error) throw new Error(`Could not load zero-seller status: ${zeroSellerRes.error.message}`)
+  if (noTargetRes.error) throw new Error(`Could not load revenue-target coverage: ${noTargetRes.error.message}`)
   if (fatalsRes.error) throw new Error(`Could not load fatal incidents: ${fatalsRes.error.message}`)
+  const noTargetIds = new Set((noTargetRes.data ?? []).map((r: { agent_id: string }) => r.agent_id))
 
   const rosterById = new Map((rosterRes.data ?? []).map((a) => [a.id, a]))
   const vintageByAgent = new Map(
@@ -153,6 +158,7 @@ export async function loadManagerOverview(agentIds: string[], from: Date, to: Da
 
   const nowMs = Date.now()
   const zeroSellers: ManagerZeroSellerRow[] = (zeroSellerRes.data ?? [])
+    .filter((z) => !noTargetIds.has(z.agent_id))
     .map((z) => ({
       agentId: z.agent_id,
       agentName: rosterById.get(z.agent_id)?.name ?? 'Unknown',
