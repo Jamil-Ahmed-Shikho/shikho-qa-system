@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { isMissingTargetsSchema, loadQueue, type QueueView } from '@/lib/queue/queue.service'
-import { groupKey, rankQueue, ratioPct, summarizeTargets, teamGroupOptions, type QueueRow, type TeamGroupOption } from '@/lib/queue/priority'
+import { groupKey, rankQueue, ratioPct, summarizeTargets, teamGroupOptions, vintageGroupOptions, type QueueRow, type TeamGroupOption } from '@/lib/queue/priority'
 import { loadOjtCandidates, isMissingOjtSchema, type OjtCandidate } from '@/lib/ojt/ojt.service'
 import { AgentQueueTable } from './AgentQueueTable'
 import { TodayActivityStrip } from '@/components/qa-ranking/TodayActivityStrip'
@@ -15,11 +15,12 @@ const th: React.CSSProperties = {
 }
 const td: React.CSSProperties = { fontSize: '13px', padding: '9px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }
 
-function ViewToggle({ view, base, team }: { view: QueueView; base: string; team: string | null }) {
+function ViewToggle({ view, base, team, vintage }: { view: QueueView; base: string; team: string | null; vintage: string | null }) {
   const teamQuery = team ? `&team=${encodeURIComponent(team)}` : ''
+  const vintageQuery = vintage ? `&vintage=${encodeURIComponent(vintage)}` : ''
   const tab = (v: QueueView, text: string) => (
     <Link
-      href={`${base}?view=${v}${teamQuery}`}
+      href={`${base}?view=${v}${teamQuery}${vintageQuery}`}
       aria-current={view === v ? 'page' : undefined}
       style={{
         padding: '6px 14px', fontSize: '13px', textDecoration: 'none', borderRadius: 'var(--radius-pill)',
@@ -33,12 +34,20 @@ function ViewToggle({ view, base, team }: { view: QueueView; base: string; team:
   return <div style={{ display: 'flex', gap: '8px' }}>{tab('mine', 'My view')}{tab('team', 'Team view')}</div>
 }
 
-/** "Who to audit next"'s team/channel filter chips — single-select, URL-driven (so the choice
- *  survives a refresh the same way the My view / Team view toggle already does). "All teams" has
- *  no `team` param at all; picking a team/channel chip that doesn't exist in the current My/Team
- *  view scope is simply never offered, and a stale one left over from switching scope falls back
- *  to "All teams" on its own (QueueSection validates `team` against the current `options`). */
-function TeamChips({ options, selected, view, base }: { options: TeamGroupOption[]; selected: string | null; view: QueueView; base: string }) {
+/** A single row of filter chips (team or vintage), single-select within itself, URL-driven (so
+ *  the choice survives a refresh the same way the My view / Team view toggle already does) and
+ *  independent of the OTHER chip row — each carries whatever the other one is currently set to,
+ *  so picking a team doesn't clear a vintage pick and vice versa. The "All ..." chip has no param
+ *  for this dimension at all; a chip that doesn't exist in the current My/Team view scope is
+ *  simply never offered, and a stale one left over from switching scope falls back to "All ..."
+ *  on its own (QueueSection validates both params against their current `options`). */
+function FilterChips({
+  options, selected, view, base, otherParam, otherValue, paramName, allLabel, ariaLabel,
+}: {
+  options: TeamGroupOption[]; selected: string | null; view: QueueView; base: string
+  otherParam: string; otherValue: string | null; paramName: string; allLabel: string; ariaLabel: string
+}) {
+  const otherQuery = otherValue ? `&${otherParam}=${encodeURIComponent(otherValue)}` : ''
   const chip = (label: string, href: string, isSelected: boolean, key: string) => (
     <Link
       key={key}
@@ -57,9 +66,9 @@ function TeamChips({ options, selected, view, base }: { options: TeamGroupOption
     </Link>
   )
   return (
-    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '14px' }} role="tablist" aria-label="Filter by team or channel">
-      {chip('All teams', `${base}?view=${view}`, selected === null, 'all')}
-      {options.map((o) => chip(`${o.group} (${o.pendingCount})`, `${base}?view=${view}&team=${encodeURIComponent(o.group)}`, selected === o.group, o.group))}
+    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '10px' }} role="tablist" aria-label={ariaLabel}>
+      {chip(allLabel, `${base}?view=${view}${otherQuery}`, selected === null, 'all')}
+      {options.map((o) => chip(`${o.group} (${o.pendingCount})`, `${base}?view=${view}&${paramName}=${encodeURIComponent(o.group)}${otherQuery}`, selected === o.group, o.group))}
     </div>
   )
 }
@@ -82,7 +91,7 @@ function PctCell({ value, bold }: { value: number | null; bold?: boolean }) {
  * The QA dashboard's target summary + priority-sorted agent queue (§9). The database limits the rows: My view = the
  * auditor's assigned agents, Team view = everyone (a QA Auditor is QA staff, so both are allowed — §2's standing rule).
  */
-export async function QueueSection({ view, base, team }: { view: QueueView; base: string; team?: string | null }) {
+export async function QueueSection({ view, base, team, vintage }: { view: QueueView; base: string; team?: string | null; vintage?: string | null }) {
   let rows: QueueRow[] = []
   try {
     rows = await loadQueue(view)
@@ -114,7 +123,15 @@ export async function QueueSection({ view, base, team }: { view: QueueView; base
   // My/Team view scope is treated as "All teams" rather than erroring or showing a stale filter.
   const teamOptions = teamGroupOptions(rows)
   const selectedTeam = team && teamOptions.some((o) => o.group === team) ? team : null
-  const queueRows = selectedTeam ? rows.filter((r) => groupKey(r) === selectedTeam) : rows
+
+  // Vintage chips: same "options from the unfiltered rows" rule as the team chips, and the two
+  // filters combine (AND) rather than being mutually exclusive — e.g. "CX Inbound" + "1st Month".
+  const vintageOptions = vintageGroupOptions(rows)
+  const selectedVintage = vintage && vintageOptions.some((o) => o.group === vintage) ? vintage : null
+
+  const queueRows = rows.filter(
+    (r) => (!selectedTeam || groupKey(r) === selectedTeam) && (!selectedVintage || (r.vintageLabel ?? 'Not available') === selectedVintage)
+  )
   const ranked = rankQueue(queueRows)
 
   // Re-training agents, appended below the ranked list (2026-10-03, Jamil's request) — never
@@ -122,11 +139,14 @@ export async function QueueSection({ view, base, team }: { view: QueueView; base
   // A load failure here is quietly swallowed (shows nothing extra) rather than breaking the
   // whole queue — this is a supplementary flag, not the main screen. Filtered by the same
   // selected team (matched on their own real team name, not the synthetic "OJT" channel group —
-  // re-training is its own stage, §7, never folded into OJT).
+  // re-training is its own stage, §7, never folded into OJT) and, since every re-training agent
+  // is OJT vintage (§6.1), by vintage too — shown only when "All vintages" or "OJT" is selected.
   let reTraining: OjtCandidate[] = []
   try {
     const candidates = await loadOjtCandidates(view)
-    reTraining = candidates.filter((c) => c.stage === 're_training' && (!selectedTeam || c.teamName === selectedTeam))
+    reTraining = candidates.filter(
+      (c) => c.stage === 're_training' && (!selectedTeam || c.teamName === selectedTeam) && (!selectedVintage || selectedVintage === 'OJT')
+    )
   } catch (err) {
     if (!isMissingOjtSchema(err)) console.error('loadOjtCandidates failed:', err)
   }
@@ -138,7 +158,7 @@ export async function QueueSection({ view, base, team }: { view: QueueView; base
       <section style={card} aria-label="Weekly audit target">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>This week&apos;s audit target</h2>
-          <ViewToggle view={view} base={base} team={selectedTeam} />
+          <ViewToggle view={view} base={base} team={selectedTeam} vintage={selectedVintage} />
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 12px' }}>
           Sales week (Saturday–Friday). {view === 'mine' ? 'Agents assigned to you.' : 'Every agent.'} Audit Target is the sum of each agent&apos;s weekly target, including the +1 bonus. Agents Covered counts agents with at least one audit this week, regardless of how many are still owed.
@@ -199,13 +219,24 @@ export async function QueueSection({ view, base, team }: { view: QueueView; base
           Highest priority first: critical fatal error, then PIP, longest zero-seller streak, Red before Yellow before Green, then lowest revenue achievement.
           Revenue is in US dollars.
         </p>
-        {teamOptions.length > 0 && <TeamChips options={teamOptions} selected={selectedTeam} view={view} base={base} />}
+        {teamOptions.length > 0 && (
+          <FilterChips
+            options={teamOptions} selected={selectedTeam} view={view} base={base}
+            otherParam="vintage" otherValue={selectedVintage} paramName="team" allLabel="All teams" ariaLabel="Filter by team or channel"
+          />
+        )}
+        {vintageOptions.length > 0 && (
+          <FilterChips
+            options={vintageOptions} selected={selectedVintage} view={view} base={base}
+            otherParam="team" otherValue={selectedTeam} paramName="vintage" allLabel="All vintages" ariaLabel="Filter by vintage"
+          />
+        )}
         <AgentQueueTable
           ranked={ranked}
           reTraining={reTraining}
           agentProfileHref={(id) => `/audits/agent/${encodeURIComponent(id)}/profile`}
           action={{ label: 'Audit', href: (id) => `/audits/agent/${encodeURIComponent(id)}` }}
-          emptyMessage={selectedTeam ? `No agents pending audit in ${selectedTeam}.` : undefined}
+          emptyMessage={selectedTeam || selectedVintage ? 'No agents pending audit match these filters.' : undefined}
         />
       </section>
     </>

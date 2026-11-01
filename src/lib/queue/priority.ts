@@ -177,3 +177,34 @@ export function teamGroupOptions(rows: QueueRow[]): TeamGroupOption[] {
     .map(([group, pendingCount]) => ({ group, pendingCount }))
     .sort((a, b) => (a.group === 'OJT' ? 1 : b.group === 'OJT' ? -1 : a.group.localeCompare(b.group)))
 }
+
+// ── Vintage chips for "Who to audit next" (§6.1's own canonical tenure order, not alphabetical) ──
+
+export type VintageGroupOption = TeamGroupOption
+
+const VINTAGE_ORDER = ['OJT', '1st Month', '1-3 Months', '3-6 Months', '6-9 Months', '9-12 Months', '1 Year Plus']
+
+function vintageSortIndex(label: string): number {
+  const i = VINTAGE_ORDER.indexOf(label)
+  return i === -1 ? VINTAGE_ORDER.length : i // an unrecognized/"Not available" label sorts last
+}
+
+/** One option per vintage label present in `rows` (OJT-stage agents already carry vintageLabel
+ *  'OJT' from the database, §6.1), ordered by tenure rather than alphabetically, each with how
+ *  many of its agents still need more audits this week — same shape and "pending" meaning as
+ *  teamGroupOptions(). Re-training agents are never in `rows` (§7) and have no weekly target, so
+ *  like the team chips they don't produce or affect a chip count here; QueueSection still filters
+ *  them into the OJT vintage bucket specifically, since every re-training agent is OJT vintage. */
+export function vintageGroupOptions(rows: QueueRow[]): VintageGroupOption[] {
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    const k = r.vintageLabel ?? 'Not available'
+    if (!map.has(k)) map.set(k, 0)
+    if (r.hasTarget && r.finalTarget !== null && r.doneThisWeek < r.finalTarget) {
+      map.set(k, (map.get(k) ?? 0) + 1)
+    }
+  }
+  return [...map.entries()]
+    .map(([group, pendingCount]) => ({ group, pendingCount }))
+    .sort((a, b) => vintageSortIndex(a.group) - vintageSortIndex(b.group))
+}
