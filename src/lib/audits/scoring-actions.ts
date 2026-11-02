@@ -165,6 +165,11 @@ export async function submitScorecard(auditId: string, rawPayload: unknown): Pro
 // real send to the group inbox; unset, it defaults to the real address.
 const QA_TEAM_CC_EMAIL = (process.env.AUDIT_EMAIL_QA_TEAM_CC ?? '').trim() || 'qat@shikho.com'
 
+// Cc'd first on a Red/critical-fatal alert specifically (not on an ordinary passed-audit email) —
+// Jamil, 2026-11-02: the COO, who the QA department reports to. Same override pattern as
+// QA_TEAM_CC_EMAIL above — unset, the real address.
+const COO_CC_EMAIL = (process.env.AUDIT_EMAIL_COO_CC ?? '').trim() || 'ishmam@shikho.com'
+
 function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
   after(async () => {
     try {
@@ -220,6 +225,7 @@ function sendAuditEmailsAfterResponse(auditId: string, actorId: string) {
           seenCc.add(key)
           ccEmails.push(email)
         }
+        if (isRedFatal) addCc(COO_CC_EMAIL)
         addCc(d.teamLeaderEmail)
         addCc(QA_TEAM_CC_EMAIL)
         if (isRedFatal) {

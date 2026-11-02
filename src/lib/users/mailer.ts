@@ -307,10 +307,13 @@ export async function sendCampaignMistakeReportEmail(to: string[], cc: string[],
 // PIP publish notifications (§6.4, Section C, Stage 7): one email per published agent
 // (their own period/target/achievement/downgrade note) and one per Team Lead/Manager
 // (only their own people's names) — content built by pip/notification-email.ts.
-export async function sendPipNotificationEmail(to: string, subject: string, html: string, text: string) {
+// cc added 2026-11-02 (Jamil: the COO, who QA reports to, Cc'd on every PIP email).
+export async function sendPipNotificationEmail(to: string, cc: string | string[] | null, subject: string, html: string, text: string) {
+  const ccValue = Array.isArray(cc) ? (cc.length ? cc : undefined) : (cc ?? undefined)
   await getTransporter().sendMail({
     from: `"${process.env.EMAIL_FROM_NAME ?? 'Shikho QA'}" <${process.env.EMAIL_FROM}>`,
     to,
+    cc: ccValue,
     subject,
     html,
     text,

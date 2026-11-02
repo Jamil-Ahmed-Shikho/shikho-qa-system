@@ -341,6 +341,11 @@ export async function recordTerminationExceptionAction(
   return { ok: true }
 }
 
+// Cc'd on every PIP publish-notification email — agent and staff alike (Jamil, 2026-11-02: the
+// COO, who the QA department reports to, needs visibility on this exact way "all PIP email" was
+// phrased). Same override pattern as QA_TEAM_CC_EMAIL (scoring-actions.ts) — unset, the real address.
+const COO_CC_EMAIL = (process.env.PIP_NOTIFICATIONS_COO_CC ?? '').trim() || 'ishmam@shikho.com'
+
 // ── Stage 7: publish notification emails — manual, mode-gated, idempotent per cycle ────────────────
 // Reads use the service role because they need an unrestricted view across candidates and staff
 // regardless of who happens to be signed in; the ADMIN_ROLES check above stands in for RLS here,
@@ -420,14 +425,14 @@ export async function sendPipNotificationsAction(
       const input = { label, n, achievementUsd }
       return {
         email: n.recipient.email,
-        send: () => sendPipNotificationEmail(n.recipient.email, agentNotificationSubject(input), agentNotificationHtml(input), agentNotificationText(input)),
+        send: () => sendPipNotificationEmail(n.recipient.email, COO_CC_EMAIL, agentNotificationSubject(input), agentNotificationHtml(input), agentNotificationText(input)),
       }
     }))),
     ...staffNotifs.map((n) => {
       const input = { label, n }
       return {
         email: n.recipient.email,
-        send: () => sendPipNotificationEmail(n.recipient.email, staffNotificationSubject(input), staffNotificationHtml(input), staffNotificationText(input)),
+        send: () => sendPipNotificationEmail(n.recipient.email, COO_CC_EMAIL, staffNotificationSubject(input), staffNotificationHtml(input), staffNotificationText(input)),
       }
     }),
   ]
