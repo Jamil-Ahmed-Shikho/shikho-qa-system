@@ -130,7 +130,9 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
               <tbody>
                 {rows.map((c) => {
                   const onPip = c.status === 'approved' || c.status === 'completed' || c.status === 'failed'
-                  const targetMet = onPip && c.achievementUsd !== null && c.targetRevenue !== null && c.achievementUsd >= c.targetRevenue
+                  // Tri-state: null when there's nothing to compare yet (not on a PIP, or the
+                  // achievement read failed) — never collapsed into "false/short" (§14).
+                  const targetMet: boolean | null = onPip && c.achievementUsd !== null && c.targetRevenue !== null ? c.achievementUsd >= c.targetRevenue : null
                   return (
                   <tr key={c.id}>
                     <td style={td}>
@@ -150,18 +152,27 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
                         <>
                           <span style={{ fontWeight: 600, color: targetMet ? 'var(--status-green)' : 'var(--alert)' }}>{fmtMoney(c.achievementUsd, 'USD')}</span>
                           {c.targetRevenue !== null && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>of {fmtMoney(c.targetRevenue, 'USD')} target</div>}
+                          {targetMet !== null && (
+                            <div style={{ fontSize: '11px', fontWeight: 600, color: targetMet ? 'var(--status-green)' : 'var(--alert)' }}>
+                              {targetMet ? 'Met target' : 'Short of target'}
+                            </div>
+                          )}
                         </>
                       )}
                     </td>
                     <td style={td}>{describeVintageWeeks(c.vintageWeeks)}</td>
                     <td style={td}>
                       <StatusBadge status={c.status} />
+                      {c.flaggedForNextPip && (
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--highlight)', marginTop: '4px' }}>Flagged for next PIP cycle</div>
+                      )}
+                      {c.priorPipNote && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{c.priorPipNote}</div>}
                       {c.exclusionReason && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Reason: {c.exclusionReason}</div>}
                       {c.decisionNote && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Note: {c.decisionNote}</div>}
                       {c.incentiveDowngraded && <div style={{ fontSize: '12px', color: 'var(--alert)', marginTop: '4px' }}>Incentive downgraded</div>}
                     </td>
                     <td style={td}>
-                      <CandidateActions candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} />
+                      <CandidateActions candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} targetMet={targetMet} />
                       <DeleteCandidateButton candidateId={c.id} cycleId={cycle.id} status={c.status} agentName={c.agentName} />
                       {(c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (
                         <div style={{ marginTop: '6px' }}>

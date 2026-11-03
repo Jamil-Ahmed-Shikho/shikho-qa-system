@@ -49,20 +49,31 @@ export default async function PipDetailPage({ params }: { params: Promise<{ cand
         {c.teamName ?? '—'} · {c.siteName ?? '—'} · PIP {fmtDate(c.cycleStart)} – {fmtDate(c.cycleEnd)}
         {isQa && <> · revenue before PIP {fmtMoney(c.revenue, c.revenueUnit)}</>}
       </p>
-      {isQa && (c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (
-        <div style={{ ...card, marginBottom: '16px', fontSize: '13px' }}>
-          <b>Achieved during the PIP:</b>{' '}
-          {c.achievementUsd === null ? (
-            <span style={{ color: 'var(--text-muted)' }}>could not be loaded</span>
-          ) : (
-            <span style={{
-              fontWeight: 700,
-              color: c.targetRevenue !== null && c.achievementUsd >= c.targetRevenue ? 'var(--status-green)' : 'var(--alert)',
-            }}>
-              {fmtMoney(c.achievementUsd, 'USD')}{c.targetRevenue !== null && <> of {fmtMoney(c.targetRevenue, 'USD')} target</>}
-            </span>
-          )}
-          {' '}({fmtDate(c.cycleStart)} – {fmtDate(c.cycleEnd)})
+      {isQa && (c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (() => {
+        const targetMet = c.achievementUsd !== null && c.targetRevenue !== null ? c.achievementUsd >= c.targetRevenue : null
+        return (
+          <div style={{ ...card, marginBottom: '16px', fontSize: '13px' }}>
+            <b>Achieved during the PIP:</b>{' '}
+            {c.achievementUsd === null ? (
+              <span style={{ color: 'var(--text-muted)' }}>could not be loaded</span>
+            ) : (
+              <span style={{ fontWeight: 700, color: targetMet ? 'var(--status-green)' : 'var(--alert)' }}>
+                {fmtMoney(c.achievementUsd, 'USD')}{c.targetRevenue !== null && <> of {fmtMoney(c.targetRevenue, 'USD')} target</>}
+                {targetMet !== null && <> — {targetMet ? 'Met target' : 'Short of target'}</>}
+              </span>
+            )}
+            {' '}({fmtDate(c.cycleStart)} – {fmtDate(c.cycleEnd)})
+          </div>
+        )
+      })()}
+      {isQa && c.priorPipNote && (
+        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+          Before this cycle: {c.priorPipNote}
+        </div>
+      )}
+      {isQa && c.flaggedForNextPip && (
+        <div style={{ ...card, marginBottom: '16px', fontSize: '13px', fontWeight: 600, color: 'var(--highlight)' }}>
+          Flagged for next PIP cycle
         </div>
       )}
 

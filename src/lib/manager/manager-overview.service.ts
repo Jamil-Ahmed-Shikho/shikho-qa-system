@@ -27,6 +27,7 @@ import { getSupabaseServer } from '@/lib/supabase/server'
 import { agentVintage, DEFAULT_VINTAGE_SLABS, type Vintage } from '@/lib/agents/vintage'
 import { loadVintageSlabs } from '@/lib/agents/vintage.service'
 import { dhakaDateStartUtc, dhakaDateEndUtc } from '@/lib/dates/sales-week'
+import type { PipStatus } from '@/lib/pip/pip.service'
 
 export interface ManagerFatalIncidentRow {
   auditId: string
@@ -62,17 +63,33 @@ export interface ManagerPipLiveRow {
   lastSaleDate: string | null
 }
 
+/**
+ * A failed PIP flagged by QA for next-cycle reconsideration (schema_108, 2026-11-03), in-app only,
+ * no email — the low-key "needs your attention" pattern already used for the termination-review
+ * flag. Resolves itself off this list the moment the agent appears in ANY later cycle's candidate
+ * list (suggested, excluded or approved — i.e. it's already been acted on in some way), so this
+ * never grows into a permanent log; the full history stays visible via "Feedback & training →".
+ */
+export interface ManagerFlaggedPipRow {
+  candidateId: string
+  agentId: string
+  agentName: string
+  cycleMonth: string
+  decisionNote: string | null
+}
+
 export interface ManagerOverview {
   fatalIncidents: ManagerFatalIncidentRow[]
   zeroSellers: ManagerZeroSellerRow[]
   pipLive: ManagerPipLiveRow[]
+  flaggedForNextPip: ManagerFlaggedPipRow[]
 }
 
 export async function loadManagerOverview(agentIds: string[], from: Date, to: Date): Promise<ManagerOverview> {
-  if (agentIds.length === 0) return { fatalIncidents: [], zeroSellers: [], pipLive: [] }
+  if (agentIds.length === 0) return { fatalIncidents: [], zeroSellers: [], pipLive: [], flaggedForNextPip: [] }
   const supabase = await getSupabaseServer()
 
-  const [slabs, rosterRes, zeroSellerRes, noTargetRes, fatalsRes, cycleRes] = await Promise.all([
+  const [slabs, rosterRes, zeroSellerRes, noTargetRes, fatalsRes, cycleRes, pipHistoryRes] = await Promise.all([
     loadVintageSlabs().catch(() => DEFAULT_VINTAGE_SLABS),
     supabase.from('users').select('id, name, employment_stage, joining_date').in('id', agentIds),
     supabase.from('agent_zero_seller_status').select('agent_id, current_streak_weeks, last_sale_date').in('agent_id', agentIds).gt('current_streak_weeks', 0),
@@ -85,11 +102,20 @@ export async function loadManagerOverview(agentIds: string[], from: Date, to: Da
       .gte('submitted_at', from.toISOString()).lt('submitted_at', to.toISOString()),
     supabase.from('pip_cycles').select('id, start_date, end_date')
       .lte('start_date', new Date().toISOString().slice(0, 10)).gte('end_date', new Date().toISOString().slice(0, 10)).maybeSingle(),
+    // Every approved/completed/failed PIP row for this chain, across every cycle — used below to
+    // find a failed-and-flagged row with nothing later for the same agent (schema_108). Can't go
+    // wider than this: a Manager's own RLS (pip_candidates_select_manager, schema_027) never lets
+    // them see a merely 'suggested'/'excluded' row at all (suggestions are QA-only), so "resolved"
+    // here means the agent has actually been re-approved onto a later PUBLISHED cycle — a cleaner
+    // bar than "appeared on a draft list that might still get excluded" anyway.
+    supabase.from('pip_candidates').select('id, agent_id, status, flagged_for_next_pip, decision_note, cycle:pip_cycles(month)')
+      .in('agent_id', agentIds).in('status', ['approved', 'completed', 'failed']),
   ])
   if (rosterRes.error) throw new Error(`Could not load your chain's agents: ${rosterRes.error.message}`)
   if (zeroSellerRes.error) throw new Error(`Could not load zero-seller status: ${zeroSellerRes.error.message}`)
   if (noTargetRes.error) throw new Error(`Could not load revenue-target coverage: ${noTargetRes.error.message}`)
   if (fatalsRes.error) throw new Error(`Could not load fatal incidents: ${fatalsRes.error.message}`)
+  if (pipHistoryRes.error) throw new Error(`Could not load PIP history: ${pipHistoryRes.error.message}`)
   const noTargetIds = new Set((noTargetRes.data ?? []).map((r: { agent_id: string }) => r.agent_id))
 
   const rosterById = new Map((rosterRes.data ?? []).map((a) => [a.id, a]))
@@ -212,5 +238,21 @@ export async function loadManagerOverview(agentIds: string[], from: Date, to: Da
     )
   }
 
-  return { fatalIncidents, zeroSellers, pipLive }
+  // A failed, flagged row with no LATER approved/completed/failed cycle row for the same agent —
+  // the moment one exists, this agent's actually back on a real PIP, so the flag has done its job
+  // and drops off this list on its own (no separate "resolved" field needed). Can't react any
+  // earlier than that: a mere 'suggested' row is invisible to a Manager's own RLS anyway (see the
+  // fetch above), so "resolved" = re-approved, not just re-suggested.
+  type PipHistoryRow = { id: string; agent_id: string; status: PipStatus; flagged_for_next_pip: boolean; decision_note: string | null; cycle: { month: string } | null }
+  const pipHistory = (pipHistoryRes.data ?? []) as unknown as PipHistoryRow[]
+  const flaggedForNextPip: ManagerFlaggedPipRow[] = pipHistory
+    .filter((r) => r.status === 'failed' && r.flagged_for_next_pip && r.cycle)
+    .filter((r) => !pipHistory.some((o) => o.agent_id === r.agent_id && o.cycle && o.cycle.month > r.cycle!.month))
+    .map((r) => ({
+      candidateId: r.id, agentId: r.agent_id, agentName: rosterById.get(r.agent_id)?.name ?? 'Unknown',
+      cycleMonth: r.cycle!.month, decisionNote: r.decision_note,
+    }))
+    .sort((a, b) => b.cycleMonth.localeCompare(a.cycleMonth))
+
+  return { fatalIncidents, zeroSellers, pipLive, flaggedForNextPip }
 }

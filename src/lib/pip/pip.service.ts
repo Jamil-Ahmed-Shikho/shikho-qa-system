@@ -115,6 +115,10 @@ export interface PipCandidate {
   lifetimePipCount: number | null
   cycleStart: string | null
   cycleEnd: string | null
+  /** pip_cycles.month (always the 1st of the cycle's calendar month) — used to find this agent's
+   *  most recent PRIOR pip_candidates row, the same comparison pip_publish_cycle() already uses for
+   *  its own consecutive/lifetime count (schema_045), just read here instead of stored. */
+  cycleMonth: string | null
   /**
    * Revenue actually earned DURING the PIP window itself (agent_revenue_usd over
    * [cycleStart, min(now, cycleEnd)]) — distinct from `revenue`, which is the revenue BEFORE the PIP
@@ -126,6 +130,18 @@ export interface PipCandidate {
    * Completed vs Failed. Computed the same way the agent's own loadMyPip() already does.
    */
   achievementUsd: number | null
+  /** Set only via pip_decide('fail', ..., true) — QA wants this agent reconsidered next cycle.
+   *  Informational only; does not change who generate_pip_candidates() actually suggests (schema_108). */
+  flaggedForNextPip: boolean
+  /**
+   * A plain remark on this agent's most recent PIP BEFORE this cycle — "Failed PIP in September
+   * 2026 — flagged for reconsideration", "Completed PIP in August 2026", "Currently on a PIP (since
+   * ...)" — or null when this is genuinely their first time on a PIP (never ambiguous with a failed
+   * lookup: this is a plain local query that throws on error, like every other read in this file,
+   * §14, not a remote RPC that can silently come back empty). Derived live, not stored — see
+   * attachPriorPipHistory() below, which both callers run before returning.
+   */
+  priorPipNote: string | null
 }
 
 /** Attaches `achievementUsd` to every candidate actually on a PIP (approved/completed/failed) —
@@ -141,6 +157,43 @@ async function attachAchievement(supabase: Awaited<ReturnType<typeof getSupabase
     const { data, error } = await supabase.rpc('agent_revenue_usd', { p_agent_id: c.agentId, p_from: from.toISOString(), p_to: to.toISOString() })
     c.achievementUsd = error ? null : Number(data)
   }))
+}
+
+const monthFmt = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+function monthLabel(month: string): string {
+  return monthFmt.format(new Date(`${month.slice(0, 10)}T00:00:00Z`))
+}
+
+/**
+ * Attaches `priorPipNote` to every candidate with a `cycleMonth` — one batched query for the whole
+ * set (never N+1, §14), looking up each agent's most recent PRIOR pip_candidates row (status in
+ * approved/completed/failed, cycle month before this one's) — the exact same lookup
+ * pip_publish_cycle() already does for its own consecutive/lifetime count (schema_045), just read
+ * here for display instead of being used to compute anything. null stays null (genuinely first PIP).
+ */
+async function attachPriorPipHistory(supabase: Awaited<ReturnType<typeof getSupabaseServer>>, candidates: PipCandidate[]): Promise<void> {
+  const withMonth = candidates.filter((c) => c.cycleMonth)
+  if (withMonth.length === 0) return
+  const agentIds = [...new Set(withMonth.map((c) => c.agentId))]
+  const { data, error } = await supabase
+    .from('pip_candidates')
+    .select('agent_id, status, flagged_for_next_pip, cycle:pip_cycles(month)')
+    .in('agent_id', agentIds)
+    .in('status', ['approved', 'completed', 'failed'])
+  if (error) throw new Error(`Could not load prior PIP history: ${error.message}`)
+  type PriorRow = { agent_id: string; status: PipStatus; flagged_for_next_pip: boolean; cycle: { month: string } | null }
+  const rows = (data ?? []) as unknown as PriorRow[]
+
+  for (const c of withMonth) {
+    const prior = rows
+      .filter((r) => r.agent_id === c.agentId && r.cycle && r.cycle.month < (c.cycleMonth as string))
+      .sort((a, b) => (b.cycle!.month).localeCompare(a.cycle!.month))[0]
+    if (!prior) { c.priorPipNote = null; continue }
+    const m = monthLabel(prior.cycle!.month)
+    if (prior.status === 'completed') c.priorPipNote = `Completed PIP in ${m}`
+    else if (prior.status === 'approved') c.priorPipNote = `Currently on a PIP (since ${m})`
+    else c.priorPipNote = prior.flagged_for_next_pip ? `Failed PIP in ${m} — flagged for reconsideration` : `Failed PIP in ${m}`
+  }
 }
 
 /** A termination-review flag (Stage 5, schema_045) — raised automatically on a 2nd+ CONSECUTIVE failed PIP. */
@@ -189,11 +242,12 @@ function policyFromRow(r: Record<string, unknown>): PipPolicy {
 const CANDIDATE_SELECT =
   'id, pip_cycle_id, agent_id, team_name, site_name, status, revenue_at_selection, revenue_unit_used, revenue_window_start, revenue_window_end, ' +
   'vintage_weeks_at_selection, exclusion_reason, decision_note, incentive_downgraded, target_revenue, consecutive_pip_count, lifetime_pip_count, ' +
-  'agent:users!pip_candidates_agent_id_fkey(name, email, team_name), cycle:pip_cycles(start_date, end_date)'
+  'flagged_for_next_pip, ' +
+  'agent:users!pip_candidates_agent_id_fkey(name, email, team_name), cycle:pip_cycles(start_date, end_date, month)'
 
 function candidateFromRow(r: Record<string, unknown>): PipCandidate {
   const agent = r.agent as { name: string; email: string; team_name: string | null } | null
-  const cycle = r.cycle as { start_date: string; end_date: string } | null
+  const cycle = r.cycle as { start_date: string; end_date: string; month: string } | null
   return {
     id: r.id as string,
     cycleId: r.pip_cycle_id as string,
@@ -217,7 +271,10 @@ function candidateFromRow(r: Record<string, unknown>): PipCandidate {
     lifetimePipCount: (r.lifetime_pip_count as number | null) ?? null,
     cycleStart: cycle?.start_date ?? null,
     cycleEnd: cycle?.end_date ?? null,
+    cycleMonth: cycle?.month ?? null,
     achievementUsd: null, // filled in by attachAchievement() where needed — not every caller does
+    flaggedForNextPip: !!r.flagged_for_next_pip,
+    priorPipNote: null, // filled in by attachPriorPipHistory() where needed — not every caller does
   }
 }
 
@@ -269,7 +326,7 @@ export async function loadCycleWithCandidates(cycleId: string): Promise<{ cycle:
   if (cErr) throw new Error(`Could not load candidates: ${cErr.message}`)
   if (pErr) throw new Error(`Could not load the cycle's policy: ${pErr.message}`)
   const candidates = ((rows ?? []) as unknown as Record<string, unknown>[]).map(candidateFromRow)
-  await attachAchievement(supabase, candidates)
+  await Promise.all([attachAchievement(supabase, candidates), attachPriorPipHistory(supabase, candidates)])
   // Site, then lowest revenue first — the order the suggestion was made in.
   candidates.sort((a, b) => (a.siteName ?? '~').localeCompare(b.siteName ?? '~') || (a.revenue ?? 0) - (b.revenue ?? 0) || a.agentName.localeCompare(b.agentName))
   return {
@@ -483,7 +540,7 @@ export async function loadCandidate(candidateId: string): Promise<{
   if (flag.error) throw new Error(`Could not check for a termination-review flag: ${flag.error.message}`)
   const flagRow = flag.data as Record<string, unknown> | null
   const candidate = candidateFromRow(data as unknown as Record<string, unknown>)
-  await attachAchievement(supabase, [candidate])
+  await Promise.all([attachAchievement(supabase, [candidate]), attachPriorPipHistory(supabase, [candidate])])
   return {
     candidate,
     feedback: ((fb.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({

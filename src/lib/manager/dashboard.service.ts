@@ -113,7 +113,7 @@ export async function getManagerDashboard(
   // (agentRows' own ids, resolved above via manager_agent_stats — correct whether the viewer is
   // this manager or an admin browsing their chain, unlike the queue/OJT reads above which rely on
   // the viewer's own session and are narrowed to agentRows only later, in buildRollup()).
-  let overview: ManagerOverview = { fatalIncidents: [], zeroSellers: [], pipLive: [] }
+  let overview: ManagerOverview = { fatalIncidents: [], zeroSellers: [], pipLive: [], flaggedForNextPip: [] }
   try {
     overview = await loadManagerOverview(agentRows.map((a) => a.agent_id), range.from, range.to)
   } catch (err) {

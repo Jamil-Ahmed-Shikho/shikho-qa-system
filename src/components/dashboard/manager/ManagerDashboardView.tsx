@@ -12,6 +12,9 @@ const agentProfileHref = (id: string) => `/dashboard/manager/agent/${id}`
 
 const pct = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}%`)
 
+const monthFmt = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const monthLabel = (month: string) => monthFmt.format(new Date(`${month.slice(0, 10)}T00:00:00Z`))
+
 /** No per-audit link here — a Manager can't open /audits/{id} (excluded from that route, §9 Part
  * 2: "a Manager doesn't audit calls") — only the agent-profile link, same as everywhere else on
  * this dashboard. */
@@ -179,6 +182,33 @@ export function ManagerDashboardView({ rollup, managerName, overview }: { rollup
           </div>
         )}
       </div>
+
+      {overview.flaggedForNextPip.length > 0 && (
+        <>
+          <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '28px 0 10px' }}>PIP — needs your attention</h2>
+          <div style={card}>
+            <p style={sectionNote}>
+              Failed their PIP and QA flagged them to be reconsidered next cycle — not yet acted on (this note clears on its own
+              once they&apos;re approved onto a later PIP cycle).
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead><tr><th style={th}>Agent</th><th style={th}>Failed cycle</th><th style={th}>QA&apos;s note</th><th style={th}></th></tr></thead>
+                <tbody>
+                  {overview.flaggedForNextPip.map((f) => (
+                    <tr key={f.candidateId}>
+                      <td style={td}><AgentLink id={f.agentId} name={f.agentName} /></td>
+                      <td style={td}>{monthLabel(f.cycleMonth)}</td>
+                      <td style={{ ...td, whiteSpace: 'normal', minWidth: '220px' }}>{f.decisionNote ?? '—'}</td>
+                      <td style={td}><Link href={`/pip/${f.candidateId}`} prefetch={false} style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>Feedback &amp; training →</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '28px 0 10px' }}>PIP — current cycle</h2>
       <div style={card}>

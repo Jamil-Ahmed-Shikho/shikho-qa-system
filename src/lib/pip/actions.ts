@@ -235,7 +235,10 @@ export async function decideAction(
   candidateId: string,
   cycleId: string,
   action: 'exclude' | 'restore' | 'complete' | 'fail',
-  note: string | null
+  note: string | null,
+  // Only meaningful for 'fail' (schema_108) — a plain marker that QA wants this agent reconsidered
+  // next cycle. Ignored for every other action, same as the dropped p_downgrade argument once was.
+  flagNextPip = false
 ): Promise<ActionResult<{ status: string }>> {
   const a = await actor(ADMIN_ROLES, 'change a PIP candidate')
   if (!a.ok) return { ok: false, error: a.error }
@@ -250,9 +253,10 @@ export async function decideAction(
     p_candidate_id: candidateId,
     p_action: action,
     p_note: note,
+    p_flag_next_pip: action === 'fail' ? flagNextPip : false,
   })
   if (error) return { ok: false, error: plain(error.message) }
-  await log(a.user.profile.id, `pip.candidate_${action}`, candidateId, { note, status: data })
+  await log(a.user.profile.id, `pip.candidate_${action}`, candidateId, { note, status: data, ...(action === 'fail' ? { flagNextPip } : {}) })
   refresh(cycleId, candidateId)
   return { ok: true, status: data as string }
 }
