@@ -125,10 +125,13 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
               <thead>
-                <tr><th style={th}>Agent</th><th style={th}>Revenue</th><th style={th}>Vintage</th><th style={th}>Status</th><th style={th}>Actions</th></tr>
+                <tr><th style={th}>Agent</th><th style={th}>Revenue before PIP</th><th style={th}>Achieved during PIP</th><th style={th}>Vintage</th><th style={th}>Status</th><th style={th}>Actions</th></tr>
               </thead>
               <tbody>
-                {rows.map((c) => (
+                {rows.map((c) => {
+                  const onPip = c.status === 'approved' || c.status === 'completed' || c.status === 'failed'
+                  const targetMet = onPip && c.achievementUsd !== null && c.targetRevenue !== null && c.achievementUsd >= c.targetRevenue
+                  return (
                   <tr key={c.id}>
                     <td style={td}>
                       <b>{c.agentName}</b>
@@ -137,6 +140,18 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
                     <td style={td}>
                       {fmtMoney(c.revenue, c.revenueUnit)}
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{fmtDate(c.windowStart)} – {fmtDate(c.windowEnd)}</div>
+                    </td>
+                    <td style={td}>
+                      {!onPip ? (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      ) : c.achievementUsd === null ? (
+                        <span style={{ color: 'var(--text-muted)' }}>Could not be loaded</span>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 600, color: targetMet ? 'var(--status-green)' : 'var(--alert)' }}>{fmtMoney(c.achievementUsd, 'USD')}</span>
+                          {c.targetRevenue !== null && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>of {fmtMoney(c.targetRevenue, 'USD')} target</div>}
+                        </>
+                      )}
                     </td>
                     <td style={td}>{describeVintageWeeks(c.vintageWeeks)}</td>
                     <td style={td}>
@@ -155,7 +170,8 @@ export default async function PipCyclePage({ params }: { params: Promise<{ cycle
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

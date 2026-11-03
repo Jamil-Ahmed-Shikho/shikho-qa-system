@@ -47,8 +47,24 @@ export default async function PipDetailPage({ params }: { params: Promise<{ cand
       </div>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
         {c.teamName ?? '—'} · {c.siteName ?? '—'} · PIP {fmtDate(c.cycleStart)} – {fmtDate(c.cycleEnd)}
-        {isQa && <> · revenue at selection {fmtMoney(c.revenue, c.revenueUnit)}</>}
+        {isQa && <> · revenue before PIP {fmtMoney(c.revenue, c.revenueUnit)}</>}
       </p>
+      {isQa && (c.status === 'approved' || c.status === 'completed' || c.status === 'failed') && (
+        <div style={{ ...card, marginBottom: '16px', fontSize: '13px' }}>
+          <b>Achieved during the PIP:</b>{' '}
+          {c.achievementUsd === null ? (
+            <span style={{ color: 'var(--text-muted)' }}>could not be loaded</span>
+          ) : (
+            <span style={{
+              fontWeight: 700,
+              color: c.targetRevenue !== null && c.achievementUsd >= c.targetRevenue ? 'var(--status-green)' : 'var(--alert)',
+            }}>
+              {fmtMoney(c.achievementUsd, 'USD')}{c.targetRevenue !== null && <> of {fmtMoney(c.targetRevenue, 'USD')} target</>}
+            </span>
+          )}
+          {' '}({fmtDate(c.cycleStart)} – {fmtDate(c.cycleEnd)})
+        </div>
+      )}
 
       {/* The downgrade applies at approval/publish, not at failure (schema_044, Q13) — so it must show
           on its own, independent of a decision note, which only exists once complete/failed. */}

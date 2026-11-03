@@ -115,6 +115,32 @@ export interface PipCandidate {
   lifetimePipCount: number | null
   cycleStart: string | null
   cycleEnd: string | null
+  /**
+   * Revenue actually earned DURING the PIP window itself (agent_revenue_usd over
+   * [cycleStart, min(now, cycleEnd)]) — distinct from `revenue`, which is the revenue BEFORE the PIP
+   * started (the figure used to select them in the first place, frozen at selection, §6.4 Q8/Stage 2).
+   * null for a suggested/excluded candidate (never on a PIP, nothing to measure) or if the read failed
+   * — never a false zero (§14). Added 2026-11-03: previously this was only ever visible live, via
+   * qa_pip_live_progress()'s "only the cycle covering today" view — once a cycle ended, there was no
+   * way to see how an agent actually did during it, which is exactly the number needed to decide
+   * Completed vs Failed. Computed the same way the agent's own loadMyPip() already does.
+   */
+  achievementUsd: number | null
+}
+
+/** Attaches `achievementUsd` to every candidate actually on a PIP (approved/completed/failed) —
+ *  mutates in place. Uses the caller's own session (agent_revenue_usd is SECURITY INVOKER, schema_029),
+ *  so RLS decides what each candidate's revenue rows resolve to; both call sites below are QA-staff-
+ *  only pages, so this always runs with full access. A per-candidate RPC failure leaves that one
+ *  candidate's figure null rather than failing the whole page. */
+async function attachAchievement(supabase: Awaited<ReturnType<typeof getSupabaseServer>>, candidates: PipCandidate[]): Promise<void> {
+  const onPip = candidates.filter((c) => c.status !== 'suggested' && c.status !== 'excluded' && c.cycleStart && c.cycleEnd)
+  await Promise.all(onPip.map(async (c) => {
+    const from = dhakaDateStartUtc(c.cycleStart as string)
+    const to = new Date(Math.min(Date.now(), dhakaDateEndUtc(c.cycleEnd as string).getTime()))
+    const { data, error } = await supabase.rpc('agent_revenue_usd', { p_agent_id: c.agentId, p_from: from.toISOString(), p_to: to.toISOString() })
+    c.achievementUsd = error ? null : Number(data)
+  }))
 }
 
 /** A termination-review flag (Stage 5, schema_045) — raised automatically on a 2nd+ CONSECUTIVE failed PIP. */
@@ -191,6 +217,7 @@ function candidateFromRow(r: Record<string, unknown>): PipCandidate {
     lifetimePipCount: (r.lifetime_pip_count as number | null) ?? null,
     cycleStart: cycle?.start_date ?? null,
     cycleEnd: cycle?.end_date ?? null,
+    achievementUsd: null, // filled in by attachAchievement() where needed — not every caller does
   }
 }
 
@@ -242,6 +269,7 @@ export async function loadCycleWithCandidates(cycleId: string): Promise<{ cycle:
   if (cErr) throw new Error(`Could not load candidates: ${cErr.message}`)
   if (pErr) throw new Error(`Could not load the cycle's policy: ${pErr.message}`)
   const candidates = ((rows ?? []) as unknown as Record<string, unknown>[]).map(candidateFromRow)
+  await attachAchievement(supabase, candidates)
   // Site, then lowest revenue first — the order the suggestion was made in.
   candidates.sort((a, b) => (a.siteName ?? '~').localeCompare(b.siteName ?? '~') || (a.revenue ?? 0) - (b.revenue ?? 0) || a.agentName.localeCompare(b.agentName))
   return {
@@ -454,8 +482,10 @@ export async function loadCandidate(candidateId: string): Promise<{
   if (tr.error) throw new Error(`Could not load training sessions: ${tr.error.message}`)
   if (flag.error) throw new Error(`Could not check for a termination-review flag: ${flag.error.message}`)
   const flagRow = flag.data as Record<string, unknown> | null
+  const candidate = candidateFromRow(data as unknown as Record<string, unknown>)
+  await attachAchievement(supabase, [candidate])
   return {
-    candidate: candidateFromRow(data as unknown as Record<string, unknown>),
+    candidate,
     feedback: ((fb.data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
       id: r.id as string,
       feedback: r.feedback as string,
