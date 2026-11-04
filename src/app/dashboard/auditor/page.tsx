@@ -79,6 +79,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Has each agent clicked through to their result email, or is it still unseen? — My view / Team view."
         />
         <NavCard
+          href="/reports/portal-usage"
+          title="Portal Usage"
+          description="Who's actually signing in and using the portal, grouped by Team Lead — My view / Team view."
+        />
+        <NavCard
           href="/reports/audit-export"
           title="Raw Audit Data Export"
           description="Download submitted audits — scores, feedback and call details — as an Excel file, by period."

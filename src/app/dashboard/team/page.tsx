@@ -64,6 +64,11 @@ export default async function TeamDashboardPage({ searchParams }: { searchParams
         description="Has each agent clicked through to their result email, or is it still unseen?"
       />
       <NavCard
+        href="/reports/portal-usage"
+        title="Portal Usage"
+        description="Is your team actually signing in and using the portal?"
+      />
+      <NavCard
         href="/reports/audit-export"
         title="Raw Audit Data Export"
         description="Download your team's submitted audits — scores, feedback and call details — as an Excel file, by period."

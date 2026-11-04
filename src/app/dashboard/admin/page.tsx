@@ -88,6 +88,7 @@ export default async function AdminDashboardPage() {
       {/* 4. Monitoring & Oversight */}
       <DashboardSection title="Monitoring & Oversight" icon="ti-activity" description="How things stand right now.">
         <NavCard href="/reports/evaluation-tracking" icon="ti-mail-opened" title="Evaluation Email Tracking" />
+        <NavCard href="/reports/portal-usage" icon="ti-device-analytics" title="Portal Usage" />
         <NavCard href="/dashboard/manager" icon="ti-sitemap" title="Manager Dashboards" />
       </DashboardSection>
 

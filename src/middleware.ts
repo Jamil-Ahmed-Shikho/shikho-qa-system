@@ -5,7 +5,18 @@
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import type { NextFetchEvent, NextRequest } from 'next/server'
+
+// Portal usage tracking (schema_109, 2026-11-04) — "was this person active at all today", not
+// per-page-view logging (Jamil's own explicit cost constraint). This cookie is the whole reason the
+// added cost stays negligible: once set for today, every OTHER request this same day skips the
+// database entirely (a plain string compare, no DB round trip) — the write happens at most once per
+// person per calendar day, via context.waitUntil() so it never delays the response the user is
+// waiting on either.
+const ACTIVITY_COOKIE = 'qa_activity_date'
+function dhakaToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' }) // 'YYYY-MM-DD'
+}
 
 const PUBLIC_ROUTES = [
   '/auth/login',
@@ -40,7 +51,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   '/my-audits': ['agent'],
 }
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const { pathname } = request.nextUrl
 
   // Cron routes authenticate via CRON_SECRET inside the handler — no
@@ -118,6 +129,18 @@ export async function middleware(request: NextRequest) {
     .select('role, must_change_password')
     .eq('auth_id', user.id)
     .single()
+
+  // Portal usage tracking (schema_109) — only reaches the database the FIRST genuine page request
+  // of the day for this person; every later one this same day short-circuits on the cookie alone.
+  // The cookie value carries the auth user id, not just the date — a bare date would wrongly
+  // suppress recording for a SECOND person who signs in on the same browser the same day (a stale
+  // "already recorded today" cookie left over from whoever used this browser before them).
+  const today = dhakaToday()
+  const activityMarker = `${today}:${user.id}`
+  if (request.cookies.get(ACTIVITY_COOKIE)?.value !== activityMarker) {
+    event.waitUntil(Promise.resolve(supabase.rpc('record_user_activity')).then(() => undefined, () => undefined))
+    response.cookies.set(ACTIVITY_COOKIE, activityMarker, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 2 })
+  }
 
   // Accounts created by an admin start with an emailed temporary
   // password — make the user replace it before doing anything else.
