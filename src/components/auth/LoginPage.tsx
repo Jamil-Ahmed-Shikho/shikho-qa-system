@@ -6,6 +6,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { ShikhoBirdMark } from '@/components/brand/ShikhoBirdMark'
 import type { UserRole } from '@/types/database.types'
@@ -150,15 +151,14 @@ export function LoginPage() {
             </div>
 
             <div>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                marginBottom: '6px',
-              }}>
-                Password
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                  Password
+                </label>
+                <Link href="/auth/forgot-password" style={{ fontSize: '13px', color: 'var(--brand)', fontWeight: 500, textDecoration: 'none' }}>
+                  Forgot password?
+                </Link>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}

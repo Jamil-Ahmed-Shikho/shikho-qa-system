@@ -157,6 +157,25 @@ export async function sendPasswordResetEmail(name: string, email: string, tempPa
   )
 }
 
+// Same mechanism as sendPasswordResetEmail (a fresh temp password, must_change_password on
+// next sign-in) — only the wording differs, since this one was triggered by the person
+// themselves via "Forgot password?" (src/lib/auth/password-actions.ts), not an admin.
+export async function sendSelfServicePasswordResetEmail(name: string, email: string, tempPassword: string) {
+  await send(
+    email,
+    `Password Reset | ${name}`,
+    emailShell(
+      'Password reset',
+      'Here are your new sign-in details',
+      'indigo',
+      credentialsBody(
+        `Hi ${escapeHtml(name)}, we received a request to reset your password. If this wasn't you, contact your administrator.`,
+        email, tempPassword
+      )
+    )
+  )
+}
+
 // ── Briefings (§5) ───────────────────────────────────────────
 // The agent gets a dedicated email, their Team Leader CC'd — never the
 // auditor, who sees their own schedule in-app instead (Part B).

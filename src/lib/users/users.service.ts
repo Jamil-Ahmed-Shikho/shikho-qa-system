@@ -387,6 +387,27 @@ export async function setAccountActive(
 
 // ── Reset password ───────────────────────────────────────────
 
+/**
+ * The mechanical part only — issues a fresh temp password for an existing login and flags
+ * must_change_password, no authorization check of any kind. Shared by the admin-triggered
+ * resetAccountPassword() below (which DOES check canManageRole) and the self-service
+ * "Forgot password?" flow (src/lib/auth/password-actions.ts), which has no "acting admin" at
+ * all — a person resetting their own forgotten password isn't one role reaching into another's,
+ * so canManageRole simply doesn't apply there. Each caller owns its own authorization story;
+ * this just avoids duplicating the two actual writes.
+ */
+export async function issueNewTempPassword(userId: string, authId: string): Promise<Result<{ tempPassword: string }>> {
+  const admin = getSupabaseAdmin()
+  const tempPassword = generateTempPassword()
+  const { error: pwError } = await admin.auth.admin.updateUserById(authId, { password: tempPassword })
+  if (pwError) return { ok: false, error: 'Could not reset the password.' }
+
+  const { error } = await admin.from('users').update({ must_change_password: true }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  return { ok: true, tempPassword }
+}
+
 export async function resetAccountPassword(
   actor: AuthUser,
   id: string
@@ -403,12 +424,8 @@ export async function resetAccountPassword(
     return { ok: false, error: 'Only a Super Admin can reset privileged accounts.' }
   }
 
-  const tempPassword = generateTempPassword()
-  const { error: pwError } = await admin.auth.admin.updateUserById(target.auth_id, { password: tempPassword })
-  if (pwError) return { ok: false, error: 'Could not reset the password.' }
+  const result = await issueNewTempPassword(id, target.auth_id)
+  if (!result.ok) return result
 
-  const { error } = await admin.from('users').update({ must_change_password: true }).eq('id', id)
-  if (error) return { ok: false, error: error.message }
-
-  return { ok: true, name: target.name, email: target.email, tempPassword }
+  return { ok: true, name: target.name, email: target.email, tempPassword: result.tempPassword }
 }
