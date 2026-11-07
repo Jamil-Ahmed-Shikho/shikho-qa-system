@@ -2,10 +2,20 @@ import { notFound } from 'next/navigation'
 import { BackLink } from '@/components/common/BackLink'
 import { getAuthUser } from '@/lib/auth/auth.service'
 import { getSupabaseServer } from '@/lib/supabase/server'
-import { PERIOD_OPTIONS, parsePeriod } from '@/lib/dates/sales-week'
+import { parsePeriod, periodRange, type Period } from '@/lib/dates/sales-week'
 import type { QaRankingView } from '@/lib/qa-ranking/qa-ranking.service'
 import { TEAM_NAMES, type TeamName } from '@/types/database.types'
 import { isMissingQaRubricTrendsSchema, loadParameterCoachingList } from '@/lib/qa-rubric-trends/qa-rubric-trends.service'
+
+// Matches qa-rubric-trends/page.tsx's own periodPhrase() — kept as a small duplicate rather than a
+// shared module for one six-line helper (§14's "duplicate the small piece a new caller needs").
+function periodPhrase(period: Period): string {
+  switch (period) {
+    case 'this_week': return 'this sales week'
+    case 'last_week': return 'last sales week'
+    case 'last_30': return 'the last 30 days'
+  }
+}
 
 const card: React.CSSProperties = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px' }
 const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '8px 10px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
@@ -26,6 +36,7 @@ export default async function ParameterCoachingPage({
   const { parameterId } = await params
   const sp = await searchParams
   const period = parsePeriod(sp.period)
+  const range = periodRange(period)
   const channel = parseChannel(sp.channel)
   const user = await getAuthUser()
   const isAuditor = user?.role === 'qa_auditor'
@@ -49,7 +60,7 @@ export default async function ParameterCoachingPage({
   let rows: { agentId: string; agentName: string; teamLeaderName: string | null; totalCount: number; failCount: number }[] = []
   let failure: unknown = null
   try {
-    const all = await loadParameterCoachingList(view, effectiveChannel)
+    const all = await loadParameterCoachingList(view, effectiveChannel, range.from, range.to)
     rows = all.filter((r) => r.parameterId === parameterId)
   } catch (err) {
     failure = err
@@ -61,7 +72,7 @@ export default async function ParameterCoachingPage({
       <BackLink href={backHref} label="Rubric Fail Trends" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>{parameter.name}</h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
-        {category?.name}{rubric ? ` · ${rubric.name}` : ''} — who failed this parameter this sales week, worst first.
+        {category?.name}{rubric ? ` · ${rubric.name}` : ''} — who failed this parameter in {periodPhrase(period)}, worst first.
       </p>
 
       {failure ? (
@@ -73,7 +84,7 @@ export default async function ParameterCoachingPage({
           <div role="alert" style={{ color: 'var(--alert)', fontSize: '14px' }}>Could not be loaded right now. Try again shortly.</div>
         )
       ) : rows.length === 0 ? (
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nobody failed this parameter this sales week.</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nobody failed this parameter in {periodPhrase(period)}.</p>
       ) : (
         <div style={card}>
           <div style={{ overflowX: 'auto' }}>
@@ -82,7 +93,7 @@ export default async function ParameterCoachingPage({
                 <tr>
                   <th style={th}>Agent</th>
                   <th style={th}>Team Lead</th>
-                  <th style={th}>Audits (this week)</th>
+                  <th style={th}>Audits ({periodPhrase(period)})</th>
                   <th style={th}>Failed</th>
                   <th style={th}>Fail rate</th>
                 </tr>
@@ -102,10 +113,6 @@ export default async function ParameterCoachingPage({
           </div>
         </div>
       )}
-
-      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '14px 0 0' }}>
-        Period shown on Rubric Fail Trends: {PERIOD_OPTIONS.find((p) => p.value === period)?.label ?? period} (this list itself always covers the current sales week).
-      </p>
     </div>
   )
 }

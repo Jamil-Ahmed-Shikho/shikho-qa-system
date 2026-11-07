@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { BackLink } from '@/components/common/BackLink'
 import { getAuthUser } from '@/lib/auth/auth.service'
-import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/dates/sales-week'
+import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange, type Period } from '@/lib/dates/sales-week'
 import type { QaRankingView } from '@/lib/qa-ranking/qa-ranking.service'
 import { TEAM_NAMES, type TeamName } from '@/types/database.types'
 import {
@@ -91,10 +91,21 @@ function FailRateCell({ failRatePct, totalScored }: { failRatePct: number | null
   )
 }
 
+// Lowercase, mid-sentence phrasing for "Nobody failed this ___" / "who failed it ___" — kept in one
+// place so the table header, the empty state and the detail page's own copy never drift apart
+// (2026-11-08: this list now follows the page's period picker instead of always meaning "this week").
+function periodPhrase(period: Period): string {
+  switch (period) {
+    case 'this_week': return 'this sales week'
+    case 'last_week': return 'last sales week'
+    case 'last_30': return 'the last 30 days'
+  }
+}
+
 /** A link to this parameter's own coaching page — not an inline list, so a parameter with dozens of
  *  names doesn't blow up the table (Jamil's own feedback on the first version). */
-function CoachingLink({ count, href }: { count: number; href: string }) {
-  if (count === 0) return <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Nobody failed this this week</span>
+function CoachingLink({ count, href, period }: { count: number; href: string; period: Period }) {
+  if (count === 0) return <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Nobody failed this {periodPhrase(period)}</span>
   return (
     <Link href={href} prefetch={false} style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--brand)', textDecoration: 'none' }}>
       Needs coaching ({count}) →
@@ -141,7 +152,7 @@ function RubricTrendsTable({
   sparklines: Map<string, SparklinePoint[]>
   wow: Map<string, WeekOverWeek>
   coaching: Map<string, ParameterCoachingRow[]>
-  period: string
+  period: Period
   view: string
   channel: string
 }) {
@@ -157,7 +168,7 @@ function RubricTrendsTable({
             <th style={th}>This week</th>
             <th style={th}>Trend</th>
             <th style={th}>Last {HISTORY_WEEKS} weeks</th>
-            <th style={th}>Who needs coaching (this week)</th>
+            <th style={th}>Who needs coaching ({periodPhrase(period)})</th>
           </tr>
         </thead>
         <tbody>
@@ -175,6 +186,7 @@ function RubricTrendsTable({
                   <CoachingLink
                     count={(coaching.get(r.parameterId) ?? []).length}
                     href={`/reports/qa-rubric-trends/${r.parameterId}?period=${period}&view=${view}&channel=${encodeURIComponent(channel)}`}
+                    period={period}
                   />
                 </td>
               </tr>
@@ -209,7 +221,7 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
     const [trendRows, history, coachingRows] = await Promise.all([
       loadRubricFailTrends(range.from, range.to, view, effectiveChannel),
       loadRubricFailTrendHistory(HISTORY_WEEKS, view, effectiveChannel),
-      loadParameterCoachingList(view, effectiveChannel),
+      loadParameterCoachingList(view, effectiveChannel, range.from, range.to),
     ])
     sparklines = new Map(trendRows.map((r) => [r.parameterId, buildSparkline(r.parameterId, history, weekStarts)]))
     wow = new Map(trendRows.map((r) => [r.parameterId, weekOverWeek(r.parameterId, history, weekStarts)]))
@@ -280,7 +292,7 @@ export default async function QaRubricTrendsPage({ searchParams }: { searchParam
               <span style={{ color: SEVERITY_COLOR.low, fontWeight: 600 }}>green</span>; a rate based on fewer than 10 scored audits is
               flagged &ldquo;small sample&rdquo; — treat it with caution. The last-{HISTORY_WEEKS}-weeks column shows the longer trend
               regardless of the period picked above. &ldquo;Needs coaching&rdquo; opens the full list for that parameter — who failed
-              it this sales week, worst first, with how many audits they had and how many they failed.
+              it in the period picked above, worst first, with how many audits they had and how many they failed.
             </p>
             <RubricTrendsTable rows={rows} sparklines={sparklines} wow={wow} coaching={coaching} period={period} view={view} channel={channel ?? 'all'} />
           </div>

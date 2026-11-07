@@ -85,15 +85,20 @@ export interface ParameterCoachingRow {
   failCount: number
 }
 
-/** Every agent who failed ANY rubric parameter in the current sales week, for every parameter at
- *  once (schema_099/100) — "who needs coaching, on what" for the Rubric Fail Trends page and its
+/** Every agent who failed ANY rubric parameter in the given period, for every parameter at once
+ *  (schema_099/100/112) — "who needs coaching, on what" for the Rubric Fail Trends page and its
  *  per-parameter coaching page. One call, not one per parameter — the per-parameter page just
- *  filters this same result set rather than re-querying. */
+ *  filters this same result set rather than re-querying. Follows the SAME period the rest of the
+ *  page is showing (Jamil, 2026-11-08) — it used to always mean "the current sales week so far"
+ *  regardless of the period picker, so picking "Last sales week" showed correct fail-rate numbers
+ *  next to an always-empty coaching list. */
 export async function loadParameterCoachingList(
-  view: QaRankingView = 'team', teamName: TeamName | null = null
+  view: QaRankingView = 'team', teamName: TeamName | null = null, from?: Date, to?: Date
 ): Promise<ParameterCoachingRow[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.rpc('qa_parameter_coaching_list', { p_view: view, p_team_name: teamName })
+  const { data, error } = await supabase.rpc('qa_parameter_coaching_list', {
+    p_view: view, p_team_name: teamName, p_from: from?.toISOString() ?? null, p_to: to?.toISOString() ?? null,
+  })
   if (error) throw new Error(`Could not load the parameter coaching list: ${error.message}`)
   return (data ?? []).map((r: { parameter_id: string; agent_id: string; agent_name: string; team_leader_name: string | null; total_count: number; fail_count: number }) => ({
     parameterId: r.parameter_id, agentId: r.agent_id, agentName: r.agent_name, teamLeaderName: r.team_leader_name,
