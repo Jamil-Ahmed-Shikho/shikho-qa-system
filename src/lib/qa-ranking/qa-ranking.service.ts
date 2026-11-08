@@ -22,9 +22,17 @@ export interface AuditorRankingRow {
   coachingTargetTotal: number | null
   coachingPct: number | null
   salesGrowthPct: number | null
+  /** The two raw figures salesGrowthPct is computed from — null exactly when the % itself is null
+   *  (no agents assigned), never a misleading $0 (schema_113). */
+  revenueNowUsd: number | null
+  revenuePriorUsd: number | null
   vintageTargetMetPct: number | null
   agentRecoveryPct: number | null
   zeroSellerRecoveryPct: number | null
+  /** The raw cohort behind zeroSellerRecoveryPct — how many were already a zero-seller just before
+   *  the period, and how many of those no longer are (schema_113). */
+  zeroSellerWasCount: number | null
+  zeroSellerRecoveredCount: number | null
   pipRecoveryPct: number | null
   pipConcludedThisMonth: number
   totalScore: number | null
@@ -47,17 +55,25 @@ export function isMissingQaRankingSchema(err: unknown): boolean {
 function fromRow(r: {
   auditor_id: string; auditor_name: string; agents_assigned: number; audits_done: number; audit_target: number; audit_pct: number | null
   coaching_completed: number; coaching_scheduled: number; coaching_target_total: number | null; coaching_pct: number | null
-  sales_growth_pct: number | null; vintage_target_met_pct: number | null; agent_recovery_pct: number | null
-  zero_seller_recovery_pct: number | null; pip_recovery_pct: number | null; pip_concluded_this_month: number; total_score: number | null
+  sales_growth_pct: number | null; revenue_now_usd: number | null; revenue_prior_usd: number | null
+  vintage_target_met_pct: number | null; agent_recovery_pct: number | null
+  zero_seller_recovery_pct: number | null; zero_seller_was_count: number | null; zero_seller_recovered_count: number | null
+  pip_recovery_pct: number | null; pip_concluded_this_month: number; total_score: number | null
 }): AuditorRankingRow {
   return {
     auditorId: r.auditor_id, auditorName: r.auditor_name, agentsAssigned: r.agents_assigned,
     auditsDone: r.audits_done, auditTarget: r.audit_target, auditPct: r.audit_pct,
     coachingCompleted: r.coaching_completed, coachingScheduled: r.coaching_scheduled,
     coachingTargetTotal: r.coaching_target_total, coachingPct: r.coaching_pct,
-    salesGrowthPct: r.sales_growth_pct, vintageTargetMetPct: r.vintage_target_met_pct,
+    salesGrowthPct: r.sales_growth_pct,
+    revenueNowUsd: r.revenue_now_usd === null ? null : Number(r.revenue_now_usd),
+    revenuePriorUsd: r.revenue_prior_usd === null ? null : Number(r.revenue_prior_usd),
+    vintageTargetMetPct: r.vintage_target_met_pct,
     agentRecoveryPct: r.agent_recovery_pct,
-    zeroSellerRecoveryPct: r.zero_seller_recovery_pct, pipRecoveryPct: r.pip_recovery_pct,
+    zeroSellerRecoveryPct: r.zero_seller_recovery_pct,
+    zeroSellerWasCount: r.zero_seller_was_count,
+    zeroSellerRecoveredCount: r.zero_seller_recovered_count,
+    pipRecoveryPct: r.pip_recovery_pct,
     pipConcludedThisMonth: r.pip_concluded_this_month,
     totalScore: r.total_score,
   }

@@ -7,6 +7,7 @@ import {
   type AuditorRankingRow, type QaRankingView,
 } from '@/lib/qa-ranking/qa-ranking.service'
 import { PERIOD_OPTIONS, describeRange, parsePeriod, periodRange } from '@/lib/dates/sales-week'
+import { formatUsd } from '@/lib/money/usd'
 import Link from 'next/link'
 
 const th: React.CSSProperties = { textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '6px 6px', borderBottom: '1px solid var(--border)', lineHeight: 1.3 }
@@ -60,6 +61,8 @@ export default async function QaAuditorRankingPage({ searchParams }: { searchPar
   const sp = await searchParams
   const period = parsePeriod(sp.period)
   const range = periodRange(period)
+  // Growth %'s own "the period before" — same span, immediately preceding (matches qa_auditor_ranking()'s v_prior_from).
+  const priorRange = { from: new Date(range.from.getTime() - (range.to.getTime() - range.from.getTime())), to: range.from }
   const user = await getAuthUser()
   const isAuditor = user?.role === 'qa_auditor'
   const view: QaRankingView = sp.view === 'mine' || sp.view === 'team' ? sp.view : isAuditor ? 'mine' : 'team'
@@ -154,10 +157,24 @@ export default async function QaAuditorRankingPage({ searchParams }: { searchPar
                     <td style={td}>{r.agentsAssigned}</td>
                     <td style={td} title={`${r.auditsDone} done of ${r.auditTarget} target`}>{pct(r.auditPct)}</td>
                     <td style={td} title={`${r.coachingCompleted} completed of ${r.coachingScheduled} scheduled${r.coachingTargetTotal !== null ? ` (target ${r.coachingTargetTotal})` : ''}`}>{pct(r.coachingPct)}</td>
-                    <td style={td}>{pct(r.salesGrowthPct)}</td>
+                    <td
+                      style={td}
+                      title={r.revenueNowUsd === null || r.revenuePriorUsd === null
+                        ? 'No agents assigned — nothing to compare'
+                        : `${formatUsd(r.revenueNowUsd)} (${describeRange(range)}) vs ${formatUsd(r.revenuePriorUsd)} (${describeRange(priorRange)}) — the period immediately before, same length`}
+                    >
+                      {pct(r.salesGrowthPct)}
+                    </td>
                     <td style={td} title="Vintage-wise weekly USD revenue target — total revenue vs. total target across the period">{pct(r.vintageTargetMetPct)}</td>
                     <td style={td} title="Of agents Red/Yellow just before the period, who's since recovered to Green">{pct(r.agentRecoveryPct)}</td>
-                    <td style={td}>{pct(r.zeroSellerRecoveryPct)}</td>
+                    <td
+                      style={td}
+                      title={r.zeroSellerWasCount === null
+                        ? 'No agents assigned — nothing to compare'
+                        : `${r.zeroSellerRecoveredCount} of ${r.zeroSellerWasCount} recovered — was a zero-seller just before the period, no longer one by its end`}
+                    >
+                      {pct(r.zeroSellerRecoveryPct)}
+                    </td>
                     <td style={td} title={(r.pipConcludedThisMonth > 0 ? `${r.pipConcludedThisMonth} PIP(s) concluded this month` : 'No PIP has concluded this month yet')}>{pct(r.pipRecoveryPct)}</td>
                     <td style={{ ...td, whiteSpace: 'normal' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
