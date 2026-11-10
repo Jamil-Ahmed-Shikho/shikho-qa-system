@@ -62,12 +62,17 @@ export function CallDurationTable({ rows }: { rows: CallDurationRow[] }) {
   const auditors = [...byAuditor.entries()].map(([auditorId, slabRows]) => {
     const bySlab = new Map(slabRows.map((r) => [r.slab, r.callsDone]))
     const total = slabRows.reduce((sum, r) => sum + r.callsDone, 0)
-    return { auditorId, auditorName: slabRows[0].auditorName, bySlab, total }
+    // Same value on every slab row for this auditor (schema_117) — read off the first one.
+    const totalMinutes = slabRows[0]?.totalMinutes ?? 0
+    return { auditorId, auditorName: slabRows[0].auditorName, bySlab, total, totalMinutes }
   })
   auditors.sort((a, b) => a.auditorName.localeCompare(b.auditorName))
 
   const slabTotals = new Map(slabs.map((s) => [s, auditors.reduce((sum, a) => sum + (a.bySlab.get(s) ?? 0), 0)]))
   const grandTotal = auditors.reduce((sum, a) => sum + a.total, 0)
+  const grandTotalMinutes = auditors.reduce((sum, a) => sum + a.totalMinutes, 0)
+  const fmtMinutes = (m: number) => m.toLocaleString(undefined, { maximumFractionDigits: 0 })
+  const fmtAvg = (minutes: number, calls: number) => (calls > 0 ? `${(minutes / calls).toFixed(1)} min` : '—')
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -77,6 +82,8 @@ export function CallDurationTable({ rows }: { rows: CallDurationRow[] }) {
             <th style={th}>Auditor</th>
             {slabs.map((s) => <th key={s} style={{ ...th, textAlign: 'center' }}>{s}</th>)}
             <th style={{ ...th, textAlign: 'center' }}>Total</th>
+            <th style={{ ...th, textAlign: 'center' }}>Total Audited Minutes</th>
+            <th style={{ ...th, textAlign: 'center' }}>Avg Call Duration</th>
           </tr>
         </thead>
         <tbody>
@@ -94,6 +101,8 @@ export function CallDurationTable({ rows }: { rows: CallDurationRow[] }) {
                 )
               })}
               <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{a.total}</td>
+              <td style={{ ...td, textAlign: 'center', fontWeight: 700 }}>{fmtMinutes(a.totalMinutes)}</td>
+              <td style={{ ...td, textAlign: 'center' }}>{fmtAvg(a.totalMinutes, a.total)}</td>
             </tr>
           ))}
           <tr style={{ background: 'var(--highlight-light)' }}>
@@ -109,12 +118,15 @@ export function CallDurationTable({ rows }: { rows: CallDurationRow[] }) {
               )
             })}
             <td style={{ ...td, textAlign: 'center', fontWeight: 700, borderBottom: 'none' }}>{grandTotal}</td>
+            <td style={{ ...td, textAlign: 'center', fontWeight: 700, borderBottom: 'none' }}>{fmtMinutes(grandTotalMinutes)}</td>
+            <td style={{ ...td, textAlign: 'center', fontWeight: 700, borderBottom: 'none' }}>{fmtAvg(grandTotalMinutes, grandTotal)}</td>
           </tr>
         </tbody>
       </table>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '10px 0 0' }}>
         Each auditor&apos;s % is of THEIR OWN audited calls (their row sums to ~100%) — the Total row&apos;s % is of all audited calls
-        in view. Sample Checks are excluded — this counts real audits only.
+        in view. Total Audited Minutes is the sum of every audited call&apos;s length, this period; Avg Call Duration is that
+        divided by the number of calls audited. Sample Checks are excluded — this counts real audits only.
       </p>
     </div>
   )

@@ -20,6 +20,9 @@ export interface CallDurationRow {
   slab: string
   slabOrder: number
   callsDone: number
+  /** Same value on every slab row for this auditor — the sum of ALL their audited calls'
+   *  durations in the period, in minutes (not just this slab's). */
+  totalMinutes: number
 }
 
 export async function loadCallDurationDistribution(
@@ -30,7 +33,8 @@ export async function loadCallDurationDistribution(
     p_from: from.toISOString(), p_to: to.toISOString(), p_view: view, p_team_name: teamName,
   })
   if (error) throw new Error(`Could not load the call duration distribution: ${error.message}`)
-  return (data ?? []).map((r: { auditor_id: string; auditor_name: string; slab: string; slab_order: number; calls_done: number }) => ({
+  return (data ?? []).map((r: { auditor_id: string; auditor_name: string; slab: string; slab_order: number; calls_done: number; total_minutes: number | string }) => ({
     auditorId: r.auditor_id, auditorName: r.auditor_name, slab: r.slab, slabOrder: r.slab_order, callsDone: r.calls_done,
+    totalMinutes: Number(r.total_minutes),
   }))
 }
