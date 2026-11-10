@@ -79,6 +79,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Are audited calls spread across short and long calls, or clustered on quick ones? — My view / Team view."
         />
         <NavCard
+          href="/reports/contact-stage"
+          title="Contact Stage Audit Coverage"
+          description="Which lead stages audited calls are at, at the time of the call — My view / Team view."
+        />
+        <NavCard
           href="/reports/evaluation-tracking"
           title="Evaluation Email Tracking"
           description="Has each agent clicked through to their result email, or is it still unseen? — My view / Team view."

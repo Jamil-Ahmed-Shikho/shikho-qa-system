@@ -97,6 +97,7 @@ export default async function AdminDashboardPage() {
         <NavCard href="/reports/repeat-mistakes" icon="ti-repeat" title="Repeat-Mistake Report" />
         <NavCard href="/reports/qa-rubric-trends" icon="ti-chart-line" title="Rubric Fail Trends" />
         <NavCard href="/reports/call-duration" icon="ti-clock" title="Call Duration Audit Coverage" />
+        <NavCard href="/reports/contact-stage" icon="ti-route" title="Contact Stage Audit Coverage" />
         <NavCard href="/reports/campaigns" icon="ti-chart-pie" title="Special Check Report" />
         <NavCard href="/reports/qa-impact" icon="ti-trending-up" title="Coaching Impact & Revenue Growth" />
         <NavCard href="/reports/qa-oversight" icon="ti-scale" title="Review Request & Calibration Oversight" />

@@ -9,7 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { getSupabaseServer } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth/auth.service'
-import { CrmApiError, getCallById } from '@/lib/crm/client'
+import { CrmApiError, getCallById, getLeadStages } from '@/lib/crm/client'
 import { findCallOwner } from '@/lib/audits/agent-matching'
 import { decideAuditAgent } from '@/lib/audits/agent-decision'
 import type { CrmCallingHistory } from '@/lib/crm/types'
@@ -68,7 +68,19 @@ export async function startAudit(
   // call falls back to the auditor's manual pick.
   // The rubric mappings don't depend on who owns the call, so they load in
   // parallel with the owner lookup instead of after two more round trips.
-  const [owner, mappings] = await Promise.all([findCallOwner(call.created_by, user.profile.id), loadActiveRubricMappings()])
+  // Contact Stage (Jamil, 2026-11-10): the call's own lead_stage_id is the
+  // stage AT THE TIME OF THE CALL (frozen — distinct from GET /leads/{id}'s
+  // CURRENT stage, §10), resolved to a name via the stage list. A CRM
+  // failure here is non-fatal — it's a nice-to-have field, never worth
+  // blocking audit creation over (same "fails independently" convention as
+  // the lead/revenue cards, §4).
+  const [owner, mappings, stages] = await Promise.all([
+    findCallOwner(call.created_by, user.profile.id),
+    loadActiveRubricMappings(),
+    getLeadStages(user.profile.id).catch(() => []),
+  ])
+  const stageId = call.lead_stage_id != null ? Number(call.lead_stage_id) : null
+  const contactStage = stageId != null && Number.isFinite(stageId) ? stages.find((s) => s.id === stageId)?.name ?? null : null
   const decision = decideAuditAgent({
     viewerRole: user.role,
     viewerId: user.profile.id,
@@ -123,6 +135,7 @@ export async function startAudit(
       call_recording_url: call.recording_url,
       call_status: call.call_status,
       call_destination: call.destination_number ?? call.destination ?? null,
+      contact_stage: contactStage,
       status: 'draft',
       check_mode: checkMode,
     })
