@@ -74,6 +74,11 @@ export default async function AuditorDashboardPage({ searchParams }: { searchPar
           description="Which rubric parameters fail most often, and whether each is getting better or worse — My view / Team view."
         />
         <NavCard
+          href="/reports/call-duration"
+          title="Call Duration Audit Coverage"
+          description="Are audited calls spread across short and long calls, or clustered on quick ones? — My view / Team view."
+        />
+        <NavCard
           href="/reports/evaluation-tracking"
           title="Evaluation Email Tracking"
           description="Has each agent clicked through to their result email, or is it still unseen? — My view / Team view."
