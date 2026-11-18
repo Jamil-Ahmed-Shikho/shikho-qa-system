@@ -53,6 +53,17 @@ export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankin
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nothing to show for this period.</p>
   }
 
+  const hasUnassignedRow = !!unassigned && (unassigned.rankedAgents.length > 0 || unassigned.reTraining.length > 0)
+  // Audits/coaching totals sum only the real auditor rows — Unassigned has no audit/coaching
+  // numbers of its own (shown as "—" above), so it would only ever add 0 and never changes these.
+  const totalAgents = rows.reduce((sum, r) => sum + r.agentsAssigned, 0) + (hasUnassignedRow ? unassigned!.rankedAgents.length : 0)
+  const totalAuditsDone = rows.reduce((sum, r) => sum + r.auditsDone, 0)
+  const totalAuditTarget = rows.reduce((sum, r) => sum + r.auditTarget, 0)
+  const totalAuditPct = totalAuditTarget > 0 ? Math.round((totalAuditsDone / totalAuditTarget) * 1000) / 10 : null
+  const totalCoachingCompleted = rows.reduce((sum, r) => sum + r.coachingCompleted, 0)
+  const totalCoachingScheduled = rows.reduce((sum, r) => sum + r.coachingScheduled, 0)
+  const totalCoachingPct = totalCoachingScheduled > 0 ? Math.round((totalCoachingCompleted / totalCoachingScheduled) * 1000) / 10 : null
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
@@ -78,19 +89,28 @@ export function AuditorProgressBreakdown({ rows, groups }: { rows: AuditorRankin
               <td style={td}>{pct(r.coachingPct)}</td>
             </AuditorRow>
           ))}
-          {unassigned && (unassigned.rankedAgents.length > 0 || unassigned.reTraining.length > 0) && (
+          {hasUnassignedRow && (
             <AuditorRow isOpen={open.has(UNASSIGNED_AUDITOR_ID)} onToggle={() => toggle(UNASSIGNED_AUDITOR_ID)} group={unassigned}>
               <td style={{ ...td, ...stickyAuditorStyle }}>
                 <b>Unassigned</b>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No QA Auditor set on these agents&apos; profile</div>
               </td>
-              <td style={td}>{unassigned.rankedAgents.length}</td>
+              <td style={td}>{unassigned!.rankedAgents.length}</td>
               <td style={td}>—</td>
               <td style={td}>—</td>
               <td style={td}>—</td>
               <td style={td}>—</td>
             </AuditorRow>
           )}
+          <tr style={{ background: 'var(--highlight-light)' }}>
+            <td style={{ ...td, ...stickyCaretStyle, background: 'var(--highlight-light)', borderBottom: 'none' }} />
+            <td style={{ ...td, ...stickyAuditorStyle, background: 'var(--highlight-light)', fontWeight: 700, borderBottom: 'none' }}>Total</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{totalAgents}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{totalAuditsDone} / {totalAuditTarget}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{pct(totalAuditPct)}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{totalCoachingCompleted} / {totalCoachingScheduled}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{pct(totalCoachingPct)}</td>
+          </tr>
         </tbody>
       </table>
     </div>

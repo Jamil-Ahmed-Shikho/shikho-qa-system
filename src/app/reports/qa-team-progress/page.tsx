@@ -104,6 +104,10 @@ function ChannelTable({ rows }: { rows: ChannelProgressRow[] }) {
   if (rows.length === 0) {
     return <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No eligible agents in scope for this period.</p>
   }
+  const totalAgents = rows.reduce((sum, r) => sum + r.agentsCount, 0)
+  const totalDone = rows.reduce((sum, r) => sum + r.auditsDone, 0)
+  const totalTarget = rows.reduce((sum, r) => sum + r.auditTarget, 0)
+  const totalPct = totalTarget > 0 ? Math.round((totalDone / totalTarget) * 1000) / 10 : null
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
@@ -124,6 +128,12 @@ function ChannelTable({ rows }: { rows: ChannelProgressRow[] }) {
               <td style={td}>{pct(r.auditsPct)}</td>
             </tr>
           ))}
+          <tr style={{ background: 'var(--highlight-light)' }}>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>Total</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{totalAgents}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{totalDone} / {totalTarget}</td>
+            <td style={{ ...td, fontWeight: 700, borderBottom: 'none' }}>{pct(totalPct)}</td>
+          </tr>
         </tbody>
       </table>
     </div>
