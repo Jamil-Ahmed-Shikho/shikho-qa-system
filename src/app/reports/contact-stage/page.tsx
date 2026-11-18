@@ -43,8 +43,10 @@ export default async function ContactStagePage({ searchParams }: { searchParams:
       <BackLink href="/dashboard" label="Dashboard" />
       <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 4px' }}>Contact Stage Audit Coverage</h1>
       <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '0 0 20px', maxWidth: '680px' }}>
-        What lead stage was each audited call at — at the time of that call, not today. Counts real submitted audits
-        only (Sample Checks excluded), grouped by the lead&apos;s stage at call time.
+        What lead stage each audit was conducted at — as of submission, the same stage shown in that audit&apos;s
+        evaluation email (not the call&apos;s own earlier stage, which the agent may have since moved on from).
+        Counts real submitted audits only (Sample Checks excluded). Audits submitted before 18 Nov 2026 still show
+        the call&apos;s stage, not the audit&apos;s — a known gap in that older slice that can&apos;t be corrected after the fact.
       </p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', alignItems: 'center', justifyContent: 'space-between' }}>

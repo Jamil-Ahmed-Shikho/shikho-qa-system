@@ -68,12 +68,17 @@ export async function startAudit(
   // call falls back to the auditor's manual pick.
   // The rubric mappings don't depend on who owns the call, so they load in
   // parallel with the owner lookup instead of after two more round trips.
-  // Contact Stage (Jamil, 2026-11-10): the call's own lead_stage_id is the
-  // stage AT THE TIME OF THE CALL (frozen — distinct from GET /leads/{id}'s
-  // CURRENT stage, §10), resolved to a name via the stage list. A CRM
-  // failure here is non-fatal — it's a nice-to-have field, never worth
-  // blocking audit creation over (same "fails independently" convention as
-  // the lead/revenue cards, §4).
+  // Contact Stage (Jamil, 2026-11-10; corrected 2026-11-18): the call's own
+  // lead_stage_id is the stage AT THE TIME OF THE CALL (frozen — distinct
+  // from GET /leads/{id}'s CURRENT stage, §10). Stamped here only as a
+  // FALLBACK, in case the real ("audit time") value — written later, when
+  // the audit is submitted, in loadAuditEmailData() — can't be fetched at
+  // submit time (a CRM timeout, an expired token). By the time an audit is
+  // actually scored, the agent has often already moved the lead forward
+  // (Prospect → Qualified), so call-time stage alone was a poor proxy for
+  // "what stage was this really audited at." A CRM failure here is
+  // non-fatal either way — never worth blocking audit creation over (same
+  // "fails independently" convention as the lead/revenue cards, §4).
   const [owner, mappings, stages] = await Promise.all([
     findCallOwner(call.created_by, user.profile.id),
     loadActiveRubricMappings(),

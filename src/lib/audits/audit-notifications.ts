@@ -125,6 +125,22 @@ export async function loadAuditEmailData(auditId: string): Promise<AuditEmailDat
       if (lead) {
         distributionList = lead.distributionList
         contactStage = lead.stage
+        // Contact Stage (Jamil, 2026-11-18): persist this SAME lookup back onto the audit row
+        // instead of a second CRM call — audits.contact_stage was being stamped at startAudit()
+        // from the call's own frozen, AT-THE-TIME-OF-THE-CALL stage (§10), which by submission
+        // time is often stale (the agent has since moved the lead forward, e.g. Prospect →
+        // Qualified) — exactly the "report says Prospect, team says Qualified" mismatch Jamil
+        // flagged. This lookup is the lead's CURRENT stage as of right now (submission time,
+        // "audit time") — the same value this email shows below, and the value QA actually
+        // remembers — so the stored figure and the email can never disagree again. Runs
+        // unconditionally (this function is called regardless of AUDIT_EMAIL_MODE, see
+        // scoring-actions.ts), so this is zero extra CRM requests, not a new one. A write
+        // failure is swallowed, not thrown — it would leave startAudit()'s call-time fallback in
+        // place, never worse than before this change.
+        if (contactStage) {
+          const { error: stageErr } = await supabase.from('audits').update({ contact_stage: contactStage }).eq('id', auditId)
+          if (stageErr) console.error('Could not persist audit-time contact stage:', stageErr.message)
+        }
       }
     } catch (err) {
       console.error('Could not load lead summary for audit email:', err)

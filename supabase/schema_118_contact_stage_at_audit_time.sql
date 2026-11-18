@@ -1,0 +1,35 @@
+-- ============================================================
+-- Contact Stage — switch from call-time to audit-time (Jamil, 2026-11-18)
+--
+-- Jamil flagged the Contact Stage Audit Coverage report (schema_116) showing
+-- mostly "Prospect" when his team's real experience was auditing mostly
+-- "Qualified" calls. Root cause, confirmed in code: audits.contact_stage
+-- (schema_115) was stamped at startAudit() from the CRM call's own
+-- lead_stage_id — frozen to whenever the phone actually rang. By the time
+-- an auditor actually scores the call (often hours or days later), the
+-- agent has frequently already moved the lead forward (Prospect →
+-- Qualified), so the stored value no longer matches what the auditor
+-- remembers seeing, or what the evaluation email shows (which does a
+-- SEPARATE, live GET /leads/{id} lookup at submission time).
+--
+-- Fix (application code, audit-notifications.ts): the submission-time email
+-- already fetches the lead's CURRENT stage on every submit, regardless of
+-- AUDIT_EMAIL_MODE — that exact value is now persisted back onto
+-- audits.contact_stage, overwriting the call-time stamp. Zero new CRM
+-- requests (reuses a lookup that already happens). startAudit()'s call-time
+-- stamp is kept only as a fallback for when that submit-time lookup fails.
+--
+-- This migration is comment-only — no column, data or function change.
+-- Historical data is NOT touched: the ~25,688 rows backfilled from the
+-- original QA spreadsheets already reflect what the auditor saw at audit
+-- time (a human typed it in then), and the ~2,541 rows backfilled from the
+-- CRM's call-time lead_stage_id (scripts/backfill-contact-stage-crm.mts)
+-- are left as a known, unfixable gap — confirmed with Jamil: the CRM keeps
+-- no stage-history, and the real audit-time value was never stored
+-- anywhere (not in this table, not in the raw audit export, schema_107) —
+-- it only ever existed transiently in the emails already sent out to each
+-- agent/Team Leader individually, not recoverable in bulk.
+-- ============================================================
+
+comment on column audits.contact_stage is
+  'The lead''s contact stage AS OF AUDIT SUBMISSION ("audit time") — re-fetched live from the CRM every submit (audit-notifications.ts, reusing the lookup already made for the evaluation email) and written back here, overwriting whatever startAudit() stamped from the call''s own frozen call-time stage. That call-time stamp is kept only as a fallback when the submit-time lookup fails. Audits submitted before 2026-11-18 still carry the older call-time value (a known, unfixable gap — see schema_118). Null = unknown.';

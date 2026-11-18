@@ -6,11 +6,15 @@
 -- clustering on a few easy ones? Apply after 115 (audits.contact_stage).
 --
 -- Scope: real audits only (audit_type='call', check_mode='audit', submitted) — same exclusions as
--- every other "audit count" report (schema_074). contact_stage is the stage AT THE TIME OF THE CALL
--- (frozen, §10/schema_115) — never today's current stage. Unlike duration, stage has no fixed slab
--- width — it's whatever the CRM's own stage list contains (confirmed ~10 values) — so this groups by
--- the actual distinct value present (coalesced to 'Not recorded' when null: not yet backfilled, or a
--- CRM lookup failure at audit time) rather than a cross-joined fixed grid.
+-- every other "audit count" report (schema_074). contact_stage is the lead's stage AS OF SUBMISSION
+-- ("audit time" — corrected 2026-11-18, audit-notifications.ts; originally the call's own frozen
+-- AT-THE-TIME-OF-THE-CALL stage, which by submission the agent had often already moved past, e.g.
+-- Prospect → Qualified — the exact mismatch Jamil flagged between this report and what QA remembers
+-- auditing). Audits submitted before the fix still carry the older call-time value — a known,
+-- unfixable gap in that slice (the CRM keeps no stage-history to recover it from). Unlike duration,
+-- stage has no fixed slab width — it's whatever the CRM's own stage list contains (confirmed ~10
+-- values) — so this groups by the actual distinct value present (coalesced to 'Not recorded' when
+-- null: not yet backfilled, or a CRM lookup failure at audit time) rather than a cross-joined fixed grid.
 -- ============================================================
 
 create or replace function qa_contact_stage_distribution(
