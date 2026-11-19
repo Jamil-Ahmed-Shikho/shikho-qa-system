@@ -55,35 +55,54 @@ type SummaryRpcRow = {
 
 type FailedParamRpcRow = { audit_id: string; agent_name: string; parameter_name: string; points_lost: number | string; feedback: string | null }
 
+// Both RPCs return every matching row with no limit of their own — a PostgREST request with no
+// explicit range is still subject to the API's own default row cap, which silently truncated a
+// large export at 1000 rows (confirmed by Jamil, 2026-11-19) exactly the way an unpaginated
+// listUsers() once dropped real users past row 1000 (CLAUDE.md §14). Fixed the same way: a
+// .range() page loop. schema_119 made both functions' own ORDER BY fully deterministic
+// (submitted_at desc, then id desc) so a tie on submitted_at — common among historical-import
+// rows — can never cause a row to be skipped or duplicated across a page boundary.
+const EXPORT_PAGE_SIZE = 1000
+
 export async function loadAuditExportSummary(
   from: Date, to: Date, view: QaRankingView = 'mine', managerId: string | null = null
 ): Promise<AuditExportSummaryRow[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.rpc('raw_audit_export_summary', {
-    p_from: from.toISOString(), p_to: to.toISOString(), p_manager_id: managerId, p_view: view,
-  })
-  if (error) throw new Error(`Could not load the audit export: ${error.message}`)
-  return (data ?? []).map((r: SummaryRpcRow) => ({
-    auditId: r.audit_id, auditType: r.audit_type, rubricName: r.rubric_name,
-    agentName: r.agent_name, agentEmpId: r.agent_emp_id, teamName: r.team_name, siteName: r.site_name, vintageLabel: r.vintage_label,
-    auditorName: r.auditor_name, callStartedAt: r.call_started_at,
-    callDurationMinutes: r.call_duration_minutes === null ? null : Number(r.call_duration_minutes),
-    crmLeadId: r.crm_lead_id, callStatus: r.call_status,
-    scorePercent: r.score_percent === null ? null : Number(r.score_percent), passed: r.passed, criticalFail: r.critical_fail,
-    fatalCount: r.fatal_count, fatalSummary: r.fatal_summary, overallFeedback: r.overall_feedback, submittedAt: r.submitted_at,
-  }))
+  const all: AuditExportSummaryRow[] = []
+  for (let page = 0; ; page += 1) {
+    const { data, error } = await supabase
+      .rpc('raw_audit_export_summary', { p_from: from.toISOString(), p_to: to.toISOString(), p_manager_id: managerId, p_view: view })
+      .range(page * EXPORT_PAGE_SIZE, page * EXPORT_PAGE_SIZE + EXPORT_PAGE_SIZE - 1)
+    if (error) throw new Error(`Could not load the audit export: ${error.message}`)
+    all.push(...(data ?? []).map((r: SummaryRpcRow) => ({
+      auditId: r.audit_id, auditType: r.audit_type, rubricName: r.rubric_name,
+      agentName: r.agent_name, agentEmpId: r.agent_emp_id, teamName: r.team_name, siteName: r.site_name, vintageLabel: r.vintage_label,
+      auditorName: r.auditor_name, callStartedAt: r.call_started_at,
+      callDurationMinutes: r.call_duration_minutes === null ? null : Number(r.call_duration_minutes),
+      crmLeadId: r.crm_lead_id, callStatus: r.call_status,
+      scorePercent: r.score_percent === null ? null : Number(r.score_percent), passed: r.passed, criticalFail: r.critical_fail,
+      fatalCount: r.fatal_count, fatalSummary: r.fatal_summary, overallFeedback: r.overall_feedback, submittedAt: r.submitted_at,
+    })))
+    if (!data || data.length < EXPORT_PAGE_SIZE) break
+  }
+  return all
 }
 
 export async function loadAuditExportFailedParameters(
   from: Date, to: Date, view: QaRankingView = 'mine', managerId: string | null = null
 ): Promise<AuditExportFailedParameterRow[]> {
   const supabase = await getSupabaseServer()
-  const { data, error } = await supabase.rpc('raw_audit_export_failed_parameters', {
-    p_from: from.toISOString(), p_to: to.toISOString(), p_manager_id: managerId, p_view: view,
-  })
-  if (error) throw new Error(`Could not load the failed-parameter detail: ${error.message}`)
-  return (data ?? []).map((r: FailedParamRpcRow) => ({
-    auditId: r.audit_id, agentName: r.agent_name, parameterName: r.parameter_name,
-    pointsLost: Number(r.points_lost), feedback: r.feedback,
-  }))
+  const all: AuditExportFailedParameterRow[] = []
+  for (let page = 0; ; page += 1) {
+    const { data, error } = await supabase
+      .rpc('raw_audit_export_failed_parameters', { p_from: from.toISOString(), p_to: to.toISOString(), p_manager_id: managerId, p_view: view })
+      .range(page * EXPORT_PAGE_SIZE, page * EXPORT_PAGE_SIZE + EXPORT_PAGE_SIZE - 1)
+    if (error) throw new Error(`Could not load the failed-parameter detail: ${error.message}`)
+    all.push(...(data ?? []).map((r: FailedParamRpcRow) => ({
+      auditId: r.audit_id, agentName: r.agent_name, parameterName: r.parameter_name,
+      pointsLost: Number(r.points_lost), feedback: r.feedback,
+    })))
+    if (!data || data.length < EXPORT_PAGE_SIZE) break
+  }
+  return all
 }
